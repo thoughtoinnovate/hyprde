@@ -1,0 +1,108 @@
+* {
+    background-color: transparent;
+}
+
+#waybar {
+    border-radius: 40px;
+}
+
+.module {
+    background-color: rgba(173, 163, 163, 0.5);
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 600;
+    border-radius: 50px;
+    padding: 10px;
+}
+
+tooltip {
+    background-color: rgba(46, 52, 64, 0.9);
+    /* Change this to your desired background color */
+    border: 1px solid #ffffff;
+    /* Optional: add a border */
+}
+
+tooltip label {
+    color: #ffffff;
+    /* Change this to your desired text color */
+    font-size: 15px;
+    /* Adjust the font size as needed */
+}
+
+#workspaces button {
+    padding: 2px 5px;
+    border: 1px solid #d8dee9;
+    border-radius: 5px;
+    color: white;
+}
+
+#workspaces button.focused {
+    border-color: #81a1c1;
+}
+
+#workspaces button:hover {
+    color: black;
+    /* Change text color to black on hover */
+    font-weight: bold;
+    /* Make text bold on hover */
+    background-color: rgba(255, 255, 255, 0.2);
+    /* Optional: Add a background color on hover */
+}
+
+#workspaces button.active {
+    background-color: white;
+    /* Highlight color for active workspace */
+    color: black;
+    /* Change text color for active workspace */
+}
+
+.critical {
+    background-color: rgba(255, 0, 0, 0.733);
+    border-radius: 5px 5px 5px 5px;
+    padding: 0 5px;
+}
+
+.warning {
+    background-color: rgba(241, 125, 22, 0.927);
+    border-radius: 5px 5px 5px 5px;
+    padding: 0 5px;
+}
+
+.normal {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    padding: 0 5px;
+}
+
+.green {
+    background-color: rgba(0, 100, 0, 0.8);
+    border-radius: 4px;
+    padding: 0 5px;
+}
+
+.enbld {
+    background-color: rgba(255, 255, 255, 1);
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.disbld {
+    background-color:  rgba(144, 139, 139, 0.612);
+    color: rgb(255, 255, 255);
+}
+
+#ctrlcntr .module {
+    margin-right: 3px;
+}
+
+/* Style for the hardware group */
+#ctrlcntr {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 20px;
+    padding: 15px 10px 15px 10px;
+    margin: 0px 0px 0px 5px;
+}
+
+#ctrlcntr>*:hover {
+    background-color: rgba(60, 60, 60, 0.9);
+    /* Darker background on hover */
+}

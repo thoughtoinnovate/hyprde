@@ -1,0 +1,57 @@
+configs:
+  - type: prerequisites
+    packages : ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar"]
+  - type: notification
+    packages: ["mako"]
+  - type: terminal
+    packages: ["alacritty"]    
+  - type: filemanager
+    packages: ["thunar"]
+  - type: launcher
+    packages: ["wofi"]
+  - type: power-menu
+    packages: ["wofi"]
+    handler:  "$HOME/.config/hypr/scripts/session_menu.sh"
+  - type: calendar
+    packages: ["zenity"]
+    handler: "zenity --calendar --title='Calendar'"
+  - type: mic
+    packages: ["pavucontrol"]
+    handler: "$HOME/.config/hypr/scripts/session_menu.sh"
+  - type: system-monitor
+    packages: ["xfce4-taskmanager"]
+    handler: "xfce4-taskmanager"
+  - type: sensors
+    packages: ["lm_sensors"]
+    handler: "$HOME/.config/hypr/scripts/temperature.sh"
+  - type: gpu
+    packages: ["radeontop"]
+    handler: "$HOME/.config/hypr/scripts/gpu_monitor.sh"
+  - type: audio
+    packages: ["wireplumber"]
+    handler: "$HOME/.config/hypr/scripts/audio-ctrl.sh"
+  - type: power-manager
+    packages: ["tlp"]
+    handler: "$HOME/.config/hypr/scripts/power_usr.sh"
+  - type: brightness
+    packages: ["brightnessctl"]
+    handler:  "$HOME/.config/hypr/scripts/brightness-ctrl.sh"
+  - type: bluetooth
+    packages: ["bluez-utils"]
+    handler:  "$HOME/.config/hypr/scripts/bluetooth.sh"
+  - type: screenshot
+    packages: ["grim","slurp"]
+    handler:  "$HOME/.config/hypr/scripts/screenshot.sh"
+  - type: eyecomfort
+    packages: ["gammastep"]
+    handler:  "$HOME/.config/hypr/scripts/gammastep/gamma.sh"
+  - type: wifi
+    packages: ["networkmanager"]
+    handler:  "$HOME/.config/hypr/scripts/gammastep/wifi.sh"
+
+shortcuts:
+  COMMAND_KEY: "SUPER"
+  Shortcuts:
+  - type: "screenshot"
+    trigger: "$COMMAND_KEY PRINT"
+

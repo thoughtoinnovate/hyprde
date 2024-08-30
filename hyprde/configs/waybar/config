@@ -1,0 +1,253 @@
+{
+    "layer": "top",
+    "position": "top",
+    "spacing": 1,
+    "modules-left": [
+        "group/leftActions",
+        "group/leftinfo"
+    ],
+    "modules-center": [
+        "group/centerBar",
+        "group/critical"
+    ],
+    "modules-right": [
+        "tray",
+        "group/statusbar"
+    ],
+    "tray": {
+        "icon-size": 20,
+        "spacing": 10
+    },
+    "group/statusbar": {
+        "orientation": "horizontal",
+        "modules": [
+            "cpu",
+            "custom/temperature",
+            "memory",
+            "custom/gpu-usage",
+            "pulseaudio",
+            "network",
+            "battery",
+            "custom/ps_toggle",
+            "custom/ctrl"
+        ]
+    },
+    "group/leftActions": {
+        "orientation": "horizontal",
+        "modules": [
+            "custom/session",
+            "hyprland/workspaces"
+        ]
+    },
+    "group/centerBar": {
+        "orientation": "horizontal",
+        "modules": [
+            "clock"
+        ]
+    },
+    "group/critical": {
+        "orientation": "horizontal",
+        "modules": [
+            "custom/mic",
+            "custom/camera"
+        ]
+    },
+    "group/leftinfo": {
+        "orientation": "horizontal",
+        "modules": [
+            "hyprland/window"
+        ]
+    },
+    "clock": {
+        "class": "common",
+        "format": "{:%d %b %y | %I:%M %p}",
+        "tooltip": true,
+        "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "on-click": "zenity --calendar --title='Calendar'",
+        "on-double-click": "pkill zenity"
+    },
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": "",
+        "format-icons": {
+            "default": [
+                "",
+                "",
+                ""
+            ]
+        }
+    },
+    "backlight": {
+        "format": "{icon} {percent}%",
+        "format-icons": [
+            "",
+            ""
+        ]
+    },
+    "network": {
+        "format": "{icon} {signalStrength}%",
+        "format-icons": [
+            "\uf0c1"
+        ],
+        "format-disconnected": "\uf127",
+        "tooltip-format": "{essid}\nIP: {ipaddr}\nSignal: {signalStrength}%\nFrequency: {frequency}MHz",
+        "on-click": ""
+    },
+    "battery": {
+        "interval": 1,
+        "states": {
+            "warning": 50,
+            "critical": 20
+        },
+        "format": "{icon} {capacity}% ",
+        "format-icons": {
+            "discharging": [
+                "",
+                "",
+                ""
+            ],
+            "charging": [
+                ""
+            ],
+            "plugged": "",
+            "empty": ""
+        },
+        "tooltip": true,
+        "classes": {
+            "critical": "critical",
+            "warning": "warning",
+            "normal": "normal"
+        }
+    },
+    "bluetooth": {
+        "interval": 2,
+        "on-click": "bluetoothctl power on",
+        "on-double-click": "bluetoothctl power off",
+        "format": "{icon}",
+        "format-icons": [
+            ""
+        ],
+        "format-on": "",
+        "format-disabled": "",
+        "format-off": "",
+        "tooltip-format": "Bluetooth: {status}"
+    },
+    "custom/session": {
+        "format": "{icon}",
+        "format-icons": [
+            "\uf2bd"
+        ],
+        "tooltip-format": "Current User: {}",
+        "on-click": "killall wofi || $HOME/.config/hypr/scripts/session_menu.sh",
+        "exec": "echo \"$(whoami)\""
+    },
+    "custom/gpu-usage": {
+        "exec": "~/.config/hypr/scripts/gpu_monitor.sh",
+        "format": "{icon} {}",
+        "format-icons": [
+            ""
+        ],
+        "return-type": "text",
+        "interval": 1,
+        "tooltip-format": "GPU Usage: {}"
+    },
+    "memory": {
+        "format": "{icon} {percentage}%",
+        "format-icons": {
+            "default": [
+                "\uf538",
+                "\uf579",
+                "\uf57a"
+            ],
+            "critical": "\uf071"
+        },
+        "states": {
+            "warning": 40,
+            "critical": 80
+        },
+        "tooltip": true,
+        "tooltip-format": "RAM: {used}/{total} GiB",
+        "interval": 5
+    },
+    "cpu": {
+        "interval": 1,
+        "format": "{icon} {usage}% ",
+        "format-icons": [
+            ""
+        ],
+        "states": {
+            "warning": 50,
+            "critical": 70
+        },
+        "tooltip": true,
+        "on-click": "xfce4-taskmanager"
+    },
+    "custom/temperature": {
+        "exec": "$HOME/.config/hypr/scripts/temperature.sh all ",
+        "return-type": "json",
+        "format": "{icon} {}°C",
+        "format-icons": [
+            "",
+            "",
+            "",
+            ""
+        ],
+        "interval": 5,
+        "tooltip": true
+    },
+    "custom/gammastep": {
+        "format": "{icon}",
+        "format-icons": [
+            ""
+        ],
+        "on-click-right": "bash ~/.config/hypr/scripts/gammastep/gamma_inc.sh",
+        "on-click": "bash ~/.config/hypr/scripts/gammastep/gamma_dec.sh",
+        "on-click-middle": "bash ~/.config/hypr/scripts/gammastep/gamma_toggle.sh",
+        "tooltip-format": "NightLight {}"
+    },
+    "custom/ctrl": {
+        "tooltip": true,
+        "tooltip-format": "control-center",
+        "on-click": "~/.config/hypr/scripts/waybars.sh ctrl-cntr",
+        "format": "{icon}",
+        "format-icons": [
+            "\uf1de"
+        ]
+    },
+    "custom/ps_toggle": {
+        "return-type": "json",
+        "exec": "$HOME/.config/hypr/scripts/power_usr.sh status",
+        "interval": 5,
+        "format": "{icon}",
+        "format-icons": [
+            "\uf06c",
+            "\uf201"
+        ],
+        "tooltip": true,
+        "tooltip-format": "{}"
+    },
+    "custom/mic": {
+        "return-type": "json",
+        "interval": 1,
+        "exec": "$HOME/.config/hypr/scripts/mic.sh status",
+        "tooltip": true,
+        "tooltip-format": "{}",
+        "format": "{icon}",
+        "format-icons": [
+            "\uf131",
+            "\uf130"
+        ]
+    },
+    "custom/camera": {
+        "return-type": "json",
+        "interval": 1,
+        "exec": "$HOME/.config/hypr/scripts/camera.sh status",
+        "tooltip": true,
+        "tooltip-format": "{}",
+        "format": "{icon}",
+        "format-icons": [
+            "\uf4e2",
+            "\uf03d"
+        ]
+    }
+}

@@ -1,0 +1,41 @@
+/*
+ * General Styling
+ */
+#window {
+    background-color: rgba(255, 255, 255, 0.9); /* Transparent white */
+    border: 2px solid white;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+#entry {
+    padding: 5px 10px;
+    margin: 2px 0;
+    border-radius: 5px;
+    color: black; /* Dark text color for contrast */
+}
+#text:selected {
+    color: #000000; /* Black text for selected option */
+     font-weight: bold; 
+}
+
+/* Change font to bold on selection */
+#entry:selected {
+    background-color: #d3d3d3; /* Highlight color for selected entry */
+    color: black; /* Change text color to black when selected */
+    border-radius: 15px;
+}
+
+/*
+ * Prompt Styling
+ */
+#input {
+    background-color: rgba(255, 255, 255, 0.9); /* Slightly less transparent for input */
+    color: #1e1e2e; /* Dark text color */
+    border: none;
+    border-radius: 15px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+

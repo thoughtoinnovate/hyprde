@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Prompt for the sudo password using Zenity
+PASSWORD=$(zenity --password --title="Enter Sudo Password")
+
+# Check if the user pressed Cancel
+if [ $? -ne 0 ]; then
+    echo "Password entry canceled."
+    exit 1
+fi
+
+# Execute commands with sudo using the provided password
+sudo -S pacman -Syu <<< "$PASSWORD"
+
+# Optionally, clear the password variable for security
+unset PASSWORD

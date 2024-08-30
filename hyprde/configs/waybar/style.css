@@ -1,0 +1,167 @@
+#waybar {
+    background-color: transparent;
+    font-weight: 700;
+    color: #ffffff;
+    font-size: 16px;
+
+}
+
+.module {
+    margin: 0px 3px 0px 3px;
+    border-radius: 15px;
+    padding: 3px 4px 3px 4px;
+    transition: background-color 0.3s;
+}
+
+.module:hover {
+    color: black;
+    font-weight: 700;
+    border-radius: 15px;
+    padding: 0px 4px 0px 4px;
+}
+
+#centerBar {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    margin: 0px 2px 0px 0px;
+}
+
+#centerBar .module:hover {
+    background-color: rgba(237, 229, 229, 0.875);
+    color: black;
+}
+
+#critical {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    padding: 5px 0px 5px 0px;
+    margin: 0px 2px 0px 0px;
+}
+
+#critical .module:hover {
+    background-color: rgba(237, 229, 229, 0.875);
+    color: black;
+}
+
+#statusbar {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    margin: 0px 2px 0px 0px;
+}
+
+#statusbar .module {
+    margin-right: 2px;
+    transition: background-color 0.3s;
+}
+
+#statusbar .module:hover {
+    background-color: rgba(237, 229, 229, 0.875);
+    color: black;
+}
+
+#leftActions {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    margin: 0px 0px 0px 2px;
+}
+
+#leftActions .module {
+    margin-right: 2px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+#leftActions .module:hover {
+    background-color: rgba(237, 229, 229, 0.875);
+    color: black;
+    border-radius: 15px;
+    padding: 3px 5px 3px 5px;
+}
+
+#leftinfo {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    margin: 0px 0px 0px 2px;
+}
+
+#leftinfo .module {
+    margin-right: 2px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+#leftinfo .module:hover {
+    background-color: rgba(237, 229, 229, 0.875);
+    color: black;
+    border-radius: 15px;
+    padding: 3px 5px 3px 5px;
+}
+
+tooltip {
+    background-color: rgba(46, 52, 64, 0.9);
+    border: 1px solid #ffffff;
+}
+
+tooltip label {
+    color: #ffffff;
+    font-size: 15px;
+}
+
+#workspaces button {
+    padding: 2px 5px;
+    border: 1px solid #d8dee9;
+    border-radius: 5px;
+    color: white;
+}
+
+#workspaces button.focused {
+    border-color: #81a1c1;
+}
+
+#workspaces button:hover {
+    color: black;
+    font-weight: bold;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+#workspaces button.active {
+    background-color: white;
+    color: black;
+}
+
+#statusbar .critical {
+    background-color: rgba(255, 0, 0, 0.733);
+}
+
+#statusbar .warning {
+    background-color: rgba(241, 125, 22, 0.927);
+}
+
+#statusbar .normal {
+    background-color: transparent
+}
+
+#statusbar .green {
+    background-color: rgb(9, 255, 1);
+}
+
+.enbld {
+    background-color: rgb(9, 255, 1);
+    color: rgb(0, 0, 0);
+}
+
+.disbld {
+    background-color: rgb(255, 0, 0);
+    color: rgb(255, 255, 255);
+}
+
+#critical .enbld {
+    background-color: rgb(9, 255, 1);
+    color: rgb(0, 0, 0);
+    padding: 0px 7px 0px 7px;
+}
+
+#critical .disbld {
+    background-color: rgb(255, 0, 0);
+    color: rgb(255, 255, 255);
+}
