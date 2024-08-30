@@ -85,6 +85,9 @@ echo "Installing Prerequisites..."
 install_packages $DEFAULTS
 echo "Copying config Files ......"
 cp -rf ./configs  $HOME/.config
+echo "Creating wallpaersdirectories."
+mkdir -p $HOME/Pictures/wallpapers/sunrise
+mkdir -p $HOME/Pictures/wallpapers/sunset
 echo "You are ready to go.."
 
 
