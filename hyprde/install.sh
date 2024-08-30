@@ -79,10 +79,11 @@ CONFIG_FILE="config.yml"
 JSON_CONTENT=$(yq < "$CONFIG_FILE")
 
 # Parse JSON content using jq (which is part of yq)
-DEFAULTS=$(echo "$JSON_CONTENT" |jq -r '.configs.[].packages.[]')
+PKGS=$(echo "$JSON_CONTENT" |jq -r '.configs.[].packages.[]')
 
 echo "Installing Prerequisites..."
-install_packages $DEFAULTS
+install_packages yq
+install_packages $PKGS
 echo "Copying config Files ......"
 cp -rf ./configs  $HOME/.config
 echo "Creating wallpaersdirectories."
