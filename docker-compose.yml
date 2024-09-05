@@ -1,0 +1,19 @@
+services:
+
+  archlinux:
+    build: .
+    container_name: archlinux
+    environment:
+      - DISPLAY=$DISPLAY
+      - XAUTHORITY=/tmp/.Xauthority
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.Xauthority:/tmp/.Xauthority
+      - /etc/localtime:/etc/localtime:ro
+      - archlinux-data:/home/user
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
+
+volumes:
+  archlinux-data:
