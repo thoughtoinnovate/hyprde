@@ -74,21 +74,20 @@ fi
 # Prompt for root password at the start
 echo "Need priviledges for installation of packages..."
 sudo echo "Installation Started..."
-# Read the TOML file and convert it to JSON
+echo "Installing Prerequisites..."
+install_packages yq
+# Read the YAMML file and convert it to JSON
 CONFIG_FILE="config.yml"
 JSON_CONTENT=$(yq < "$CONFIG_FILE")
 
 # Parse JSON content using jq (which is part of yq)
 PKGS=$(echo "$JSON_CONTENT" |jq -r '.configs.[].packages.[]')
-
-echo "Installing Prerequisites..."
-install_packages yq
+echo "Now installing $PKGS"
 install_packages $PKGS
 echo "Copying config Files ......"
-cp -rf ./configs  $HOME/.config
+cp -rf ./configs/*  $HOME/.config
 echo "Creating wallpaersdirectories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset
 echo "You are ready to go.."
-
 
