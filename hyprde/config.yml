@@ -28,7 +28,7 @@ configs:
     packages: ["radeontop"]
     handler: "$HOME/.config/hypr/scripts/gpu_monitor.sh"
   - type: audio
-    packages: ["wireplumber"]
+    packages: ["wireplumber","pulseaudio-utils"]
     handler: "$HOME/.config/hypr/scripts/audio-ctrl.sh"
   - type: power-manager
     packages: ["tlp"]
