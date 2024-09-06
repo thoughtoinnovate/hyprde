@@ -81,7 +81,7 @@ CONFIG_FILE="config.yml"
 JSON_CONTENT=$(yq < "$CONFIG_FILE")
 
 # Parse JSON content using jq (which is part of yq)
-PKGS=$(echo "$JSON_CONTENT" |jq -r '.configs.[].packages.[]')
+PKGS=$(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')
 echo "Now installing $PKGS"
 install_packages $PKGS
 echo "Copying config Files ......"
