@@ -1,6 +1,6 @@
 #!/bin/bash
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir=$(dirname "$0")
 WALLPAPER_DIR=$1
 INTERVAL=$2  # Change wallpaper every 5 minutes (300 seconds)
 

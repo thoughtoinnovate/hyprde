@@ -18,3 +18,4 @@ else
 audio_percentage=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk -F': ' '{print $2 * 100}')%
 fi
 notify-send -u critical --expire-time=200 "Volume: $audio_percentage"
+# hyprctl notify -1 200 "rgb(ff1ea3)" "Volume: $audio_percentage"
