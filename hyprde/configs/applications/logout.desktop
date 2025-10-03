@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Logout
-Exec=pkill -f dynamic-wallpapers.sh && hyprctl dispatch exit
+Exec=$HOME/.config/hypr/scripts/wofi_session.sh logout
 Type=Application
 Icon=system-log-out
 Categories=System;

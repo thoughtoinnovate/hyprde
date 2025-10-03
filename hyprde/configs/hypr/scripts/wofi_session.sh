@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# If called with "logout" parameter, execute logout directly
+if [ "$1" = "logout" ]; then
+    pkill -f dynamic-wallpapers.sh && hyprctl dispatch exit
+    exit 0
+fi
+
 if pgrep -x wofi; then
     pkill -x wofi
 else
