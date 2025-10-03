@@ -4,7 +4,7 @@ configs:
   - type: notification
     packages: ["mako"]
   - type: terminal
-    packages: ["alacritty"]
+    packages: ["ghostty"]
   - type: filemanager
     packages: ["yazi"]
   - type: launcher
