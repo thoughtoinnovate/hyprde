@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Logout
+Exec=pkill -f dynamic-wallpapers.sh && hyprctl dispatch exit
+Type=Application
+Icon=system-log-out
+Categories=System;

@@ -81,13 +81,28 @@ CONFIG_FILE="config.yml"
 JSON_CONTENT=$(yq < "$CONFIG_FILE")
 
 # Parse JSON content using jq (which is part of yq)
-PKGS=$(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')
+PKGS="gdk-pixbuf2 $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
 echo "Now installing $PKGS"
 install_packages $PKGS
 echo "Copying config Files ......"
-cp -rf ./configs/*  $HOME/.config
+cp -rf ./configs/alacritty $HOME/.config
+cp -rf ./configs/hypr $HOME/.config
+cp -rf ./configs/mako $HOME/.config
+cp -rf ./configs/waybar $HOME/.config
+cp -rf ./configs/wofi $HOME/.config
+
+echo "Copying desktop entries..."
+mkdir -p $HOME/.local/share/applications
+cp -rf ./configs/applications/* $HOME/.local/share/applications/
+
+echo "Creating dedicated session menu directory..."
+mkdir -p $HOME/.local/share/hyprde-session/applications
+cp -rf ./configs/applications/* $HOME/.local/share/hyprde-session/applications/
+
+echo "Making scripts executable..."
+chmod +x $HOME/.config/hypr/scripts/*.sh
+chmod +x $HOME/.config/hypr/scripts/gammastep/*.sh
 echo "Creating wallpaersdirectories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset
 echo "You are ready to go.."
-
