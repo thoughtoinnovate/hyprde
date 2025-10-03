@@ -95,6 +95,20 @@ echo "Making scripts executable..."
 chmod +x $HOME/.config/hypr/scripts/*.sh
 chmod +x $HOME/.config/hypr/scripts/gammastep/*.sh
 
+echo "Creating logout script..."
+mkdir -p $HOME/.local/bin
+cat > $HOME/.local/bin/hypr-logout << 'EOF'
+#!/bin/bash
+pkill -f dynamic-wallpapers.sh
+hyprctl dispatch exit
+EOF
+chmod +x $HOME/.local/bin/hypr-logout
+
+echo "Ensuring ~/.local/bin is in PATH..."
+if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' $HOME/.bashrc; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> $HOME/.bashrc
+fi
+
 
 echo "Creating wallpaper directories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
