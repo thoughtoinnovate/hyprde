@@ -1,6 +1,6 @@
 configs:
   - type: prerequisites
-    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk"]
+    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk","fish"]
   - type: notification
     packages: ["mako"]
   - type: terminal
