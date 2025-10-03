@@ -155,9 +155,7 @@
         "format": "{icon} {percentage}%",
         "format-icons": {
             "default": [
-                "\uf538",
-                "\uf579",
-                "\uf57a"
+                "\uefc5",
             ],
             "critical": "\uf071"
         },

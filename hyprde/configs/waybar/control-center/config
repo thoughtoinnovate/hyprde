@@ -168,7 +168,7 @@
         "tooltip-format": "screenshot",
         "on-click": "~/.config/hypr/scripts/screenshot.sh",
         "on-click-right": "~/.config/hypr/scripts/screenshot.sh area",
-        "format": "\uf565"
+        "format": "\ueb4c"
     },
     "custom/mic": {
         "return-type": "json",
