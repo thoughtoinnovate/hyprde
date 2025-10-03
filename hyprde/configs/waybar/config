@@ -77,6 +77,13 @@
             ]
         }
     },
+
+    "hyprland/window": {
+        "max-length": 50, // Truncate long titles
+        "tooltip": true,
+        "tooltip-format": "{title}",
+        "min-width": 200 // Fixed width
+    },
     "backlight": {
         "format": "{icon} {percent}%",
         "format-icons": [
