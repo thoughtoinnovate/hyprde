@@ -50,6 +50,8 @@ configs:
     handler:  "$HOME/.config/hypr/scripts/gammastep/wifi.sh"
   - type: image-viewer
     packages: ["imv"]
+  - type: pdf-viewer
+    packages: ["zathura"]
 
 
 

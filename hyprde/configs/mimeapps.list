@@ -1,7 +1,7 @@
 [Default Applications]
 text/plain=alacritty.desktop
 text/x-shellscript=alacritty.desktop
-application/pdf=thunar.desktop
+application/pdf=zathura.desktop
 image/png=imv.desktop
 image/jpeg=imv.desktop
 image/gif=imv.desktop
