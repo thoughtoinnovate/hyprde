@@ -102,6 +102,11 @@ cat > $HOME/.local/bin/hyprde-logout << 'EOF'
 $HOME/.config/hypr/scripts/wofi_session.sh logout
 EOF
 chmod +x $HOME/.local/bin/hyprde-logout
+
+echo "Adding ~/.local/bin to PATH..."
+if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' $HOME/.bashrc; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> $HOME/.bashrc
+fi
 echo "Creating wallpaper directories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset

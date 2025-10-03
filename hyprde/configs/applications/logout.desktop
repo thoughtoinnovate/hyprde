@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Logout
-Exec=hyprde-logout
+Exec=$HOME/.local/bin/hyprde-logout
 Type=Application
 Icon=system-log-out
 Categories=System;
