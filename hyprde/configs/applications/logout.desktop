@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Logout
-Exec=~/.config/hypr/scripts/wofi_session.sh logout
+Exec=hyprctl dispatch exit
 Type=Application
 Icon=system-log-out
 Categories=System;
