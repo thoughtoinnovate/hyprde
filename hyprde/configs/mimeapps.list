@@ -2,8 +2,12 @@
 text/plain=alacritty.desktop
 text/x-shellscript=alacritty.desktop
 application/pdf=thunar.desktop
-image/png=thunar.desktop
-image/jpeg=thunar.desktop
+image/png=imv.desktop
+image/jpeg=imv.desktop
+image/gif=imv.desktop
+image/bmp=imv.desktop
+image/tiff=imv.desktop
+image/webp=imv.desktop
 video/mp4=thunar.desktop
 audio/mp3=thunar.desktop
 inode/directory=thunar.desktop
