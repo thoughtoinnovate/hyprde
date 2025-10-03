@@ -95,18 +95,7 @@ echo "Making scripts executable..."
 chmod +x $HOME/.config/hypr/scripts/*.sh
 chmod +x $HOME/.config/hypr/scripts/gammastep/*.sh
 
-echo "Creating logout script in PATH..."
-mkdir -p $HOME/.local/bin
-cat > $HOME/.local/bin/hyprde-logout << 'EOF'
-#!/bin/bash
-$HOME/.config/hypr/scripts/wofi_session.sh logout
-EOF
-chmod +x $HOME/.local/bin/hyprde-logout
 
-echo "Adding ~/.local/bin to PATH..."
-if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' $HOME/.bashrc; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> $HOME/.bashrc
-fi
 echo "Creating wallpaper directories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset
