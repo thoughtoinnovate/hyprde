@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Logout
-Exec=wofi_session.sh logout
+Exec=hyprde-logout
 Type=Application
 Icon=system-log-out
 Categories=System;
