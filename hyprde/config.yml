@@ -1,14 +1,14 @@
 configs:
   - type: prerequisites
-    packages : ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome"]
+    packages : ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk"]
   - type: notification
     packages: ["mako"]
   - type: terminal
-    packages: ["alacritty"]    
+    packages: ["alacritty"]
   - type: filemanager
-    packages: ["thunar"]
+    packages: ["yazi"]
   - type: launcher
-    packages: ["wofi"]
+    packages: ["wofi", "fd"]
   - type: power-menu
     packages: ["wofi"]
     handler:  "$HOME/.config/hypr/scripts/session_menu.sh"
@@ -48,6 +48,8 @@ configs:
   - type: wifi
     packages: ["networkmanager"]
     handler:  "$HOME/.config/hypr/scripts/gammastep/wifi.sh"
+
+
 
 shortcuts:
   COMMAND_KEY: "SUPER"

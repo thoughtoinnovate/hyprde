@@ -90,6 +90,7 @@ cp -rf ./configs/hypr $HOME/.config
 cp -rf ./configs/mako $HOME/.config
 cp -rf ./configs/waybar $HOME/.config
 cp -rf ./configs/wofi $HOME/.config
+cp ./configs/mimeapps.list $HOME/.config/
 
 echo "Copying desktop entries..."
 mkdir -p $HOME/.local/share/applications

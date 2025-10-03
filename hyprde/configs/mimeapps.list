@@ -1,0 +1,20 @@
+[Default Applications]
+text/plain=alacritty.desktop
+text/x-shellscript=alacritty.desktop
+application/pdf=thunar.desktop
+image/png=thunar.desktop
+image/jpeg=thunar.desktop
+video/mp4=thunar.desktop
+audio/mp3=thunar.desktop
+inode/directory=thunar.desktop
+application/x-shellscript=alacritty.desktop
+text/markdown=alacritty.desktop
+application/json=alacritty.desktop
+text/html=alacritty.desktop
+text/css=alacritty.desktop
+text/x-python=alacritty.desktop
+text/x-javascript=alacritty.desktop
+text/x-java=alacritty.desktop
+text/x-csrc=alacritty.desktop
+application/zip=thunar.desktop
+application/x-tar=thunar.desktop
