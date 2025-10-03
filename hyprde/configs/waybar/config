@@ -63,8 +63,7 @@
         "format": "{:%d %b %y | %I:%M %p}",
         "tooltip": true,
         "tooltip-format": "<tt><small>{calendar}</small></tt>",
-        "on-click": "zenity --calendar --title='Calendar'",
-        "on-double-click": "pkill zenity"
+        "on-click": "$HOME/.config/hypr/scripts/toggle_calendar.sh"
     },
     "pulseaudio": {
         "format": "{icon} {volume}%",
