@@ -94,6 +94,10 @@ cp -rf ./configs/applications/* $HOME/.local/share/hyprde-session/applications/
 echo "Making scripts executable..."
 chmod +x $HOME/.config/hypr/scripts/*.sh
 chmod +x $HOME/.config/hypr/scripts/gammastep/*.sh
+
+echo "Creating symlinks for scripts in PATH..."
+mkdir -p $HOME/.local/bin
+ln -sf $HOME/.config/hypr/scripts/wofi_session.sh $HOME/.local/bin/wofi_session.sh
 echo "Creating wallpaper directories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset
