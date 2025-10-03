@@ -48,6 +48,7 @@ while true; do
     for monitor in $(hyprctl monitors | grep "Monitor" | cut -d " " -f 2); do
         hyprctl hyprpaper wallpaper "$monitor,$wallpaper"
     done
+    toggleNightLight # Call the function here
     # Wait for the specified interval
     sleep "$INTERVAL"
 done

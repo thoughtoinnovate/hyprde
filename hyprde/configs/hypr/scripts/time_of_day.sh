@@ -6,7 +6,7 @@ hour=$(date +%H)
 # Determine the time of day
 if [ "$hour" -ge 6 ] && [ "$hour" -lt 12 ]; then
     time_of_day="morning"
-elif [ "$hour" -ge 13 ] && [ "$hour" -lt 18 ]; then
+elif [ "$hour" -ge 12 ] && [ "$hour" -lt 18 ]; then
     time_of_day="afternoon"
 elif [ "$hour" -ge 18 ] && [ "$hour" -lt 22 ]; then
     time_of_day="evening"
