@@ -170,3 +170,27 @@ tooltip label {
     background-color: rgb(255, 0, 0);
     color: rgb(255, 255, 255);
 }
+
+#pulseaudio.muted {
+    background-color: red;
+}
+
+#pulseaudio {
+    min-width: 50px;
+}
+
+#battery {
+    min-width: 50px;
+}
+
+#cpu {
+    min-width: 50px;
+}
+
+#memory {
+    min-width: 50px;
+}
+
+#network {
+    min-width: 50px;
+}

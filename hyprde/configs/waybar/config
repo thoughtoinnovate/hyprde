@@ -68,7 +68,7 @@
     },
     "pulseaudio": {
         "format": "{icon} {volume}%",
-        "format-muted": "",
+        "format-muted": "\udb81\udf5f",
         "format-icons": {
             "default": [
                 "",
