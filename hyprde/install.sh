@@ -92,6 +92,10 @@ cp -rf ./configs/waybar $HOME/.config
 cp -rf ./configs/wofi $HOME/.config
 cp ./configs/mimeapps.list $HOME/.config/
 
+# Set default MIME associations
+xdg-mime default zathura.desktop application/pdf
+xdg-mime default imv.desktop image/png image/jpeg image/gif image/bmp image/tiff image/webp
+
 echo "Copying desktop entries..."
 mkdir -p $HOME/.local/share/applications
 cp -rf ./configs/applications/* $HOME/.local/share/applications/
