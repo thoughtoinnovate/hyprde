@@ -1,6 +1,6 @@
 configs:
   - type: prerequisites
-    packages : ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk"]
+    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk"]
   - type: notification
     packages: ["mako"]
   - type: terminal
@@ -11,7 +11,7 @@ configs:
     packages: ["wofi", "fd"]
   - type: power-menu
     packages: ["wofi"]
-    handler:  "$HOME/.config/hypr/scripts/session_menu.sh"
+    handler: "$HOME/.config/hypr/scripts/session_menu.sh"
   - type: calendar
     packages: ["zenity"]
     handler: "zenity --calendar --title='Calendar'"
@@ -35,24 +35,23 @@ configs:
     handler: "$HOME/.config/hypr/scripts/power_usr.sh"
   - type: brightness
     packages: ["brightnessctl"]
-    handler:  "$HOME/.config/hypr/scripts/brightness-ctrl.sh"
+    handler: "$HOME/.config/hypr/scripts/brightness-ctrl.sh"
   - type: bluetooth
     packages: ["bluez-utils"]
-    handler:  "$HOME/.config/hypr/scripts/bluetooth.sh"
+    handler: "$HOME/.config/hypr/scripts/bluetooth.sh"
   - type: screenshot
     packages: ["grim","slurp"]
-    handler:  "$HOME/.config/hypr/scripts/screenshot.sh"
+    handler: "$HOME/.config/hypr/scripts/screenshot.sh"
   - type: eyecomfort
     packages: ["gammastep"]
-    handler:  "$HOME/.config/hypr/scripts/gammastep/gamma.sh"
+    handler: "$HOME/.config/hypr/scripts/gammastep/gamma.sh"
   - type: wifi
     packages: ["networkmanager"]
-    handler:  "$HOME/.config/hypr/scripts/gammastep/wifi.sh"
+    handler: "$HOME/.config/hypr/scripts/wifi.sh"
   - type: image-viewer
     packages: ["imv"]
   - type: pdf-viewer
-    packages: ["zathura"]
-
+    packages: ["zathura", "zathura-pdf-mupdf"]
 
 
 shortcuts:
@@ -60,4 +59,3 @@ shortcuts:
   Shortcuts:
   - type: "screenshot"
     trigger: "$COMMAND_KEY PRINT"
-

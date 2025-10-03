@@ -1,15 +1,20 @@
 [Default Applications]
 text/plain=alacritty.desktop
 text/x-shellscript=alacritty.desktop
-application/pdf=zathura.desktop
+application/pdf=org.pwmt.zathura.desktop
 image/png=imv.desktop
 image/jpeg=imv.desktop
 image/gif=imv.desktop
 image/bmp=imv.desktop
 image/tiff=imv.desktop
 image/webp=imv.desktop
-video/mp4=thunar.desktop
-audio/mp3=thunar.desktop
+video/mp4=mpv.desktop
+video/avi=mpv.desktop
+video/mkv=mpv.desktop
+video/webm=mpv.desktop
+audio/mp3=mpv.desktop
+audio/flac=mpv.desktop
+audio/wav=mpv.desktop
 inode/directory=thunar.desktop
 application/x-shellscript=alacritty.desktop
 text/markdown=alacritty.desktop

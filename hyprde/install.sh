@@ -1,30 +1,12 @@
 #!/bin/bash
 
-#Function to create package string
-package_string(){
-    if [ -z "$1" ];then
-     echo "Package names not parsable!"
-     exit 1
-    fi
-    local packages=$@
-    echo "Packages $packages"
-    jq_pkgs=$(echo $packages|jq '.[]')
-    for package in $jq_pkgs; do
-       package=$(echo "$package"|sed 's/^"//;s/"$//')
-       echo "Installlig $package"
-       sudo pacman -S --needed $package
-    done
-    
-    echo "------------"
-    echo $delimited_packages
 
-}
 
 # Function to install yq using pacman
 install_packages() {
 
     if [ "$#" -eq 0 ];then
-        "Software package to install is missing!"
+        echo "Software package to install is missing!"
         exit 1
     fi
 
@@ -42,7 +24,7 @@ install_packages() {
                 sudo apt install -y --no-install-recommends $package
                 ;;
             *)
-                echo "Unsupported distribution: $ID"
+                echo "Unsupported distribution: $os"
                 exit 1
                 ;;
         esac
@@ -64,6 +46,7 @@ if [ -f /etc/os-release ]; then
             ;;
         *)
             echo "Unsupported distribution: $ID"
+            exit 1
             ;;
     esac
 else
@@ -76,7 +59,7 @@ echo "Need priviledges for installation of packages..."
 sudo echo "Installation Started..."
 echo "Installing Prerequisites..."
 install_packages yq
-# Read the YAMML file and convert it to JSON
+# Read the YAML file and convert it to JSON
 CONFIG_FILE="config.yml"
 JSON_CONTENT=$(yq < "$CONFIG_FILE")
 
@@ -92,9 +75,13 @@ cp -rf ./configs/waybar $HOME/.config
 cp -rf ./configs/wofi $HOME/.config
 cp ./configs/mimeapps.list $HOME/.config/
 
+# Update desktop database
+update-desktop-database
+
 # Set default MIME associations
-xdg-mime default zathura.desktop application/pdf
+xdg-mime default org.pwmt.zathura.desktop application/pdf
 xdg-mime default imv.desktop image/png image/jpeg image/gif image/bmp image/tiff image/webp
+xdg-mime default mpv.desktop video/mp4 video/avi video/mkv video/webm audio/mp3 audio/flac audio/wav
 
 echo "Copying desktop entries..."
 mkdir -p $HOME/.local/share/applications
@@ -107,7 +94,7 @@ cp -rf ./configs/applications/* $HOME/.local/share/hyprde-session/applications/
 echo "Making scripts executable..."
 chmod +x $HOME/.config/hypr/scripts/*.sh
 chmod +x $HOME/.config/hypr/scripts/gammastep/*.sh
-echo "Creating wallpaersdirectories."
+echo "Creating wallpaper directories."
 mkdir -p $HOME/Pictures/wallpapers/sunrise
 mkdir -p $HOME/Pictures/wallpapers/sunset
 echo "You are ready to go.."
