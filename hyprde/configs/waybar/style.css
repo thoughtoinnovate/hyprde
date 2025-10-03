@@ -194,3 +194,9 @@ tooltip label {
 #network {
     min-width: 50px;
 }
+
+#tray {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    margin: 0px 2px 0px 0px;
+}

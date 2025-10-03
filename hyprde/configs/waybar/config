@@ -63,7 +63,8 @@
         "format": "{:%d %b %y | %I:%M %p}",
         "tooltip": true,
         "tooltip-format": "<tt><small>{calendar}</small></tt>",
-        "on-click": "$HOME/.config/hypr/scripts/toggle_calendar.sh"
+        "on-click": "$HOME/.config/hypr/scripts/toggle_calendar.sh",
+        "min-width": 150
     },
     "pulseaudio": {
         "format": "{icon} {volume}%",
@@ -250,7 +251,7 @@
         "tooltip-format": "{}",
         "format": "{icon}",
         "format-icons": [
-            "\uf4e2",
+            "\udb86\uddbf",
             "\uf03d"
         ]
     }

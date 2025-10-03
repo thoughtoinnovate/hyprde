@@ -192,7 +192,7 @@
         "on-click": "~/.config/hypr/scripts/camera.sh toggle",
         "format": "{icon}",
         "format-icons": [
-            "\uf4e2",
+            "\udb86\uddbf",
             "\uf03d"
         ]
     }
