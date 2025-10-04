@@ -14,6 +14,9 @@ if ! tty -s; then
     exit
 fi
 
+# Source common icons
+source "$(dirname "$0")/common_icons.sh"
+
 # Check dependencies
 if ! command -v fd >/dev/null 2>&1; then
     notify-send "Error" "fd is not installed"
@@ -35,31 +38,7 @@ terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 |
 
 # Launch fzf - scanning only HOME folder (fd already limits to HOME)
 selected=$(fd . "$HOME" --type f --type d 2>/dev/null | while IFS= read -r file; do
-    # Determine icon based on file type
-    if [ -d "$file" ]; then
-        icon=""  # nf-fa-folder
-    else
-        case "${file##*.}" in
-            pdf) icon="" ;;  # nf-fa-file_pdf_o
-            sh|bash) icon="" ;;  # nf-oct-terminal
-            txt|md) icon="" ;;  # nf-fa-file_text_o
-            jpg|jpeg|png|gif|bmp|raw|cr2|nef) icon="" ;;  # nf-fa-file_image_o
-            mp4|avi|mkv|mov) icon="" ;;  # nf-fa-file_video_o
-            mp3|wav|flac|ogg) icon="" ;;  # nf-fa-file_audio_o
-            zip|tar|gz|bz2|xz|7z) icon="" ;;  # nf-fa-file_archive_o
-            html|htm) icon="" ;;  # nf-fa-globe
-            css) icon="" ;;  # nf-fa-css3
-            json|xml) icon="" ;;  # nf-fa-file_code_o
-            py) icon="" ;;  # nf-dev-python
-            js) icon="" ;;  # nf-dev-javascript
-            java) icon=$'\ue256' ;;  # nf-dev-java
-            scala) icon=$'\ue68e' ;;  # nf-dev-scala
-            rs) icon=$'\ue68b' ;;  # nf-dev-rust
-            go) icon=$'\udb81\udfd3' ;;  # nf-dev-go
-            c|cpp|h) icon=$'\ue771' ;;  # nf-fa-code
-            *) icon="" ;;  # nf-fa-file_o
-        esac
-    fi
+    icon=$(get_symbol "$file")
     printf "%s %s\n" "$icon" "$file"
 done | fzf --ansi \
     --prompt "Search Files/Dirs: " \
