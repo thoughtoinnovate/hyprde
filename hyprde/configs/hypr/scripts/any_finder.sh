@@ -37,27 +37,27 @@ terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 |
 selected=$(fd . "$HOME" --type f --type d 2>/dev/null | while IFS= read -r file; do
     # Determine icon based on file type
     if [ -d "$file" ]; then
-        icon=""
+        icon=""  # nf-fa-folder
     else
         case "${file##*.}" in
-            pdf) icon="" ;;
-            sh|bash) icon="" ;;
-            txt|md) icon="" ;;
-            jpg|jpeg|png|gif|bmp|raw|cr2|nef) icon="" ;;
-            mp4|avi|mkv|mov) icon="" ;;
-            mp3|wav|flac|ogg) icon="" ;;
-            zip|tar|gz|bz2|xz|7z) icon="" ;;
-            html|htm) icon="" ;;
-            css) icon="" ;;
-            json|xml) icon="" ;;
-            py) icon="" ;;
-            js) icon="" ;;
-            java) icon="" ;;
-            scala) icon="" ;;
-            rs) icon="" ;;
-            go) icon="" ;;
-            c|cpp|h) icon="" ;;
-            *) icon="" ;;
+            pdf) icon="" ;;  # nf-fa-file_pdf_o
+            sh|bash) icon="" ;;  # nf-oct-terminal
+            txt|md) icon="" ;;  # nf-fa-file_text_o
+            jpg|jpeg|png|gif|bmp|raw|cr2|nef) icon="" ;;  # nf-fa-file_image_o
+            mp4|avi|mkv|mov) icon="" ;;  # nf-fa-file_video_o
+            mp3|wav|flac|ogg) icon="" ;;  # nf-fa-file_audio_o
+            zip|tar|gz|bz2|xz|7z) icon="" ;;  # nf-fa-file_archive_o
+            html|htm) icon="" ;;  # nf-fa-globe
+            css) icon="" ;;  # nf-fa-css3
+            json|xml) icon="" ;;  # nf-fa-file_code_o
+            py) icon="" ;;  # nf-dev-python
+            js) icon="" ;;  # nf-dev-javascript
+            java) icon=$'\ue256' ;;  # nf-dev-java
+            scala) icon=$'\ue68e' ;;  # nf-dev-scala
+            rs) icon=$'\ue68b' ;;  # nf-dev-rust
+            go) icon=$'\udb81\udfd3' ;;  # nf-dev-go
+            c|cpp|h) icon=$'\ue771' ;;  # nf-fa-code
+            *) icon="" ;;  # nf-fa-file_o
         esac
     fi
     printf "%s %s\n" "$icon" "$file"
