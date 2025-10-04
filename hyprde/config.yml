@@ -4,11 +4,11 @@ configs:
   - type: notification
     packages: ["mako"]
   - type: terminal
-    packages: ["ghostty"]
+    packages: ["ghostty", "bat"]
   - type: filemanager
     packages: ["yazi"]
   - type: launcher
-    packages: ["wofi", "fd"]
+    packages: ["wofi", "fd", "fzf"]
   - type: power-menu
     packages: ["wofi"]
     handler: "$HOME/.config/hypr/scripts/session_menu.sh"
