@@ -54,7 +54,7 @@ done | fzf --ansi \
         if [ -d "$file" ]; then
             ls -lah --color=always "$file" 2>/dev/null;
         elif [ -f "$file" ] && [[ "${file##*.}" =~ ^(jpg|jpeg|png|gif|bmp|raw|cr2|nef)$ ]]; then
-            chafa --size 40x20 "$file" 2>/dev/null || echo "Image preview failed";
+            chafa "$file" 2>/dev/null || echo "Image preview failed";
         elif [ -f "$file" ] && command -v bat >/dev/null 2>&1; then
             if [ -n "{q}" ]; then
                 bat --style=numbers --color=always --line-range :500 "$file" | \
