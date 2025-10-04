@@ -1,6 +1,14 @@
 #!/bin/bash
 # shortcuts-help.sh - Display Hyprland shortcuts with hash-based caching
 
+# Prevent multiple instances
+lock_file="/tmp/hypr-shortcuts.lock"
+if [ -f "$lock_file" ]; then
+    exit 0
+fi
+echo $$ > "$lock_file"
+trap "rm -f '$lock_file'" EXIT
+
 # Function to get variable value from config
 get_var_value() {
     local var_name="$1"
