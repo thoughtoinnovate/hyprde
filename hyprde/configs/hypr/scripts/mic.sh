@@ -2,7 +2,7 @@
 
 # Function to get TLP status and return JSON for Waybar
 get_status() {
-  local exists=$(pactl get-source-mute @DEFAULT_SOURCE@|grep -i yes|awk '{print $2}'|wc -l)
+  local exists=$(pactl get-source-mute @DEFAULT_SOURCE@|rg --ignore-case yes|awk '{print $2}'|wc -l)
   if [ "$exists" -gt 0 ]; then
       echo "{\"text\": \"disabled\", \"tooltip\":\"disabled\",\"class\":\"disbld\",\"percentage\":0}"
   else

@@ -10,9 +10,9 @@ hex2dec() {
 wal -i /path/to/your/wallpaper.jpg
 
 # Get the color for the label from the Pywal palette
-FG_COLOR=$(grep -w "foreground" ~/.cache/wal/colors.sh | cut -d' ' -f2)
-BG_COLOR=$(grep -w "background" ~/.cache/wal/colors.sh | cut -d' ' -f2)
-OUTER_COLOR=$(grep -w "color1" ~/.cache/wal/colors.sh | cut -d' ' -f2)
+FG_COLOR=$(rg -w "foreground" ~/.cache/wal/colors.sh | cut -d' ' -f2)
+BG_COLOR=$(rg -w "background" ~/.cache/wal/colors.sh | cut -d' ' -f2)
+OUTER_COLOR=$(rg -w "color1" ~/.cache/wal/colors.sh | cut -d' ' -f2)
 
 # Example usage
 fg_hx_color=`echo $FG_COLOR|awk -F'#' '{print $2}'|sed  "s/'//g"`

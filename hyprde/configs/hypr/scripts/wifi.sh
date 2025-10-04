@@ -2,7 +2,7 @@
 
 # Function to get TLP status and return JSON for Waybar
 get_status() {
-  local exists=$(nmcli radio|awk '{print $2}'|grep -i 'enabled' |wc -l)
+  local exists=$(nmcli radio|awk '{print $2}'|rg --ignore-case 'enabled' |wc -l)
   if [ "$exists" -gt 0 ]; then
       echo "{\"text\": \"enabled\", \"tooltip\":\"enabled\",\"class\":\"enbld\"}"
 
@@ -12,7 +12,7 @@ get_status() {
 }
 
 toggle() {
-  local exists=$(nmcli radio|awk '{print $2}'|grep -i 'enabled' |wc -l)
+  local exists=$(nmcli radio|awk '{print $2}'|rg --ignore-case 'enabled' |wc -l)
   if [ "$exists" -gt 0 ]; then
       turn_off
       get_status

@@ -145,7 +145,7 @@ parse_shortcuts() {
         else
             apps_tools+="$entry\n"
         fi
-    done < <(grep "^bind[el]* *=" "$config_file")
+    done < <(rg "^bind[el]* *=" "$config_file")
 
     # Output header
     echo "󰋙 HYPROCKET SHORTCUTS HELP"

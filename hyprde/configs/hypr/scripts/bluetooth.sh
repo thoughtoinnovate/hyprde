@@ -2,7 +2,7 @@
 
 # Function to get TLP status and return JSON for Waybar
 get_status() {
-  local exists=$(bluetoothctl show|grep -i powered|grep -i yes|wc -l)
+  local exists=$(bluetoothctl show|rg --ignore-case powered|rg --ignore-case yes|wc -l)
   if [ "$exists" -gt 0 ]; then
       echo "{\"text\": \"enabled\", \"tooltip\":\"enabled\",\"class\":\"enbld\"}"
 
@@ -12,7 +12,7 @@ get_status() {
 }
 
 toggle() {
-  local exists=$(bluetoothctl show|grep -i powered|grep -i yes|wc -l)
+  local exists=$(bluetoothctl show|rg --ignore-case powered|rg --ignore-case yes|wc -l)
   if [ "$exists" -gt 0 ]; then
       turn_off
       get_status

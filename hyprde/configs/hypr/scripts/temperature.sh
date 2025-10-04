@@ -30,25 +30,25 @@ get_class() {
 
 # Function to get CPU temperature
 get_cpu_temp() {
-    cpu_temp=$(sensors | grep 'CPU' | awk -F'+' '{print $2}' | tr -d '°C')
+    cpu_temp=$(sensors | rg 'CPU' | awk -F'+' '{print $2}' | tr -d '°C')
     echo "$cpu_temp"
 }
 
 # Function to get GPU temperature 
 get_gpu_temp() {
-    gpu_temp=$(sensors | grep 'GPU' | awk -F'+' '{print $2}' | tr -d '°C')
+    gpu_temp=$(sensors | rg 'GPU' | awk -F'+' '{print $2}' | tr -d '°C')
     echo "$gpu_temp"
 }
 
 # Function to get ambient temperature
 get_ambient_temp() {
-    ambient_temp=$(sensors | grep 'Ambient' | awk -F'+' '{print $2}' | tr -d '°C')
+    ambient_temp=$(sensors | rg 'Ambient' | awk -F'+' '{print $2}' | tr -d '°C')
     echo "$ambient_temp"
 }
 
 # Function to get SODIMM temperature
 get_sodimm_temp() {
-    sodimm_temp=$(sensors | grep 'SODIMM' | awk -F'+' '{print $2}' | tr -d '°C')
+    sodimm_temp=$(sensors | rg 'SODIMM' | awk -F'+' '{print $2}' | tr -d '°C')
     echo "$sodimm_temp"
 }
 
