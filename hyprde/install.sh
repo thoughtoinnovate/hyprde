@@ -61,7 +61,10 @@ echo "Installing Prerequisites..."
 install_packages yq
 # Read the YAML file and convert it to JSON
 CONFIG_FILE="config.yml"
-JSON_CONTENT=$(yq < "$CONFIG_FILE")
+if ! JSON_CONTENT=$(yq < "$CONFIG_FILE" 2>/dev/null); then
+    echo "Error: config.yml is not valid YAML"
+    exit 1
+fi
 
 # Parse JSON content using jq (which is part of yq)
 PKGS="gdk-pixbuf2 $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
