@@ -192,62 +192,6 @@ parse_shortcuts() {
         echo ""
     fi
 
-    # Focus & Movement
-    if [ -n "$focus_movement" ]; then
-        echo "󰌌 FOCUS & MOVEMENT"
-        echo "──────────────────"
-        echo -e "$focus_movement" | while IFS= read -r line; do
-            if [ -n "$line" ]; then
-                key=$(echo "$line" | cut -d':' -f1)
-                desc=$(echo "$line" | cut -d':' -f2-)
-                printf "  %-25s : %s\n" "$key" "$desc"
-            fi
-        done
-        echo ""
-    fi
-
-    # Workspaces
-    if [ -n "$workspaces" ]; then
-        echo "󰪱 WORKSPACES"
-        echo "─────────────"
-        echo -e "$workspaces" | while IFS= read -r line; do
-            if [ -n "$line" ]; then
-                key=$(echo "$line" | cut -d':' -f1)
-                desc=$(echo "$line" | cut -d':' -f2-)
-                printf "  %-25s : %s\n" "$key" "$desc"
-            fi
-        done
-        echo ""
-    fi
-
-    # Media Controls
-    if [ -n "$media_controls" ]; then
-        echo "󰕾 MEDIA CONTROLS"
-        echo "─────────────────"
-        echo -e "$media_controls" | while IFS= read -r line; do
-            if [ -n "$line" ]; then
-                key=$(echo "$line" | cut -d':' -f1)
-                desc=$(echo "$line" | cut -d':' -f2-)
-                printf "  %-25s : %s\n" "$key" "$desc"
-            fi
-        done
-        echo ""
-    fi
-
-    # Applications & Tools
-    if [ -n "$apps_tools" ]; then
-        echo "󰀻 APPLICATIONS & TOOLS"
-        echo "───────────────────────"
-        echo -e "$apps_tools" | while IFS= read -r line; do
-            if [ -n "$line" ]; then
-                key=$(echo "$line" | cut -d':' -f1)
-                desc=$(echo "$line" | cut -d':' -f2-)
-                printf "  %-25s : %s\n" "$key" "$desc"
-            fi
-        done
-        echo ""
-    fi
-
     echo "󰌍 Press ESC to close"
 }
 
@@ -304,17 +248,3 @@ else
         --cache-file /dev/null
 fi
 
-# Display shortcuts using wofi
-if [ -t 0 ] || [ "$1" = "--text" ]; then
-    # Running interactively or forced text mode, just show output
-    parse_shortcuts
-else
-    # Running in GUI environment, use wofi
-    parse_shortcuts | wofi --dmenu \
-        --prompt "Hypr Shortcuts (ESC to close)" \
-        --width 800 \
-        --height 600 \
-        --location center \
-        --insensitive \
-        --cache-file /dev/null
-fi
