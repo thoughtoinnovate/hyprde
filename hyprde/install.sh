@@ -88,8 +88,8 @@ mkdir -p $HOME/.local/share/applications
 cp -rf ./configs/applications/* $HOME/.local/share/applications/
 
 echo "Creating dedicated session menu directory..."
-mkdir -p $HOME/.local/share/hyprde-session/applications
-cp -rf ./configs/applications/* $HOME/.local/share/hyprde-session/applications/
+mkdir -p $HOME/.local/share/hyprocket-session/applications
+cp -rf ./configs/applications/* $HOME/.local/share/hyprocket-session/applications/
 
 echo "Making scripts executable..."
 chmod +x $HOME/.config/hypr/scripts/*.sh

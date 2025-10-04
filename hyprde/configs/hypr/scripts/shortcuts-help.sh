@@ -1,8 +1,8 @@
 #!/bin/bash
-# shortcuts-help.sh - Display Hyprland shortcuts with hash-based caching
+# shortcuts-help.sh - Display Hyprocket shortcuts with hash-based caching
 
 # Prevent multiple instances
-lock_file="/tmp/hypr-shortcuts.lock"
+lock_file="/tmp/hyprocket-shortcuts.lock"
 if [ -f "$lock_file" ]; then
     exit 0
 fi
@@ -148,7 +148,7 @@ parse_shortcuts() {
     done < <(grep "^bind[el]* *=" "$config_file")
 
     # Output header
-    echo "󰋙 HYPR SHORTCUTS HELP"
+    echo "󰋙 HYPROCKET SHORTCUTS HELP"
     echo "──────────────────────"
     echo ""
 
@@ -240,7 +240,7 @@ if [ -t 0 ] || [ "$1" = "--text" ]; then
     echo "$full_output"
 else
     echo "$full_output" | wofi --dmenu \
-        --prompt "Hypr Shortcuts (ESC to close)" \
+        --prompt "Hyprocket Shortcuts (ESC to close)" \
         --width 800 \
         --height 600 \
         --location center \
