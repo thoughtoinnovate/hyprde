@@ -196,8 +196,8 @@ parse_shortcuts() {
 }
 
 # Hash-based caching setup
-hash_file="$HOME/.config/hypr/shortcuts-hash.txt"
-help_file="$HOME/.config/hypr/shortcuts-help.txt"
+hash_file="$HOME/.config/hypr/hyprocket-shortcuts-hash.txt"
+help_file="$HOME/.config/hypr/hyprocket-shortcuts-help.txt"
 mkdir -p "$(dirname "$hash_file")"
 
 # Determine config file (moved from parse_shortcuts)
