@@ -33,6 +33,11 @@ if ! command -v rg >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v chafa >/dev/null 2>&1; then
+    notify-send "Error" "chafa is not installed"
+    exit 1
+fi
+
 # Get the default terminal from Hyprland config
 terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 | tr -d ' ')
 
@@ -46,8 +51,10 @@ done | fzf --ansi \
     --layout=reverse \
     --border \
     --preview 'file=$(echo {} | cut -d" " -f2-);
-        if [ -d "$file" ]; then 
-            ls -lah --color=always "$file" 2>/dev/null; 
+        if [ -d "$file" ]; then
+            ls -lah --color=always "$file" 2>/dev/null;
+        elif [ -f "$file" ] && [[ "${file##*.}" =~ ^(jpg|jpeg|png|gif|bmp|raw|cr2|nef)$ ]]; then
+            chafa --size 40x20 "$file" 2>/dev/null || echo "Image preview failed";
         elif [ -f "$file" ] && command -v bat >/dev/null 2>&1; then
             if [ -n "{q}" ]; then
                 bat --style=numbers --color=always --line-range :500 "$file" | \
@@ -56,7 +63,7 @@ done | fzf --ansi \
             else
                 bat --style=numbers --color=always --line-range :500 "$file";
             fi
-        elif [ -f "$file" ]; then 
+        elif [ -f "$file" ]; then
             if [ -n "{q}" ]; then
                 cat "$file" | rg --colors "match:bg:yellow" --colors "match:fg:black" --colors "match:style:bold" \
                    --ignore-case --passthru "{q}";
