@@ -15,7 +15,7 @@ fi
 get_symbol() {
     local file="$1"
     if [ -d "$file" ]; then
-        echo "📁"  # nf-fa-folder_o or similar
+        echo ""  # nf-fa-folder
     else
         local ext="${file##*.}"
         case "$ext" in
