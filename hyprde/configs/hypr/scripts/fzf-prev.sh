@@ -541,7 +541,11 @@ preview_pdf() {
 # Preview text files
 preview_text() {
     local file="$1"
-    printf '%s' "${CLEAR_IMAGE_SEQ}"
+    
+    # Only clear images in Kitty/Ghostty terminals
+    if [[ -n "${KITTY_WINDOW_ID:-}" ]] || [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]]; then
+        printf '%s' "${CLEAR_IMAGE_SEQ}"
+    fi
 
     log_debug "Previewing text file: ${file}"
 
@@ -560,7 +564,11 @@ preview_text() {
 # Preview directories
 preview_directory() {
     local file="$1"
-    printf '%s' "${CLEAR_IMAGE_SEQ}"
+    
+    # Only clear images in Kitty/Ghostty terminals
+    if [[ -n "${KITTY_WINDOW_ID:-}" ]] || [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]]; then
+        printf '%s' "${CLEAR_IMAGE_SEQ}"
+    fi
 
     log_debug "Previewing directory: ${file}"
 
@@ -581,7 +589,11 @@ preview_directory() {
 # Preview archive files
 preview_archive() {
     local file="$1"
-    printf '%s' "${CLEAR_IMAGE_SEQ}"
+    
+    # Only clear images in Kitty/Ghostty terminals
+    if [[ -n "${KITTY_WINDOW_ID:-}" ]] || [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]]; then
+        printf '%s' "${CLEAR_IMAGE_SEQ}"
+    fi
 
     log_debug "Previewing archive: ${file}"
 
@@ -942,4 +954,4 @@ main() {
 trap 'log_error "Script failed at line $LINENO with exit code $?"' ERR
 
 # Execute main function
-m
+main "$@"
