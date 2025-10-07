@@ -37,7 +37,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-${BASH_VERSION:+shopt -s inherit_errexit}
+shopt -s inherit_errexit 2>/dev/null || true
 
 # ==============================================================================
 # Constants
@@ -68,8 +68,8 @@ declare -i VERBOSE=0
 sanitize_filename() {
     local file="$1"
     
-    # Check for null bytes
-    if [[ "${file}" == *$'\0'* ]]; then
+    # Check for null bytes - compare string length
+    if [[ ${#file} -ne $(printf '%s' "${file}" | wc -c) ]]; then
         log_error "Filename contains null bytes"
         return 1
     fi
@@ -942,4 +942,4 @@ main() {
 trap 'log_error "Script failed at line $LINENO with exit code $?"' ERR
 
 # Execute main function
-main "$@"
+m
