@@ -8,16 +8,25 @@
 #   Optimized for terminals with Kitty/Ghostty graphics protocol and Chafa
 #
 # Author: [Your Name/Team]
-# Version: 2.0.0
+# Version: 2.1.0
 # Last Modified: 2025-10-07
 #
 # Prerequisites:
-#   - Required: bash 4.0+, file
+#   - Required: bash 4.0+, file, timeout/gtimeout
 #   - Optional: kitten, chafa, pdftoppm, bat/batcat, eza
 #
 # Usage:
 #   ./preview.sh <file_path>
 #   FZF_PREVIEW_COLUMNS=80 FZF_PREVIEW_LINES=24 ./preview.sh <file_path>
+#
+# Security:
+#   ⚠️  IMPORTANT SECURITY CONSIDERATIONS:
+#   - This script is designed for TRUSTED LOCAL FILES ONLY
+#   - DO NOT use on files from untrusted sources (downloads, email, network)
+#   - Includes protections: input sanitization, timeouts, file type verification
+#   - Blocks access to system directories (/etc, /sys, /proc, /dev)
+#   - Validates file sizes (max 100MB) and uses cache integrity checks
+#   - For untrusted files, use in sandboxed environment (containers, VMs)
 #
 # Exit Codes:
 #   0 - Success
@@ -34,7 +43,7 @@ ${BASH_VERSION:+shopt -s inherit_errexit}
 # Constants
 # ==============================================================================
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_VERSION="2.0.0"
+readonly SCRIPT_VERSION="2.1.0"
 readonly CACHE_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/fzf-pdf-previews"
 readonly MAX_CACHE_SIZE_MB=500
 readonly MAX_FILE_SIZE_MB=100
@@ -55,6 +64,45 @@ declare -i VERBOSE=0
 # Utility Functions
 # ==============================================================================
 
+# Sanitize filename to prevent command injection
+sanitize_filename() {
+    local file="$1"
+    
+    # Check for null bytes
+    if [[ "${file}" == *$'\0'* ]]; then
+        log_error "Filename contains null bytes"
+        return 1
+    fi
+    
+    # Check for suspicious patterns
+    if [[ "${file}" =~ \$\( ]] || [[ "${file}" =~ \` ]] || [[ "${file}" =~ \|\| ]] || [[ "${file}" =~ \&\& ]]; then
+        log_error "Filename contains suspicious command injection patterns"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Execute command with timeout to prevent resource exhaustion
+run_with_timeout() {
+    local timeout_seconds="$1"
+    shift
+    local cmd=("$@")
+    
+    if command_exists timeout; then
+        timeout "${timeout_seconds}" "${cmd[@]}" 2>/dev/null
+        return $?
+    elif command_exists gtimeout; then
+        gtimeout "${timeout_seconds}" "${cmd[@]}" 2>/dev/null
+        return $?
+    else
+        # Fallback without timeout (less secure)
+        log_warn "timeout command not available, running without timeout"
+        "${cmd[@]}" 2>/dev/null
+        return $?
+    fi
+}
+
 # Display usage information
 usage() {
     cat << EOF
@@ -74,6 +122,12 @@ ENVIRONMENT VARIABLES:
     KITTY_WINDOW_ID        Set by Kitty terminal
     GHOSTTY_RESOURCES_DIR  Set by Ghostty terminal
     XDG_CACHE_HOME         Cache directory location
+
+SECURITY WARNINGS:
+    ⚠️  Use ONLY with trusted local files
+    ⚠️  DO NOT preview files from untrusted sources
+    ⚠️  Malicious files can exploit vulnerabilities in preview tools
+    ⚠️  System directories (/etc, /sys, /proc, /dev) are blocked
 
 EXAMPLES:
     ${SCRIPT_NAME} document.pdf
@@ -150,6 +204,27 @@ get_mime_type() {
     file --brief --dereference --mime-type -- "${file}" 2>/dev/null || echo "unknown"
 }
 
+# Verify file type matches expected type (defense against extension spoofing)
+verify_file_type() {
+    local file="$1"
+    local expected_pattern="$2"
+    local mime_type
+    
+    mime_type=$(get_mime_type "${file}")
+    
+    if [[ "${mime_type}" == "unknown" ]]; then
+        log_error "Cannot determine file type for: ${file}"
+        return 1
+    fi
+    
+    if [[ ! "${mime_type}" =~ ${expected_pattern} ]]; then
+        log_error "File type mismatch. Expected: ${expected_pattern}, Got: ${mime_type}"
+        return 1
+    fi
+    
+    return 0
+}
+
 # Get preview window dimensions
 get_preview_dimensions() {
     local dim="${FZF_PREVIEW_COLUMNS:-}x${FZF_PREVIEW_LINES:-}"
@@ -196,6 +271,11 @@ get_file_size() {
 validate_file() {
     local file="$1"
 
+    # Sanitize filename first
+    if ! sanitize_filename "${file}"; then
+        return 1
+    fi
+
     # Check if file exists
     if [[ ! -e "${file}" ]]; then
         log_error "File does not exist: ${file}"
@@ -208,10 +288,35 @@ validate_file() {
         return 1
     fi
 
-    # Prevent directory traversal attacks
+    # Prevent directory traversal attacks with strict validation
     local canonical_path
-    canonical_path=$(readlink -f "${file}" 2>/dev/null || realpath "${file}" 2>/dev/null || echo "${file}")
+    canonical_path=$(readlink -f "${file}" 2>/dev/null || realpath "${file}" 2>/dev/null || echo "")
+    
+    if [[ -z "${canonical_path}" ]]; then
+        log_error "Cannot resolve canonical path for: ${file}"
+        return 1
+    fi
+    
     log_debug "Canonical path: ${canonical_path}"
+    
+    # Ensure canonical path doesn't escape to sensitive directories
+    case "${canonical_path}" in
+        /etc/*|/sys/*|/proc/*|/dev/*)
+            log_error "Access to system directories not allowed: ${canonical_path}"
+            return 1
+            ;;
+    esac
+    
+    # Check for symlink loops
+    if [[ -L "${file}" ]]; then
+        local link_target
+        link_target=$(readlink "${file}" 2>/dev/null || echo "")
+        if [[ -z "${link_target}" ]]; then
+            log_error "Cannot read symlink target: ${file}"
+            return 1
+        fi
+        log_debug "Symlink target: ${link_target}"
+    fi
 
     # For regular files, check size (prevent processing huge files)
     if [[ -f "${file}" ]]; then
@@ -241,18 +346,25 @@ preview_image() {
     dim=$(get_preview_dimensions)
 
     log_debug "Previewing image: ${file} (dimensions: ${dim})"
+    
+    # Verify it's actually an image
+    if ! verify_file_type "${file}" "^image/"; then
+        log_error "File is not a valid image"
+        file "${file}"
+        return 1
+    fi
 
     # Use Kitty/Ghostty graphics protocol for highest quality
     if [[ -n "${KITTY_WINDOW_ID:-}" ]] || [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]]; then
         if command_exists kitten; then
             log_debug "Using kitten for image display"
-            if kitten icat \
+            if run_with_timeout 5 kitten icat \
                 --clear \
                 --transfer-mode=memory \
                 --stdin=no \
                 --align center \
                 --place "${FZF_PREVIEW_COLUMNS:-80}x${FZF_PREVIEW_LINES:-24}@0x0" \
-                "${file}" 2>/dev/null; then
+                "${file}"; then
                 return 0
             else
                 log_warn "kitten failed, falling back"
@@ -264,12 +376,12 @@ preview_image() {
     if command_exists chafa; then
         log_debug "Using chafa for image display"
         # Try sixel format first
-        if chafa --format=sixels --size="${dim}" --animate=off "${file}" 2>/dev/null; then
+        if run_with_timeout 5 chafa --format=sixels --size="${dim}" --animate=off "${file}"; then
             echo  # Newline for proper fzf rendering
             return 0
         fi
         # Fallback to symbol format
-        if chafa --format=symbols --symbols=all --size="${dim}" --dither=ordered "${file}" 2>/dev/null; then
+        if run_with_timeout 5 chafa --format=symbols --symbols=all --size="${dim}" --dither=ordered "${file}"; then
             echo  # Newline for proper fzf rendering
             return 0
         fi
@@ -289,6 +401,13 @@ preview_pdf() {
     dim=$(get_preview_dimensions)
 
     log_debug "Previewing PDF: ${file} (dimensions: ${dim})"
+    
+    # Verify it's actually a PDF
+    if ! verify_file_type "${file}" "^application/pdf"; then
+        log_error "File is not a valid PDF"
+        file "${file}"
+        return 1
+    fi
 
     # Check for required dependencies
     if ! command_exists pdftoppm; then
@@ -329,23 +448,55 @@ preview_pdf() {
     fi
 
     cached_img="${CACHE_DIR}/${hash}.jpg"
+    local cached_checksum="${CACHE_DIR}/${hash}.sha256"
     log_debug "Cached image path: ${cached_img}"
 
-    # Generate cached image if not exists or is stale
-    if [[ ! -f "${cached_img}" ]]; then
+    # Verify cache integrity if exists
+    local cache_valid=0
+    if [[ -f "${cached_img}" ]] && [[ -f "${cached_checksum}" ]]; then
+        if command_exists sha256sum; then
+            local stored_sum current_sum
+            stored_sum=$(cat "${cached_checksum}" 2>/dev/null || echo "")
+            current_sum=$(sha256sum "${cached_img}" 2>/dev/null | cut -d' ' -f1)
+            if [[ -n "${stored_sum}" ]] && [[ "${stored_sum}" == "${current_sum}" ]]; then
+                cache_valid=1
+                log_debug "Cache integrity verified"
+            else
+                log_warn "Cache integrity check failed, regenerating"
+                rm -f "${cached_img}" "${cached_checksum}" 2>/dev/null || true
+            fi
+        elif command_exists shasum; then
+            local stored_sum current_sum
+            stored_sum=$(cat "${cached_checksum}" 2>/dev/null || echo "")
+            current_sum=$(shasum -a 256 "${cached_img}" 2>/dev/null | cut -d' ' -f1)
+            if [[ -n "${stored_sum}" ]] && [[ "${stored_sum}" == "${current_sum}" ]]; then
+                cache_valid=1
+                log_debug "Cache integrity verified"
+            else
+                log_warn "Cache integrity check failed, regenerating"
+                rm -f "${cached_img}" "${cached_checksum}" 2>/dev/null || true
+            fi
+        else
+            # No checksum tool available, trust cache based on existence
+            cache_valid=1
+        fi
+    fi
+
+    # Generate cached image if not exists or is invalid
+    if [[ "${cache_valid}" -eq 0 ]]; then
         log_debug "Generating PDF preview cache"
         # Clean up old cache periodically
         cleanup_cache
 
-        # Convert first page of PDF to image with error handling
+        # Convert first page of PDF to image with error handling and timeout
         local convert_success=0
         
-        # Try with scaling first
-        if pdftoppm -jpeg -f 1 -singlefile -scale-to-x 1920 -scale-to-y -1 \
-            "${file}" "${CACHE_DIR}/${hash}" 2>/dev/null; then
+        # Try with scaling first (10 second timeout)
+        if run_with_timeout 10 pdftoppm -jpeg -f 1 -singlefile -scale-to-x 1920 -scale-to-y -1 \
+            "${file}" "${CACHE_DIR}/${hash}"; then
             convert_success=1
         # Try without scaling as fallback
-        elif pdftoppm -jpeg -f 1 -singlefile "${file}" "${CACHE_DIR}/${hash}" 2>/dev/null; then
+        elif run_with_timeout 10 pdftoppm -jpeg -f 1 -singlefile "${file}" "${CACHE_DIR}/${hash}"; then
             convert_success=1
             log_warn "PDF conversion succeeded without scaling"
         fi
@@ -362,6 +513,13 @@ preview_pdf() {
             log_error "PDF preview generation produced no output"
             file "${file}"
             return 1
+        fi
+        
+        # Generate checksum for cache integrity
+        if command_exists sha256sum; then
+            sha256sum "${cached_img}" 2>/dev/null | cut -d' ' -f1 > "${cached_checksum}" || true
+        elif command_exists shasum; then
+            shasum -a 256 "${cached_img}" 2>/dev/null | cut -d' ' -f1 > "${cached_checksum}" || true
         fi
         
         log_info "PDF preview cached successfully"
@@ -389,14 +547,14 @@ preview_text() {
 
     # Try bat/batcat with syntax highlighting
     if command_exists batcat; then
-        batcat --style=numbers --color=always --pager=never "${file}" 2>/dev/null && return 0
+        run_with_timeout 5 batcat --style=numbers --color=always --pager=never "${file}" && return 0
     elif command_exists bat; then
-        bat --style=numbers --color=always --pager=never "${file}" 2>/dev/null && return 0
+        run_with_timeout 5 bat --style=numbers --color=always --pager=never "${file}" && return 0
     fi
 
-    # Fallback to cat
+    # Fallback to cat with timeout
     log_debug "Using cat for text preview"
-    cat "${file}"
+    run_with_timeout 3 cat "${file}"
 }
 
 # Preview directories
@@ -408,15 +566,15 @@ preview_directory() {
 
     # Try eza with icons and colors
     if command_exists eza; then
-        eza --icons --color=always -la "${file}" 2>/dev/null && return 0
+        run_with_timeout 3 eza --icons --color=always -la "${file}" && return 0
     fi
 
     # Fallback to ls with colors
-    if ls --color=always -lAh "${file}" 2>/dev/null; then
+    if run_with_timeout 3 ls --color=always -lAh "${file}" 2>/dev/null; then
         return 0
     else
         # BSD ls (macOS)
-        ls -lAh "${file}"
+        run_with_timeout 3 ls -lAh "${file}"
     fi
 }
 
@@ -483,7 +641,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        unzip -l "${file}" 2>/dev/null | awk 'NR>3 {print $NF}' | process_archive_listing
+        run_with_timeout 5 unzip -l "${file}" 2>/dev/null | awk 'NR>3 {print $NF}' | process_archive_listing
         echo ""
         echo "Extract: unzip '${basename_file}'"
         return 0
@@ -499,7 +657,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        tar -tf "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 tar -tf "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: tar -xf '${basename_file}'"
         return 0
@@ -513,7 +671,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        tar -tzf "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 tar -tzf "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: tar -xzf '${basename_file}'"
         return 0
@@ -527,7 +685,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        tar -tjf "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 tar -tjf "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: tar -xjf '${basename_file}'"
         return 0
@@ -541,7 +699,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        tar -tJf "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 tar -tJf "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: tar -xJf '${basename_file}'"
         return 0
@@ -565,7 +723,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        tar --use-compress-program=zstd -tf "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 tar --use-compress-program=zstd -tf "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: tar --use-compress-program=zstd -xf '${basename_file}'"
         return 0
@@ -582,7 +740,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        unrar lb "${file}" 2>/dev/null | process_archive_listing
+        run_with_timeout 5 unrar lb "${file}" 2>/dev/null | process_archive_listing
         echo ""
         echo "Extract: unrar x '${basename_file}'"
         return 0
@@ -604,7 +762,7 @@ preview_archive() {
             return 2
         fi
         list_archive_contents "Contents (first level):"
-        "${cmd}" l -slt "${file}" 2>/dev/null | \
+        run_with_timeout 5 "${cmd}" l -slt "${file}" 2>/dev/null | \
             grep "^Path = " | \
             sed 's/^Path = //' | \
             process_archive_listing
@@ -785,4 +943,3 @@ trap 'log_error "Script failed at line $LINENO with exit code $?"' ERR
 
 # Execute main function
 main "$@"
-
