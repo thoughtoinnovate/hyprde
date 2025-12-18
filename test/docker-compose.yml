@@ -1,0 +1,20 @@
+services:
+  arch:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile.arch
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../hyprde/configs/hypr/scripts:/root/.config/hypr/scripts:ro
+      - ./testfiles:/root/testfiles:ro
+
+  debian:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile.debian
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../hyprde/configs/hypr/scripts:/root/.config/hypr/scripts:ro
+      - ./testfiles:/root/testfiles:ro

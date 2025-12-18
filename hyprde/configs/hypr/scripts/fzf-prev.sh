@@ -388,9 +388,28 @@ preview_image() {
         log_warn "chafa failed for ${file}"
     fi
 
-    # Last resort: show file info
-    log_error "No image preview available. Install chafa or kitten."
+    # Try viu (Rust-based terminal image viewer)
+    if command_exists viu; then
+        log_debug "Using viu for image display"
+        if run_with_timeout 5 viu -w "${FZF_PREVIEW_COLUMNS:-80}" "${file}"; then
+            return 0
+        fi
+    fi
+
+    # Try timg
+    if command_exists timg; then
+        log_debug "Using timg for image display"
+        if run_with_timeout 5 timg -g "${dim}" "${file}"; then
+            return 0
+        fi
+    fi
+
+    # Last resort: show file info with dimensions
+    log_error "No image preview available. Install chafa, viu, or timg."
     file "${file}"
+    if command_exists sips; then
+        sips -g pixelWidth -g pixelHeight "${file}" 2>/dev/null | grep pixel
+    fi
     return 2
 }
 
