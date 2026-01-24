@@ -1,30 +1,39 @@
-# AGENTS.md
+# Development Guidelines (AGENTS.md)
 
-## Build/Lint/Test Commands
-This is a configuration repository with no traditional build system.
-- **Install**: `./hyprde/install.sh` (requires root privileges)
-- **Test single script**: `bash hyprde/configs/hypr/scripts/<script>.sh <args>`
-- **Validate YAML**: `yq < hyprde/config.yml` (checks syntax)
-- **Shell lint**: `shellcheck hyprde/configs/hypr/scripts/*.sh` (if shellcheck installed)
+## 🛠 Build & Test Commands
 
-## Code Style Guidelines
+### Installation
+- **Full Install**: `sudo ./hyprde/install.sh`
+
+### Configuration Building
+- **Rebuild Config**: `python3 hyprde/configs/hypr/build_config.py`
+- **Verify Syntax**: `./test/validate_config_headless.sh` (Requires Hyprland installed)
+
+### Testing
+- **Run Unit Tests**: `./hyprde/configs/hypr/run_tests.sh`
+- **Docker Integration Test**: 
+  ```bash
+  docker build -t hyprde-test -f test/Dockerfile.arch .
+  docker run --rm hyprde-test ./test/validate_config_headless.sh
+  ```
+
+## 📜 Code Style Guidelines
+
+### Python (Config Builder)
+- Use standard library as much as possible (e.g., `tomllib`, `urllib`).
+- Maintain compatibility with Python 3.11+.
+- Use `unittest` for all logic verification.
 
 ### Shell Scripts
-- Use `#!/bin/bash` shebang
-- Functions: `function_name() { ... }`
-- Variables: lowercase with underscores (`variable_name`)
-- Arguments: Use `$1`, `$2`, etc. with case statements for flags
-- Error handling: Basic checks with `exit 1` for missing args
-- Comments: Minimal, only for complex logic
-- Quotes: Double quotes for variables `"$variable"`
+- Use `#!/bin/bash` shebang.
+- Functions: `function_name() { ... }`.
+- Variables: lowercase with underscores (`variable_name`).
+- Quotes: Always double-quote variables `"$var"`.
 
-### Configuration Files
-- YAML: 2-space indentation, descriptive keys
-- TOML/Conf: Follow tool-specific conventions
-- CSS: Standard CSS formatting
+### Configuration (TOML)
+- Keep `hyprde.toml` clean and well-commented.
+- Use the `[custom]` block for raw lines that don't fit the schema.
 
-### General
-- No trailing whitespace
-- LF line endings
-- Executable scripts: `chmod +x` after creation
-- File permissions: Scripts executable, configs readable
+### Git Workflow
+- Atomic commits preferred.
+- Use conventional commit messages (`feat:`, `fix:`, `test:`, `docs:`).

@@ -1,32 +1,40 @@
-# Hyprocket
+# Hyprocket (HyprDE Core)
 
-A Hyprland configuration setup for a productive desktop environment.
+Hyprocket is the core configuration engine of the HyprDE project. It provides a modular, maintainable, and robust way to manage Hyprland dotfiles.
 
-## Features
+## 🌟 Core Philosophy
 
-- **File Search**: Press `SUPER + SHIFT + F` to launch an intelligent file and directory search using fzf. It automatically detects case sensitivity (e.g., "HOME" triggers case-sensitive search, "home" is case-insensitive). Files and directories are displayed with Nerd Font icons and open in Yazi file manager via Ghostty terminal.
+Instead of maintaining a massive, fragile `hyprland.conf` that breaks with every Hyprland update, Hyprocket uses a **TOML-based configuration** that is dynamically merged with upstream defaults.
 
-- **Performance Optimizations**: Uses ripgrep (rg) for fast text searches in scripts, fd for efficient file finding.
+## 📂 Structure
 
-- **Custom Scripts**: Various scripts for brightness control, audio, wifi, bluetooth, temperature monitoring, etc.
+- `hyprde.toml`: Define your preferences here.
+- `build_config.py`: The build engine that creates the actual Hyprland config.
+- `scripts/`: A collection of high-quality bash scripts for system integration.
+- `applications/`: Custom desktop entries for power management (reboot, shutdown, etc.).
 
-## Installation
+## 🔧 The `hyprde.toml` File
 
-Run `./install.sh` as root to install the configuration.
+The configuration is split into logical sections:
 
-## Prerequisites
+- **`[monitors]`**: Define monitor resolutions and scaling.
+- **`[programs]`**: Define your preferred terminal, file manager, etc.
+- **`[binds]`**: Manage your keyboard shortcuts cleanly.
+- **`[rules]`**: Define window-specific behaviors (floating, pinning, opacity).
+- **`[env]`**: Set environment variables.
 
-See `config.yml` for required packages.
+## ⌨️ Advanced Scripting
 
-## Keybinds
+Many features are powered by custom scripts in `scripts/`:
 
-- `SUPER + SHIFT + F`: File Search
-- Other keybinds defined in `configs/hypr/hyprland.conf`
+- **File Search**: Uses `fzf`, `fd`, and `bat` for a powerful terminal-based search experience.
+- **Dynamic Wallpapers**: Automatically rotates wallpapers based on time of day.
+- **Brightness/Audio**: Smooth OSD-compatible controls.
 
-## Scripts
+## 🚀 Updating
 
-Located in `configs/hypr/scripts/`:
-
-- `file_search.sh`: Fuzzy file/directory search
-- `shortcuts-help.sh`: Display keyboard shortcuts
-- And more...
+To pull latest upstream defaults without losing your settings:
+```bash
+python3 build_config.py
+```
+This will download the latest `hyprland.base.conf` from GitHub and rebuild your `hyprland.conf`.
