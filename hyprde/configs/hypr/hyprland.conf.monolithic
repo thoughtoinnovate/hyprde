@@ -322,27 +322,27 @@ bind = $mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh
 # windowrule = float, ^(kitty)$
 
 # Example windowrule v2
-# windowrulev2 = float,class:^(kitty)$,title:^(kitty)$
+# windowrule = float,class:^(kitty)$,title:^(kitty)$
 # Set specific Waybar instance to be a floating window
-windowrulev2 = suppressevent maximize, class:.* # You'll probably like this.
-# windowrulev2 = size 800 600, classsss:^(chromium)$
-# windowrulev2 = float, class:(control-center)
-# windowrulev2 = float, class:.*
-# windowrulev2 = size 800 600, class:^(control-center)$s
+windowrule = suppressevent maximize, class:.* # You'll probably like this.
+# windowrule = size 800 600, classsss:^(chromium)$
+# windowrule = float, class:(control-center)
+# windowrule = float, class:.*
+# windowrule = size 800 600, class:^(control-center)$s
 # Floating Windows
 # Bring focused floating window to the top
-# windowrulev2 = float, class:.*
-windowrulev2 = float, class:^(Picture-in-Picture)$
-windowrulev2 = pin, class:^(Picture-in-Picture)$
+# windowrule = float, class:.*
+windowrule = float, class:^(Picture-in-Picture)$
+windowrule = pin, class:^(Picture-in-Picture)$
 
 # ========================================
 # FZF File Launcher Configuration
 # ========================================
 
 # Floating window rules for fzf launcher
-windowrulev2 = float, class:(com.fzf.launcher)
-windowrulev2 = size 80% 85%, class:(com.fzf.launcher)
-windowrulev2 = center, class:(com.fzf.launcher)
-windowrulev2 = opacity 0.95 0.95, class:(com.fzf.launcher)
-windowrulev2 = animation slide, class:(com.fzf.launcher)
-windowrulev2 = rounding 10, class:(com.fzf.launcher)
+windowrule = float, class:(com.fzf.launcher)
+windowrule = size 80% 85%, class:(com.fzf.launcher)
+windowrule = center, class:(com.fzf.launcher)
+windowrule = opacity 0.95 0.95, class:(com.fzf.launcher)
+windowrule = animation slide, class:(com.fzf.launcher)
+windowrule = rounding 10, class:(com.fzf.launcher)

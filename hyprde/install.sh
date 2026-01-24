@@ -164,6 +164,18 @@ cp -rf ./configs/alacritty $USER_HOME/.config
 backup_if_exists "$USER_HOME/.config/hypr" "$BACKUP_DIR" "$USER_HOME"
 cp -rf ./configs/hypr $USER_HOME/.config
 
+# Ensure the user owns the directory before running the build script
+if [ -n "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$USER_HOME/.config/hypr"
+fi
+
+echo "Generating dynamic Hyprland configuration from TOML..."
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$SUDO_USER" HYPR_CONFIG_DIR="$USER_HOME/.config/hypr" python3 "$USER_HOME/.config/hypr/build_config.py"
+else
+    HYPR_CONFIG_DIR="$USER_HOME/.config/hypr" python3 "$USER_HOME/.config/hypr/build_config.py"
+fi
+
 backup_if_exists "$USER_HOME/.config/mako" "$BACKUP_DIR" "$USER_HOME"
 cp -rf ./configs/mako $USER_HOME/.config
 
