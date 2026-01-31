@@ -9,7 +9,7 @@ if ! tty -s; then
         *kitty*) exec kitty --class fzf-launcher "$0" ;;
         *foot*) exec foot --app-id=fzf-launcher "$0" ;;
         *alacritty*) exec alacritty --class fzf-launcher -e "$0" ;;
-        *) exec $terminal -e "$0" ;;
+        *) exec "$terminal" -e "$0" ;;
     esac
     exit
 fi
@@ -85,7 +85,7 @@ if [ -n "$selected" ]; then
             nohup alacritty -e yazi "$file_path" >/dev/null 2>&1 &
             ;;
         *)
-            nohup $terminal -e yazi "$file_path" >/dev/null 2>&1 &
+            nohup "$terminal" -e yazi "$file_path" >/dev/null 2>&1 &
             ;;
     esac
 

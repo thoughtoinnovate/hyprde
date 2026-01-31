@@ -1,12 +1,12 @@
 #!/bin/bash
 # shortcuts-help.sh - Display Hyprocket shortcuts with hash-based caching
 
-# Prevent multiple instances
+# Prevent multiple instances using flock for atomic locking
 lock_file="/tmp/hyprocket-shortcuts.lock"
-if [ -f "$lock_file" ]; then
+exec 200>"$lock_file"
+if ! flock -n 200; then
     exit 0
 fi
-echo $$ > "$lock_file"
 trap "rm -f '$lock_file'" EXIT
 
 # Function to get variable value from config

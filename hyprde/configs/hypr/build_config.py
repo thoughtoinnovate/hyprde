@@ -1,11 +1,26 @@
 import tomllib
 import urllib.request
+import urllib.error
 import os
 import subprocess
 import re
+import ssl
+import logging
+from typing import Optional, Dict, Any, List
 
-def get_hyprland_version():
-    """Detect local Hyprland version tag."""
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def get_hyprland_version() -> str:
+    """Detect local Hyprland version tag.
+    
+    Returns:
+        Version tag (e.g., "v0.40.0") or "main" if not detected.
+    """
     try:
         # Run Hyprland --version and capture output
         output = subprocess.check_output(["Hyprland", "--version"], stderr=subprocess.STDOUT, text=True)
@@ -17,46 +32,57 @@ def get_hyprland_version():
         ver_match = re.search(r"Hyprland ([\d\.]+)", output)
         if ver_match:
             return f"v{ver_match.group(1)}"
-    except Exception:
-        pass
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+        logger.warning(f"Could not detect Hyprland version: {e}")
     return "main"
+
+# Constants
+MAX_DOWNLOAD_SIZE = 5 * 1024 * 1024  # 5MB limit
+SSL_CONTEXT = ssl.create_default_context()
+SSL_CONTEXT.check_hostname = True
+SSL_CONTEXT.verify_mode = ssl.CERT_REQUIRED
 
 HYPR_VERSION = get_hyprland_version()
 BASE_URL = f"https://raw.githubusercontent.com/hyprwm/Hyprland/{HYPR_VERSION}/example/hyprland.conf"
 
 # Determine config directory. Default to ~/.config/hypr, but allow override.
-CONFIG_DIR = os.getenv("HYPR_CONFIG_DIR", os.path.join(os.path.expanduser("~"), ".config/hypr"))
+def get_config_dir() -> str:
+    """Get and validate the configuration directory."""
+    config_dir = os.getenv("HYPR_CONFIG_DIR")
+    if config_dir:
+        # Validate path to prevent directory traversal
+        config_dir = os.path.abspath(os.path.expanduser(config_dir))
+        # Ensure path doesn't contain dangerous patterns
+        dangerous_patterns = ['..', '//', '~', '$']
+        if any(pattern in config_dir for pattern in dangerous_patterns):
+            logger.warning(f"Potentially unsafe path in HYPR_CONFIG_DIR: {config_dir}")
+            logger.info("Falling back to default config directory")
+            config_dir = None
+    
+    if not config_dir:
+        config_dir = os.path.join(os.path.expanduser("~"), ".config/hypr")
+    
+    return config_dir
+
+CONFIG_DIR = get_config_dir()
 
 TOML_FILE = os.path.join(os.path.dirname(__file__), "hyprde.toml")
 BASE_CONF = os.path.join(CONFIG_DIR, "hyprland.base.conf")
 USER_CONF = os.path.join(CONFIG_DIR, "hyprde.generated.conf")
 MAIN_CONF = os.path.join(CONFIG_DIR, "hyprland.conf")
 
-def download_base():
-    print(f"Downloading base config from {BASE_URL}...")
-    monolithic_fallback = os.path.join(os.path.dirname(__file__), "hyprland.conf.monolithic")
-    raw_content = b""
-    
-    try:
-        # Use a user agent and a 10s timeout
-        req = urllib.request.Request(
-            BASE_URL, 
-            data=None, 
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            raw_content = response.read()
-        print("Download successful.")
-    except Exception as e:
-        print(f"Download failed or timed out: {e}")
-        if os.path.exists(monolithic_fallback):
-            print("Using local monolithic config as fallback base.")
-            with open(monolithic_fallback, "rb") as f:
-                raw_content = f.read()
-        else:
-             print("No fallback found. Creating placeholder.")
-             raw_content = b"# Placeholder base config\n"
+def _load_fallback_config(monolithic_fallback: str) -> bytes:
+    """Load fallback config if download fails."""
+    if os.path.exists(monolithic_fallback):
+        logger.info("Using local monolithic config as fallback base.")
+        with open(monolithic_fallback, "rb") as f:
+            return f.read()
+    else:
+        logger.warning("No fallback found. Creating placeholder.")
+        return b"# Placeholder base config\n"
 
+def _process_and_save_base_config(raw_content: bytes) -> None:
+    """Process downloaded content and save to base config file."""
     # Process and Clean the Content
     # We comment out binds, monitors, and execs to avoid duplication/conflicts
     # because Hyprland accumulates these instead of overriding them.
@@ -75,15 +101,84 @@ def download_base():
             
     with open(BASE_CONF, "w") as f:
         f.write("\n".join(clean_lines))
-    print(f"Processed and saved base config to {BASE_CONF}")
+    logger.info(f"Processed and saved base config to {BASE_CONF}")
+
+def download_base() -> None:
+    """Download base Hyprland config from GitHub with security validation."""
+    logger.info(f"Downloading base config from {BASE_URL}...")
+    monolithic_fallback = os.path.join(os.path.dirname(__file__), "hyprland.conf.monolithic")
+    raw_content = b""
+    
+    try:
+        # Use a user agent and a 10s timeout with SSL verification
+        req = urllib.request.Request(
+            BASE_URL, 
+            data=None, 
+            headers={'User-Agent': 'Hyprde/1.0'}
+        )
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as response:
+            # Validate Content-Type
+            content_type = response.headers.get('Content-Type', '')
+            if content_type and not content_type.startswith(('text/plain', 'application/octet-stream')):
+                raise ValueError(f"Unexpected content type: {content_type}")
+            
+            # Validate Content-Length if available
+            content_length = response.headers.get('Content-Length')
+            if content_length and int(content_length) > MAX_DOWNLOAD_SIZE:
+                raise ValueError(f"File too large: {content_length} bytes (max: {MAX_DOWNLOAD_SIZE})")
+            
+            # Read with size limit to prevent memory exhaustion
+            raw_content = response.read(MAX_DOWNLOAD_SIZE)
+            if len(raw_content) == MAX_DOWNLOAD_SIZE:
+                raise ValueError("Download exceeded maximum size limit")
+                
+        logger.info("Download successful.")
+    except urllib.error.URLError as e:
+        logger.error(f"Download failed (network error): {e}")
+        raw_content = _load_fallback_config(monolithic_fallback)
+    except (ValueError, TimeoutError) as e:
+        logger.error(f"Download failed (validation error): {e}")
+        raw_content = _load_fallback_config(monolithic_fallback)
+    except Exception as e:
+        logger.error(f"Download failed (unexpected error): {e}")
+        raw_content = _load_fallback_config(monolithic_fallback)
+    
+    # Process and save the config
+    _process_and_save_base_config(raw_content)
+
+def validate_shell_safe(value: str, field_name: str) -> str:
+    """Validate that a value is safe to use in shell commands.
+    
+    Args:
+        value: The value to validate
+        field_name: Name of the field for error messages
+        
+    Returns:
+        The validated value
+        
+    Raises:
+        ValueError: If the value contains dangerous shell characters
+    """
+    dangerous_chars = [';', '|', '&', '$', '`', '$(', '<', '>', '\n', '\r']
+    for char in dangerous_chars:
+        if char in value:
+            raise ValueError(f"Potentially unsafe character '{char}' in {field_name}: {value}")
+    return value
 
 def generate_user_conf():
-    print(f"Reading TOML from {TOML_FILE}...")
+    """Generate user configuration from TOML file."""
+    logger.info(f"Reading TOML from {TOML_FILE}...")
     try:
         with open(TOML_FILE, "rb") as f:
             data = tomllib.load(f)
-    except Exception as e:
-        print(f"Error reading TOML file: {e}")
+    except FileNotFoundError as e:
+        logger.error(f"TOML file not found: {e}")
+        return
+    except tomllib.TOMLDecodeError as e:
+        logger.error(f"Invalid TOML syntax: {e}")
+        return
+    except OSError as e:
+        logger.error(f"File I/O error: {e}")
         return
     
     lines = []
@@ -114,9 +209,16 @@ def generate_user_conf():
             # Default values if missing in TOML
             path = wp.get("path", "$HOME/Pictures/wallpapers/")
             interval = wp.get("interval", 60)
-            # Add as a separate exec-once
-            cmd = f"sh $HOME/.config/hypr/scripts/dynamic-wallpapers.sh {path} {interval}"
-            lines.append(f"exec-once = {cmd}")
+            # Validate path to prevent shell injection
+            try:
+                validate_shell_safe(str(path), "wallpapers.path")
+                validate_shell_safe(str(interval), "wallpapers.interval")
+                # Add as a separate exec-once
+                cmd = f"sh $HOME/.config/hypr/scripts/dynamic-wallpapers.sh {path} {interval}"
+                lines.append(f"exec-once = {cmd}")
+            except ValueError as e:
+                logger.error(f"Skipping dynamic wallpaper due to unsafe value: {e}")
+                lines.append(f"# Skipped dynamic wallpaper: {e}")
 
     # Nightlight
     if "nightlight" in data:
@@ -420,8 +522,12 @@ if __name__ == "__main__":
     try:
         with open(TOML_FILE, "rb") as f:
             data_full = tomllib.load(f)
-    except Exception as e:
-        print(f"Error reading TOML file: {e}")
+    except FileNotFoundError as e:
+        logger.error(f"TOML file not found: {e}")
+    except tomllib.TOMLDecodeError as e:
+        logger.error(f"Invalid TOML syntax: {e}")
+    except OSError as e:
+        logger.error(f"File I/O error: {e}")
 
     generate_user_conf() # Refactor this later to pass data, but for now it reads file again internally which is fine or we can pass it if we refactor.
     # Actually generate_user_conf reads the file itself. I'll leave it as is to minimize diff, 

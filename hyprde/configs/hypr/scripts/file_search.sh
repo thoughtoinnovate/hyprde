@@ -32,5 +32,5 @@ if [ -n "$selected" ]; then
     # Get the default terminal from Hyprland config
     terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 | tr -d ' ')
     # Open all files in Yazi file explorer, highlighted
-    $terminal -e yazi "$file_path" || notify-send "Error" "Could not open $file_path in Yazi"
+    "$terminal" -e yazi "$file_path" || notify-send "Error" "Could not open $file_path in Yazi"
 fi
