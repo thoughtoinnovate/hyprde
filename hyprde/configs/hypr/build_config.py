@@ -248,6 +248,37 @@ def generate_config_section(lines: List[str], section_name: str, data: Dict[str,
     
     lines.append("}")
 
+def is_plugin_enabled(data: Dict[str, Any], plugin_name: str) -> bool:
+    """Check if a plugin is enabled in the configuration.
+    
+    A plugin is enabled if:
+    1. It's explicitly listed in plugins.enabled, OR
+    2. manage_official is True and the plugin config exists
+    
+    Args:
+        data: Parsed TOML data
+        plugin_name: Name of the plugin to check
+        
+    Returns:
+        True if the plugin should be enabled, False otherwise
+    """
+    if "plugins" not in data:
+        return False
+    
+    pl = data["plugins"]
+    
+    # Check if explicitly enabled
+    enabled_plugins = pl.get("enabled", [])
+    if plugin_name in enabled_plugins:
+        return True
+    
+    # Check if managing official and plugin config exists
+    if pl.get("manage_official", False):
+        if "plugin" in data and plugin_name in data["plugin"]:
+            return True
+    
+    return False
+
 def generate_user_conf() -> None:
     """Generate user configuration from TOML file.
     
@@ -270,6 +301,13 @@ def generate_user_conf() -> None:
     
     lines = []
     lines.append("# Generated from hyprde.toml")
+    
+    # Check which plugins are enabled (for conditional configuration)
+    hyprexpo_enabled = is_plugin_enabled(data, "hyprexpo")
+    if hyprexpo_enabled:
+        logger.info("Hyprexpo plugin is enabled - including hyprexpo configuration")
+    else:
+        logger.info("Hyprexpo plugin is disabled - excluding hyprexpo configuration")
     
     # Monitors
     if "monitors" in data:
@@ -433,6 +471,10 @@ def generate_user_conf() -> None:
         def add_binds(section, prefix="bind"):
             if section in data["binds"]:
                 for b in data["binds"].get(section, {}).get("list", []):
+                    # Skip hyprexpo-related bindings if plugin not enabled
+                    if not hyprexpo_enabled:
+                        if "hyprexpo" in str(b).lower():
+                            continue
                     lines.append(f"{prefix} = {b}")
 
         add_binds("normal", "bind")
@@ -445,8 +487,14 @@ def generate_user_conf() -> None:
     if "submaps" in data:
         lines.append("\n# Submaps")
         for submap_name, submap_data in data["submaps"].items():
+            # Skip expo submap if hyprexpo not enabled
+            if submap_name == "expo" and not hyprexpo_enabled:
+                continue
             lines.append(f"\nsubmap = {submap_name}")
             for b in submap_data.get("binds", []):
+                # Also filter hyprexpo bindings within submap if not enabled
+                if not hyprexpo_enabled and "hyprexpo" in str(b).lower():
+                    continue
                 lines.append(f"bind = {b}")
             lines.append("submap = reset")
 
@@ -507,15 +555,28 @@ def generate_user_conf() -> None:
 
     # Plugin Configuration
     if "plugin" in data:
-        lines.append("\n# Plugin Configuration")
-        lines.append("plugin {")
+        # Filter plugins based on enablement status
+        plugins_to_include = {}
         for plugin_name, config in data["plugin"].items():
-            lines.append(f"    {plugin_name} {{")
-            for k, v in config.items():
-                v_str = str(v).lower() if isinstance(v, bool) else str(v)
-                lines.append(f"        {k} = {v_str}")
-            lines.append("    }")
-        lines.append("}")
+            # Skip hyprexpo if not enabled
+            if plugin_name == "hyprexpo":
+                if hyprexpo_enabled:
+                    plugins_to_include[plugin_name] = config
+                continue
+            # Include all other plugins
+            plugins_to_include[plugin_name] = config
+        
+        # Only output plugin section if there are plugins to include
+        if plugins_to_include:
+            lines.append("\n# Plugin Configuration")
+            lines.append("plugin {")
+            for plugin_name, config in plugins_to_include.items():
+                lines.append(f"    {plugin_name} {{")
+                for k, v in config.items():
+                    v_str = str(v).lower() if isinstance(v, bool) else str(v)
+                    lines.append(f"        {k} = {v_str}")
+                lines.append("    }")
+            lines.append("}")
 
     # Custom Raw Lines
     if "custom" in data:
