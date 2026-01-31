@@ -1,8 +1,8 @@
 #!/bin/bash
 
 script_dir=$(dirname "$0")
-WALLPAPER_DIR=$1
-INTERVAL=$2  # Change wallpaper every 5 minutes (300 seconds)
+WALLPAPER_DIR=${1:-"$HOME/Pictures/wallpapers/"}
+INTERVAL=${2:-60}  # Change wallpaper every 60 seconds by default
 
 toggleNightLight(){
     

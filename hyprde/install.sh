@@ -222,6 +222,7 @@ cp -rf ./configs/applications/* $USER_HOME/.local/share/hyprocket-session/applic
 
 echo "Making scripts executable..."
 chmod +x $USER_HOME/.config/hypr/scripts/*.sh
+chmod +x $USER_HOME/.config/hypr/scripts/*.py
 chmod +x $USER_HOME/.config/hypr/scripts/gammastep/*.sh
 
 

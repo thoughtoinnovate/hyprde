@@ -29,6 +29,7 @@
             "network",
             "battery",
             "custom/ps_toggle",
+            "custom/wallpaper",
             "custom/ctrl"
         ]
     },
@@ -254,5 +255,16 @@
             "\udb86\uddbf",
             "\uf03d"
         ]
+    },
+    "custom/wallpaper": {
+        "return-type": "json",
+        "interval": 5,
+        "exec": "$HOME/.config/hypr/scripts/wallpaper-ctrl.sh status",
+        "on-click": "$HOME/.config/hypr/scripts/wallpaper-ctrl.sh toggle",
+        "format": "{icon}",
+        "format-icons": [
+            "󰸉"
+        ],
+        "tooltip": true
     }
 }

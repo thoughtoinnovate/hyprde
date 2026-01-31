@@ -33,8 +33,8 @@ Many features are powered by custom scripts in `scripts/`:
 
 ## 🚀 Updating
 
-To pull latest upstream defaults without losing your settings:
+To pull upstream defaults matching your local Hyprland version without losing your settings:
 ```bash
 python3 build_config.py
 ```
-This will download the latest `hyprland.base.conf` from GitHub and rebuild your `hyprland.conf`.
+This will automatically detect your local Hyprland version, download the corresponding `hyprland.base.conf` from GitHub, and rebuild your `hyprland.conf`.

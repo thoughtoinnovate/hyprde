@@ -11,12 +11,26 @@ launcher = "wofi"
 launcher_cmd = "wofi --show drun"
 notification_service = "mako"
 status_bar = "waybar"
-dynamic_wallpapers = "sh $HOME/.config/hypr/scripts/dynamic-wallpapers.sh $HOME/Pictures/wallpapers/ 60"
 
 [autostart]
 exec_once = [
-    "$notification_service & $status_bar & hyprpaper & hypridle & $dynamic_wallpapers"
+    "$notification_service & $status_bar & hyprpaper & hypridle"
 ]
+
+[wallpapers]
+enable_dynamic = true
+path = "$HOME/Pictures/wallpapers/"
+interval = 60
+
+[idle]
+lock_timeout = 300
+screen_off_timeout = 330
+suspend_timeout = 1800
+
+[nightlight]
+enabled = false
+temp_day = 6500
+temp_night = 3400
 
 [env]
 vars = [
@@ -135,6 +149,7 @@ list = [
     "$mainMod ALT, down, movewindow, d",
     "$mainMod ALT, M, exec, $HOME/.config/hypr/scripts/mic.sh toggle",
     "$mainMod ALT, V, exec, $HOME/.config/hypr/scripts/camera.sh toggle",
+    "$mainMod ALT, W, exec, $HOME/.config/hypr/scripts/wallpaper-ctrl.sh toggle",
     "$mainMod, K, layoutmsg, swaptomaster",
     "$mainMod, G, layoutmsg, swapwithmaster master",
     "$mainMod, A, layoutmsg, addmaster",
@@ -143,7 +158,8 @@ list = [
     "$mainMod CTRL, C, exec, $HOME/.config/hypr/scripts/waybars.sh ctrl-cntr",
     "$mainMod, Print, exec, ~/.config/hypr/scripts/screenshot.sh area",
     ", Print, exec, ~/.config/hypr/scripts/screenshot.sh",
-    "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh"
+    "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh",
+    "$mainMod, C, exec, $HOME/.config/hypr/scripts/settings_manager.py"
 ]
 
 [binds.release]

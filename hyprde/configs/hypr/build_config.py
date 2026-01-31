@@ -1,8 +1,29 @@
 import tomllib
 import urllib.request
 import os
+import subprocess
+import re
 
-BASE_URL = "https://raw.githubusercontent.com/hyprwm/Hyprland/main/example/hyprland.conf"
+def get_hyprland_version():
+    """Detect local Hyprland version tag."""
+    try:
+        # Run Hyprland --version and capture output
+        output = subprocess.check_output(["Hyprland", "--version"], stderr=subprocess.STDOUT, text=True)
+        # Try to find 'Tag: vX.Y.Z'
+        tag_match = re.search(r"Tag: (v[\d\.]+)", output)
+        if tag_match:
+            return tag_match.group(1)
+        # Fallback to 'Hyprland X.Y.Z' -> vX.Y.Z
+        ver_match = re.search(r"Hyprland ([\d\.]+)", output)
+        if ver_match:
+            return f"v{ver_match.group(1)}"
+    except Exception:
+        pass
+    return "main"
+
+HYPR_VERSION = get_hyprland_version()
+BASE_URL = f"https://raw.githubusercontent.com/hyprwm/Hyprland/{HYPR_VERSION}/example/hyprland.conf"
+
 # Determine config directory. Default to ~/.config/hypr, but allow override.
 CONFIG_DIR = os.getenv("HYPR_CONFIG_DIR", os.path.join(os.path.expanduser("~"), ".config/hypr"))
 
@@ -85,6 +106,33 @@ def generate_user_conf():
         lines.append("\n# Autostart")
         for cmd in data["autostart"].get("exec_once", []):
             lines.append(f"exec-once = {cmd}")
+
+    # Wallpapers
+    if "wallpapers" in data:
+        wp = data["wallpapers"]
+        if wp.get("enable_dynamic", False):
+            # Default values if missing in TOML
+            path = wp.get("path", "$HOME/Pictures/wallpapers/")
+            interval = wp.get("interval", 60)
+            # Add as a separate exec-once
+            cmd = f"sh $HOME/.config/hypr/scripts/dynamic-wallpapers.sh {path} {interval}"
+            lines.append(f"exec-once = {cmd}")
+
+    # Nightlight
+    if "nightlight" in data:
+        nl = data["nightlight"]
+        if nl.get("enabled", False):
+            t_day = nl.get("temp_day", 6500)
+            t_night = nl.get("temp_night", 3400)
+            # Add gammastep command
+            # Note: The original scripts use -O which is one-shot manual mode.
+            # Standard auto usage is: gammastep -t 6500:3400
+            # If we want simple manual persistent mode, we might just set one temp.
+            # But "Night Light" usually implies auto adjustment or persistent warm.
+            # Let's assume the user wants persistent warm if they enabled "nightlight" manually here,
+            # OR standard auto behavior.
+            # Given the existing scripts use manual toggles, let's use the auto mode here so it runs in background.
+            lines.append(f"exec-once = gammastep -t {t_day}:{t_night}")
 
     # Env
     if "env" in data:
@@ -264,6 +312,63 @@ def generate_user_conf():
     with open(USER_CONF, "w") as f:
         f.write("\n".join(lines))
 
+HYPRIDLE_CONF = os.path.join(CONFIG_DIR, "hypridle.conf")
+
+def generate_hypridle_conf(data):
+    if "idle" not in data:
+        print("No [idle] section found. Skipping hypridle.conf generation.")
+        return
+
+    print(f"Generating hypridle config at {HYPRIDLE_CONF}...")
+    idle = data["idle"]
+    
+    # Defaults
+    lock_cmd = "pidof hyprlock || hyprlock"
+    before_sleep = "loginctl lock-session"
+    after_sleep = "hyprctl dispatch dpms on"
+    
+    lock_timeout = idle.get("lock_timeout", 300)
+    screen_off_timeout = idle.get("screen_off_timeout", 330)
+    suspend_timeout = idle.get("suspend_timeout", 1800)
+    
+    content = f"""
+general {{
+    lock_cmd = {lock_cmd}
+    before_sleep_cmd = {before_sleep}
+    after_sleep_cmd = {after_sleep}
+}}
+
+listener {{
+    timeout = 150
+    on-timeout = brightnessctl -s set 10
+    on-resume = brightnessctl -r
+}}
+
+listener {{
+    timeout = 150
+    on-timeout = brightnessctl -sd rgb:kbd_backlight set 0
+    on-resume = brightnessctl -rd rgb:kbd_backlight
+}}
+
+listener {{
+    timeout = {lock_timeout}
+    on-timeout = loginctl lock-session
+}}
+
+listener {{
+    timeout = {screen_off_timeout}
+    on-timeout = hyprctl dispatch dpms off
+    on-resume = hyprctl dispatch dpms on
+}}
+
+listener {{
+    timeout = {suspend_timeout}
+    on-timeout = systemctl suspend
+}}
+"""
+    with open(HYPRIDLE_CONF, "w") as f:
+        f.write(content)
+
 def create_main_conf():
     print(f"Generating main config at {MAIN_CONF}...")
     content = f"""
@@ -283,6 +388,20 @@ if __name__ == "__main__":
         os.makedirs(CONFIG_DIR)
         
     download_base()
-    generate_user_conf()
+    
+    # Load data once
+    data_full = {}
+    try:
+        with open(TOML_FILE, "rb") as f:
+            data_full = tomllib.load(f)
+    except Exception as e:
+        print(f"Error reading TOML file: {e}")
+
+    generate_user_conf() # Refactor this later to pass data, but for now it reads file again internally which is fine or we can pass it if we refactor.
+    # Actually generate_user_conf reads the file itself. I'll leave it as is to minimize diff, 
+    # but I'll pass data_full to hypridle gen.
+    
+    generate_hypridle_conf(data_full)
+    
     create_main_conf()
     print("Configuration build complete.")
