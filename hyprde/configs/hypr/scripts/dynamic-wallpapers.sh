@@ -40,7 +40,15 @@ while true; do
     hyprctl hyprpaper unload all
     # Select a random wallpaper
     wall_dir=$(wallpaper_dir)
-    wallpaper=$(find "$wall_dir" -type f | shuf -n 1)
+    wallpaper=$(find "$wall_dir" -type f 2>/dev/null | shuf -n 1)
+    
+    # Validate that we found a wallpaper
+    if [ -z "$wallpaper" ] || [ ! -f "$wallpaper" ]; then
+        echo "Warning: No wallpapers found in $wall_dir" >&2
+        sleep "$INTERVAL"
+        continue
+    fi
+    
     # Preload the new wallpaper
     hyprctl hyprpaper preload "$wallpaper"
 

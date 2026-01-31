@@ -11,11 +11,12 @@ case $1 in
 	wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 esac
 
-#send notifications to mako
-if wpctl get-volume @DEFAULT_AUDIO_SINK@|grep -i -c "MUTED"; then
+# Send notifications to mako
+# Check if audio is muted (grep -q returns true if pattern found)
+if wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -iq "MUTED"; then
     audio_percentage="Muted!"
 else
-audio_percentage=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk -F': ' '{print $2 * 100}')%
+    audio_percentage=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk -F': ' '{print $2 * 100}')%
 fi
 notify-send -u critical --expire-time=200 "Volume: $audio_percentage"
 # hyprctl notify -1 200 "rgb(ff1ea3)" "Volume: $audio_percentage"

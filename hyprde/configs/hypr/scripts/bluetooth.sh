@@ -1,22 +1,22 @@
 #!/bin/bash
 
-# Function to get TLP status and return JSON for Waybar
+# Function to get Bluetooth status and return JSON for Waybar
 get_status() {
-  local exists=$(bluetoothctl show|rg --ignore-case powered|rg --ignore-case yes|wc -l)
-  if [ "$exists" -gt 0 ]; then
+  # Check if bluetooth is powered on using more robust parsing
+  local powered=$(bluetoothctl show 2>/dev/null | grep -i "powered:" | grep -ic "yes" || echo "0")
+  if [ "$powered" -gt 0 ]; then
       echo "{\"text\": \"enabled\", \"tooltip\":\"enabled\",\"class\":\"enbld\"}"
-
   else
       echo "{\"text\": \"disabled\", \"tooltip\":\"disabled\",\"class\":\"disbld\"}"
   fi
 }
 
 toggle() {
-  local exists=$(bluetoothctl show|rg --ignore-case powered|rg --ignore-case yes|wc -l)
-  if [ "$exists" -gt 0 ]; then
+  # Check current power status
+  local powered=$(bluetoothctl show 2>/dev/null | grep -i "powered:" | grep -ic "yes" || echo "0")
+  if [ "$powered" -gt 0 ]; then
       turn_off
       get_status
-
   else
       turn_on
       get_status
