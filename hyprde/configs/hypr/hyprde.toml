@@ -106,6 +106,21 @@ column_width = 0.5                        # Column width multiplier
 fullscreen_on_one_column = false          # Auto-fullscreen single column
 
 # =============================================================================
+# GESTURES
+# Trackpad gesture configuration for hyprexpo
+# Uses Hyprland's native gesture system via hyprexpo-gesture keyword
+# Format: FINGERS, DIRECTION, ACTION (expo/unset)
+# =============================================================================
+[gesture]
+list = [
+    # 3-finger swipe up to open hyprexpo expo
+    "hyprexpo-gesture = 3, up, expo",
+    
+    # 3-finger swipe down to close hyprexpo expo
+    "hyprexpo-gesture = 3, down, expo"
+]
+
+# =============================================================================
 # SUBMAPS
 # Keyboard modes (submaps) for complex keybindings
 # Each submap defines a mode with its own keybindings
@@ -314,9 +329,8 @@ list = [
     "$mainMod, R, layoutmsg, removemaster",
     "$mainMod, F, layoutmsg, cyclenext",
     
-    # Hyprexpo
-    "$mainMod, G, hyprexpo:expo, on",
-    "$mainMod, G, submap, expo",
+    # Hyprexpo (SUPER+G to activate workspace overview)
+    "$mainMod, G, hyprexpo:expo, toggle",
     
     # Scripts and utilities
     "$mainMod SHIFT, f, exec, $HOME/.config/hypr/scripts/file_search.sh",

@@ -578,6 +578,12 @@ def generate_user_conf() -> None:
                 lines.append("    }")
             lines.append("}")
 
+    # Gestures for hyprexpo
+    if "gesture" in data:
+        lines.append("\n# Gestures")
+        for g in data["gesture"].get("list", []):
+            lines.append(f"gesture = {g}")
+
     # Custom Raw Lines
     if "custom" in data:
         lines.append("\n# Custom / Legacy Settings")
