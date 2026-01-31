@@ -582,7 +582,7 @@ def generate_user_conf() -> None:
     if "gesture" in data:
         lines.append("\n# Gestures")
         for g in data["gesture"].get("list", []):
-            lines.append(f"gesture = {g}")
+            lines.append(g)
 
     # Custom Raw Lines
     if "custom" in data:
