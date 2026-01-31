@@ -161,8 +161,32 @@ echo "Copying config Files ......"
 backup_if_exists "$USER_HOME/.config/alacritty" "$BACKUP_DIR" "$USER_HOME"
 cp -rf ./configs/alacritty $USER_HOME/.config
 
+# Smart copy for hypr config - preserve user settings
 backup_if_exists "$USER_HOME/.config/hypr" "$BACKUP_DIR" "$USER_HOME"
-cp -rf ./configs/hypr $USER_HOME/.config
+
+# Check if hyprde.toml exists and has user modifications
+if [ -f "$USER_HOME/.config/hypr/hyprde.toml" ]; then
+    # Calculate checksums to detect modifications
+    USER_CHECKSUM=$(md5sum "$USER_HOME/.config/hypr/hyprde.toml" 2>/dev/null | cut -d' ' -f1)
+    REPO_CHECKSUM=$(md5sum ./configs/hypr/hyprde.toml 2>/dev/null | cut -d' ' -f1)
+    
+    if [ "$USER_CHECKSUM" != "$REPO_CHECKSUM" ]; then
+        echo "⚠️  Preserving existing user settings in hyprde.toml"
+        echo "   User has customized configuration - keeping existing file"
+        # Copy everything except hyprde.toml
+        for item in ./configs/hypr/*; do
+            if [ "$(basename "$item")" != "hyprde.toml" ]; then
+                cp -rf "$item" "$USER_HOME/.config/hypr/"
+            fi
+        done
+    else
+        echo "📄 No user modifications detected - copying fresh config"
+        cp -rf ./configs/hypr $USER_HOME/.config
+    fi
+else
+    # First time install - copy everything
+    cp -rf ./configs/hypr $USER_HOME/.config
+fi
 
 # Ensure the user owns the directory before running the build script
 if [ -n "$SUDO_USER" ]; then
@@ -170,6 +194,15 @@ if [ -n "$SUDO_USER" ]; then
 fi
 
 echo "Generating dynamic Hyprland configuration from TOML..."
+
+# Check if hyprexpo is enabled in user's config
+if [ -f "$USER_HOME/.config/hypr/hyprde.toml" ]; then
+    if ! grep -q 'enabled.*=.*\["hyprexpo"\]' "$USER_HOME/.config/hypr/hyprde.toml" 2>/dev/null; then
+        echo "💡 Tip: hyprexpo plugin is available but not enabled."
+        echo "   Press SUPER+C → Manage Plugins → Enable/Disable Plugin > hyprexpo"
+        echo "   Or edit ~/.config/hypr/hyprde.toml and set: enabled = [\"hyprexpo\"]"
+    fi
+fi
 if [ -n "$SUDO_USER" ]; then
     sudo -u "$SUDO_USER" HYPR_CONFIG_DIR="$USER_HOME/.config/hypr" python3 "$USER_HOME/.config/hypr/build_config.py"
 else

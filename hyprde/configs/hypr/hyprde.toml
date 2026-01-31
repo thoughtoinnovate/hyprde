@@ -87,7 +87,7 @@ temp_night = 3400                         # Nighttime color temperature (warm/or
 # =============================================================================
 [plugins]
 manage_official = false                   # Enable hyprpm official plugin repo
-enabled = []                              # List of plugin names to enable
+enabled = ["hyprexpo"]                    # Enable hyprexpo by default for workspace overview
 
 # hyprexpo plugin - workspace overview/expose
 [plugin.hyprexpo]
