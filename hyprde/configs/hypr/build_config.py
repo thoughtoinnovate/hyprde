@@ -134,6 +134,14 @@ def generate_user_conf():
             # Given the existing scripts use manual toggles, let's use the auto mode here so it runs in background.
             lines.append(f"exec-once = gammastep -t {t_day}:{t_night}")
 
+    # Plugins
+    if "plugins" in data:
+        pl = data["plugins"]
+        # If we are managing plugins, we should ensure hyprpm is reloaded on startup
+        # This is standard practice for hyprpm managed plugins
+        if pl.get("manage_official", False) or len(pl.get("enabled", [])) > 0:
+             lines.append("exec-once = hyprpm reload -n")
+
     # Env
     if "env" in data:
         lines.append("\n# Environment")
@@ -244,7 +252,16 @@ def generate_user_conf():
         add_binds("repeat", "binde")
         add_binds("locked", "bindl")
 
-    # Rules
+    # Submaps
+    if "submaps" in data:
+        lines.append("\n# Submaps")
+        for submap_name, submap_data in data["submaps"].items():
+            lines.append(f"\nsubmap = {submap_name}")
+            for b in submap_data.get("binds", []):
+                lines.append(f"bind = {b}")
+            lines.append("submap = reset")
+
+    # Window Rules (Converted to Hyprland 0.53+ syntax)
     if "rules" in data:
         lines.append("\n# Window Rules (Converted to Hyprland 0.53+ syntax)")
         for rule in data["rules"].get("window", []):
@@ -293,14 +310,23 @@ def generate_user_conf():
                 
             lines.append(new_rule)
 
-    # Gestures
-    if "gestures" in data:
-         lines.append("\n# Gestures")
-         lines.append("gestures {")
-         for k, v in data["gestures"].items():
-             v_str = str(v).lower() if isinstance(v, bool) else str(v)
-             lines.append(f"    {k} = {v_str}")
-         lines.append("}")
+    # Gestures (v0.53+ syntax)
+    if "gesture" in data:
+        lines.append("\n# Gestures (v0.53+ syntax)")
+        for g in data["gesture"].get("list", []):
+             lines.append(f"gesture = {g}")
+
+    # Plugin Configuration
+    if "plugin" in data:
+        lines.append("\n# Plugin Configuration")
+        lines.append("plugin {")
+        for plugin_name, config in data["plugin"].items():
+            lines.append(f"    {plugin_name} {{")
+            for k, v in config.items():
+                v_str = str(v).lower() if isinstance(v, bool) else str(v)
+                lines.append(f"        {k} = {v_str}")
+            lines.append("    }")
+        lines.append("}")
 
     # Custom Raw Lines
     if "custom" in data:

@@ -18,10 +18,10 @@ install_packages() {
         package=$(echo "$package"|sed 's/^"//;s/"$//')
         case "$os" in
             arch)
-               sudo pacman -S --noconfirm --needed $package
+               sudo pacman -S --noconfirm --needed $package base-devel
                 ;;
             debian)
-                sudo apt install -y --no-install-recommends $package
+                sudo apt install -y --no-install-recommends $package build-essential
                 ;;
             *)
                 echo "Unsupported distribution: $os"

@@ -32,6 +32,36 @@ enabled = false
 temp_day = 6500
 temp_night = 3400
 
+[plugins]
+manage_official = false
+enabled = []
+
+[plugin.hyprexpo]
+columns = 3
+gap_size = 5
+bg_col = "rgb(111111)"
+workspace_method = "center current"
+enable_gesture = true
+gesture_fingers = 3
+gesture_distance = 300
+gesture_positive = false
+
+[submaps.expo]
+binds = [
+    ", escape, hyprexpo:expo, off",
+    ", escape, submap, reset",
+    ", return, hyprexpo:expo, off",
+    ", return, submap, reset",
+    ", left, movefocus, l",
+    ", right, movefocus, r",
+    ", up, movefocus, u",
+    ", down, movefocus, d",
+    ", h, movefocus, l",
+    ", l, movefocus, r",
+    ", k, movefocus, u",
+    ", j, movefocus, d"
+]
+
 [env]
 vars = [
     "XCURSOR_SIZE,24",
@@ -151,7 +181,8 @@ list = [
     "$mainMod ALT, V, exec, $HOME/.config/hypr/scripts/camera.sh toggle",
     "$mainMod ALT, W, exec, $HOME/.config/hypr/scripts/wallpaper-ctrl.sh toggle",
     "$mainMod, K, layoutmsg, swaptomaster",
-    "$mainMod, G, layoutmsg, swapwithmaster master",
+    "$mainMod, G, hyprexpo:expo, on",
+    "$mainMod, G, submap, expo",
     "$mainMod, A, layoutmsg, addmaster",
     "$mainMod, R, layoutmsg, removemaster",
     "$mainMod, F, layoutmsg, cyclenext",
