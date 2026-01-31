@@ -72,7 +72,14 @@ USER_CONF = os.path.join(CONFIG_DIR, "hyprde.generated.conf")
 MAIN_CONF = os.path.join(CONFIG_DIR, "hyprland.conf")
 
 def _load_fallback_config(monolithic_fallback: str) -> bytes:
-    """Load fallback config if download fails."""
+    """Load fallback config if download fails.
+    
+    Args:
+        monolithic_fallback: Path to local fallback config file
+        
+    Returns:
+        Raw bytes of the fallback config or placeholder
+    """
     if os.path.exists(monolithic_fallback):
         logger.info("Using local monolithic config as fallback base.")
         with open(monolithic_fallback, "rb") as f:
@@ -194,8 +201,47 @@ def atomic_write(filepath: str, content: str, mode: str = "w") -> None:
             os.unlink(temp_path)
         raise OSError(f"Failed to write {filepath}: {e}") from e
 
-def generate_user_conf():
-    """Generate user configuration from TOML file."""
+def format_config_value(val: Any) -> str:
+    """Format a value for Hyprland config output.
+    
+    Args:
+        val: Value to format (bool, int, float, str)
+        
+    Returns:
+        Formatted string for config file
+    """
+    if isinstance(val, bool):
+        return str(val).lower()
+    return str(val)
+
+def generate_config_section(lines: List[str], section_name: str, data: Dict[str, Any], key_transform = None) -> None:
+    """Generate a standard config section.
+    
+    Args:
+        lines: List to append generated lines to
+        section_name: Name of the config section
+        data: Dictionary of config values
+        key_transform: Optional function to transform keys (e.g., col_ -> col.)
+    """
+    lines.append(f"\n# {section_name.title()}")
+    lines.append(f"{section_name} {{")
+    
+    for key, val in data.items():
+        if isinstance(val, dict):
+            continue
+        
+        display_key = key_transform(key) if key_transform else key
+        val_str = format_config_value(val)
+        lines.append(f"    {display_key} = {val_str}")
+    
+    lines.append("}")
+
+def generate_user_conf() -> None:
+    """Generate user configuration from TOML file.
+    
+    Reads hyprde.toml and generates hyprde.generated.conf with all
+    user-defined settings in Hyprland config format.
+    """
     logger.info(f"Reading TOML from {TOML_FILE}...")
     try:
         with open(TOML_FILE, "rb") as f:
@@ -470,12 +516,19 @@ def generate_user_conf():
 
 HYPRIDLE_CONF = os.path.join(CONFIG_DIR, "hypridle.conf")
 
-def generate_hypridle_conf(data):
+def generate_hypridle_conf(data: Dict[str, Any]) -> None:
+    """Generate hypridle configuration from TOML data.
+    
+    Args:
+        data: Parsed TOML data containing idle configuration
+        
+    Creates hypridle.conf with lock, screen off, and suspend timeouts.
+    """
     if "idle" not in data:
-        print("No [idle] section found. Skipping hypridle.conf generation.")
+        logger.info("No [idle] section found. Skipping hypridle.conf generation.")
         return
 
-    print(f"Generating hypridle config at {HYPRIDLE_CONF}...")
+    logger.info(f"Generating hypridle config at {HYPRIDLE_CONF}...")
     idle = data["idle"]
     
     # Defaults
@@ -524,7 +577,12 @@ listener {{
 """
     atomic_write(HYPRIDLE_CONF, content)
 
-def create_main_conf():
+def create_main_conf() -> None:
+    """Create the main hyprland.conf that sources base and user configs.
+    
+    This file is the entry point that Hyprland reads, which then
+    sources the base config and generated user overrides.
+    """
     logger.info(f"Generating main config at {MAIN_CONF}...")
     content = f"""# Hyprland Config - Auto Generated
 # Base: {BASE_URL}
