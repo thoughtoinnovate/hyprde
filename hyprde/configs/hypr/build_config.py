@@ -99,8 +99,7 @@ def _process_and_save_base_config(raw_content: bytes) -> None:
         else:
             clean_lines.append(line)
             
-    with open(BASE_CONF, "w") as f:
-        f.write("\n".join(clean_lines))
+    atomic_write(BASE_CONF, "\n".join(clean_lines))
     logger.info(f"Processed and saved base config to {BASE_CONF}")
 
 def download_base() -> None:
@@ -164,6 +163,36 @@ def validate_shell_safe(value: str, field_name: str) -> str:
         if char in value:
             raise ValueError(f"Potentially unsafe character '{char}' in {field_name}: {value}")
     return value
+
+def atomic_write(filepath: str, content: str, mode: str = "w") -> None:
+    """Write content to file atomically using temp file + rename pattern.
+    
+    This prevents partial/corrupted files if the write is interrupted.
+    
+    Args:
+        filepath: Target file path
+        content: Content to write
+        mode: File mode ('w' for text, 'wb' for binary)
+        
+    Raises:
+        OSError: If write fails
+    """
+    temp_path = f"{filepath}.tmp.{os.getpid()}"
+    try:
+        if 'b' in mode:
+            with open(temp_path, mode) as f:
+                f.write(content)
+        else:
+            with open(temp_path, mode, encoding='utf-8') as f:
+                f.write(content)
+        os.fsync(f.fileno())  # Ensure data is flushed to disk
+        os.replace(temp_path, filepath)  # Atomic on POSIX
+        logger.debug(f"Atomically wrote {filepath}")
+    except Exception as e:
+        # Clean up temp file on failure
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise OSError(f"Failed to write {filepath}: {e}") from e
 
 def generate_user_conf():
     """Generate user configuration from TOML file."""
@@ -436,9 +465,8 @@ def generate_user_conf():
         for line in data["custom"].get("lines", []):
             lines.append(line)
 
-    print(f"Writing user config to {USER_CONF}...")
-    with open(USER_CONF, "w") as f:
-        f.write("\n".join(lines))
+    logger.info(f"Writing user config to {USER_CONF}...")
+    atomic_write(USER_CONF, "\n".join(lines))
 
 HYPRIDLE_CONF = os.path.join(CONFIG_DIR, "hypridle.conf")
 
@@ -494,21 +522,18 @@ listener {{
     on-timeout = systemctl suspend
 }}
 """
-    with open(HYPRIDLE_CONF, "w") as f:
-        f.write(content)
+    atomic_write(HYPRIDLE_CONF, content)
 
 def create_main_conf():
-    print(f"Generating main config at {MAIN_CONF}...")
-    content = f"""
-# Hyprland Config - Auto Generated
+    logger.info(f"Generating main config at {MAIN_CONF}...")
+    content = f"""# Hyprland Config - Auto Generated
 # Base: {BASE_URL}
 # User Overrides: hyprde.generated.conf
 
 source = ./hyprland.base.conf
 source = ./hyprde.generated.conf
 """
-    with open(MAIN_CONF, "w") as f:
-        f.write(content)
+    atomic_write(MAIN_CONF, content)
 
 if __name__ == "__main__":
     if not os.path.exists(CONFIG_DIR):
