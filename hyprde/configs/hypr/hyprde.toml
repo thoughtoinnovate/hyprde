@@ -46,6 +46,10 @@ gesture_fingers = 3
 gesture_distance = 300
 gesture_positive = false
 
+[plugin.hyprscrolling]
+column_width = 0.5
+fullscreen_on_one_column = false
+
 [submaps.expo]
 binds = [
     ", escape, hyprexpo:expo, off",
@@ -180,6 +184,11 @@ list = [
     "$mainMod ALT, M, exec, $HOME/.config/hypr/scripts/mic.sh toggle",
     "$mainMod ALT, V, exec, $HOME/.config/hypr/scripts/camera.sh toggle",
     "$mainMod ALT, W, exec, $HOME/.config/hypr/scripts/wallpaper-ctrl.sh toggle",
+    "$mainMod ALT, L, exec, $HOME/.config/hypr/scripts/layout-ctrl.sh",
+    "$mainMod, comma, layoutmsg, move -col",
+    "$mainMod, period, layoutmsg, move +col",
+    "$mainMod SHIFT, period, layoutmsg, movewindowto r",
+    "$mainMod SHIFT, comma, layoutmsg, movewindowto l",
     "$mainMod, K, layoutmsg, swaptomaster",
     "$mainMod, G, hyprexpo:expo, on",
     "$mainMod, G, submap, expo",
