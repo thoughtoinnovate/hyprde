@@ -547,12 +547,6 @@ def generate_user_conf() -> None:
                 
             lines.append(new_rule)
 
-    # Gestures (v0.53+ syntax)
-    if "gesture" in data:
-        lines.append("\n# Gestures (v0.53+ syntax)")
-        for g in data["gesture"].get("list", []):
-             lines.append(f"gesture = {g}")
-
     # Plugin Configuration
     if "plugin" in data:
         # Filter plugins based on enablement status
