@@ -189,16 +189,28 @@ def atomic_write(filepath: str, content: str, mode: str = "w") -> None:
         if 'b' in mode:
             with open(temp_path, mode) as f:
                 f.write(content)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())  # Ensure data is flushed to disk
+                except (OSError, ValueError, TypeError):
+                    pass  # fsync may fail in testing environments
         else:
             with open(temp_path, mode, encoding='utf-8') as f:
                 f.write(content)
-        os.fsync(f.fileno())  # Ensure data is flushed to disk
+                f.flush()
+                try:
+                    os.fsync(f.fileno())  # Ensure data is flushed to disk
+                except (OSError, ValueError, TypeError):
+                    pass  # fsync may fail in testing environments
         os.replace(temp_path, filepath)  # Atomic on POSIX
         logger.debug(f"Atomically wrote {filepath}")
     except Exception as e:
         # Clean up temp file on failure
         if os.path.exists(temp_path):
-            os.unlink(temp_path)
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass  # Ignore cleanup errors
         raise OSError(f"Failed to write {filepath}: {e}") from e
 
 def format_config_value(val: Any) -> str:
