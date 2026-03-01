@@ -1,0 +1,9 @@
+FROM --platform=linux/amd64 archlinux:latest
+
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm firejail bubblewrap bat file fd fzf ripgrep chafa \
+    hyprland python wayland mesa xorg-xwayland libxkbcommon
+
+COPY . /root/hyprde
+WORKDIR /root/hyprde
+CMD ["bash"]

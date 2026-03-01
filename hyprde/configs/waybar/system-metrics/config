@@ -1,0 +1,70 @@
+{
+    "id": "system-metrics",
+    "layer": "overlay",
+    "exclusive": false,
+    "passthrough": false,
+    "position": "top",
+    "margin": "22px 15px 0px 0px",
+    "spacing": 10,
+    "modules-right": [
+        "group/metrics_panel"
+    ],
+    "group/metrics_panel": {
+        "orientation": "horizontal",
+        "modules": [
+            "cpu",
+            "memory",
+            "custom/gpu-usage",
+            "custom/temperature"
+        ]
+    },
+    "custom/temperature": {
+        "exec": "$HOME/.config/hypr/scripts/temperature.sh all",
+        "return-type": "json",
+        "format": "{icon} {text}°C",
+        "format-icons": [
+            "󰜗",
+            "󰸁",
+            "󱃂",
+            "󰸁"
+        ],
+        "interval": 5,
+        "tooltip": true
+    },
+    "custom/gpu-usage": {
+        "exec": "~/.config/hypr/scripts/gpu_monitor.sh",
+        "format": "{icon} {text}",
+        "format-icons": [
+            "󰢮"
+        ],
+        "return-type": "text",
+        "interval": 2,
+        "tooltip-format": "GPU Usage: {text}"
+    },
+    "memory": {
+        "format": "{icon} {percentage}%",
+        "format-icons": [
+            "󰍛"
+        ],
+        "states": {
+            "warning": 60,
+            "critical": 80
+        },
+        "tooltip": true,
+        "tooltip-format": "RAM: {used}/{total} GiB",
+        "interval": 5
+    },
+    "cpu": {
+        "interval": 2,
+        "format": "{icon} {usage}%",
+        "format-icons": [
+            "󰻠"
+        ],
+        "states": {
+            "warning": 50,
+            "critical": 70
+        },
+        "tooltip": true,
+        "on-click": "gnome-system-monitor"
+    }
+}

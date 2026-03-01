@@ -1,0 +1,20 @@
+# Mako Configuration
+layer=overlay
+anchor=top-right
+font=monospace 12
+background-color=#000000ff
+text-color=#ffffffff
+width=200
+height=100
+max-history=10
+padding=5
+border-size=2
+border-color=#33ccffee
+progress-color=over #33ccffee
+border-radius=20
+default-timeout=10000
+group-by=app-name
+icons=1
+
+[grouped]
+format=<b>%s</b>\n%b

@@ -1,0 +1,19 @@
+# Mako configuration file
+
+# Set the maximum number of visible notifications
+max-visible=5
+
+# Set the position of notifications
+anchor=top-right
+
+# Set the default timeout for notifications
+default-timeout=5000
+
+# Set the background color for notifications
+background-color=#282a36
+
+# Set the text alignment
+text-alignment=left
+
+# Set the font for notifications
+font=monospace 10

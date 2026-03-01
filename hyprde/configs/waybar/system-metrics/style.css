@@ -1,0 +1,47 @@
+@import "../../hypr/themes/current.css";
+
+* {
+    background-color: transparent;
+    font-family: "JetBrainsMono Nerd Font";
+}
+
+#waybar {
+    border-radius: 40px;
+}
+
+/* Match Control Center panel styling exactly */
+#metrics_panel {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    margin-right: 15px;
+}
+
+.module {
+    background-color: alpha(@theme_module_bg, 0.7);
+    color: @theme_module_fg;
+    font-size: 14px; /* SETTINGS_PANEL_FONT_SIZE */
+    font-weight: 600;
+    padding: 8px 15px;
+    min-width: 85px;
+    margin: 0 5px;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+}
+
+.module:hover {
+    background-color: alpha(@theme_panel_hover_bg, 0.8);
+}
+
+tooltip {
+    background-color: alpha(@theme_tooltip_bg, 0.8);
+    border: 1px solid @theme_border_color;
+    border-radius: 10px;
+}
+
+tooltip label {
+    color: @theme_base_fg;
+    font-size: 14px;
+    padding: 5px;
+}

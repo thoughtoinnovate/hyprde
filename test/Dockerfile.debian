@@ -1,0 +1,13 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    firejail bubblewrap bat file fd-find fzf ripgrep chafa ca-certificates && \
+    ln -s /usr/bin/fdfind /usr/bin/fd && \
+    ln -s /usr/bin/batcat /usr/bin/bat && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY hyprde/configs/hypr/scripts /root/.config/hypr/scripts
+RUN chmod +x /root/.config/hypr/scripts/*.sh
+
+WORKDIR /root
+CMD ["bash"]

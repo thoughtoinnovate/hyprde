@@ -1,0 +1,22 @@
+# Mako Dark Configuration
+layer=overlay
+anchor=top-right
+font=JetBrainsMono Nerd Font 11
+background-color=#000000D9
+text-color=#ffffffff
+width=350
+height=120
+max-history=10
+padding=15
+border-size=3
+border-color=#33ccff4d
+progress-color=over #33ccffff
+border-radius=15
+default-timeout=3000
+group-by=app-name
+icons=1
+max-icon-size=48
+margin=10
+
+[grouped]
+format=<b>%s</b>\n%b

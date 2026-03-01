@@ -1,0 +1,42 @@
+@import "../hypr/themes/current.css";
+
+/*
+ * General Styling
+ */
+#window {
+    background-color: alpha(@theme_wofi_bg, 0.95); /* SETTINGS_WOFI_OPACITY */
+    border: 2px solid @theme_wofi_bg;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+#entry {
+    padding: 5px 10px;
+    margin: 2px 0;
+    border-radius: 5px;
+    color: @theme_wofi_entry_fg;
+}
+#text:selected {
+    color: @theme_wofi_sel_fg;
+    font-weight: bold; 
+}
+
+/* Change font to bold on selection */
+#entry:selected {
+    background-color: @theme_wofi_sel_bg;
+    color: @theme_wofi_sel_fg;
+    border-radius: 15px;
+}
+
+/*
+ * Prompt Styling
+ */
+#input {
+    background-color: alpha(@theme_wofi_bg, 0.95); /* SETTINGS_WOFI_OPACITY */
+    color: @theme_wofi_fg;
+    border: none;
+    border-radius: 15px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}

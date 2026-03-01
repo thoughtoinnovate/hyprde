@@ -1,0 +1,30 @@
+/* Light Theme */
+@define-color theme_base_bg #ffffff;
+@define-color theme_base_fg #1a1a1a;
+@define-color theme_module_bg #e0e0e0;
+@define-color theme_module_fg #1a1a1a;
+@define-color theme_hover_bg #333333;
+@define-color theme_hover_fg #ffffff;
+@define-color theme_panel_hover_bg #cccccc;
+@define-color theme_border_color rgba(0, 0, 0, 0.2);
+@define-color theme_tooltip_bg #ffffff;
+@define-color theme_active_bg #000000;
+@define-color theme_active_fg #ffffff;
+@define-color theme_disabled_bg #b0b0b0;
+@define-color theme_disabled_fg #505050;
+@define-color theme_accent #0066cc;
+@define-color theme_critical_bg #cc0000;
+@define-color theme_warning_bg #cc6600;
+@define-color theme_success_bg #00cc00;
+@define-color theme_success_fg #ffffff;
+@define-color theme_wofi_bg #ffffff;
+@define-color theme_wofi_bg_alpha rgba(255, 255, 255, 0.85);
+@define-color theme_wofi_fg #1a1a1a;
+@define-color theme_wofi_entry_fg #000000;
+@define-color theme_wofi_sel_bg #d3d3d3;
+@define-color theme_wofi_sel_fg #000000;
+
+/* Notifications (Mako) */
+@define-color theme_notif_bg #ffffff;
+@define-color theme_notif_fg #1a1a1a;
+@define-color theme_notif_border rgba(0, 102, 204, 0.933);
