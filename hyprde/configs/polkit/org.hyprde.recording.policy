@@ -26,8 +26,8 @@
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin</allow_active>
     </defaults>
-    <!-- Use /usr/bin/true for general auth check that works with user pulseaudio sessions -->
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/true</annotate>
+    <!-- Using unique symlink to distinguish from screen recording -->
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/hyprde-mic-auth</annotate>
   </action>
 
   <action id="org.hyprde.recording.screen">
@@ -38,7 +38,8 @@
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/true</annotate>
+    <!-- Using unique symlink to distinguish from microphone -->
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/hyprde-screen-auth</annotate>
   </action>
 
 </policyconfig>

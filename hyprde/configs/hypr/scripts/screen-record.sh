@@ -33,7 +33,8 @@ stop_recording() {
 start_recording() {
   # 0. Secure On: Ask for authentication
   notify-send -t 3000 "Security Alert" "Screen recording requested. Please authenticate to start recording."
-  if ! pkexec /usr/bin/true; then
+  # Use unique binary path to avoid conflict with microphone
+  if ! pkexec /usr/local/bin/hyprde-screen-auth; then
     notify-send "Screen Recording" "Authentication failed. Recording cancelled."
     exit 1
   fi
