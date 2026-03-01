@@ -301,9 +301,13 @@ for app_file in ./configs/applications/*; do
 done
 cp -rfp ./configs/applications/* $USER_HOME/.local/share/applications/
 
-echo "Installing PolicyKit actions..."
+echo "Installing PolicyKit actions and authentication helpers..."
 sudo mkdir -p /usr/share/polkit-1/actions
 sudo cp -f ./configs/polkit/org.hyprde.recording.policy /usr/share/polkit-1/actions/
+
+# Create unique symlinks to distinguish between different auth requests in PolicyKit
+sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-mic-auth
+sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-screen-auth
 
 echo "Creating dedicated session menu directory..."
 mkdir -p $USER_HOME/.local/share/hyprocket-session/applications

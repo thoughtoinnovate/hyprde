@@ -51,8 +51,8 @@ toggle() {
       # Currently OFF -> Turn ON (Password required for security)
       notify-send -t 3000 "Security Alert" "Microphone activation requested. Please authenticate to enable audio recording."
       # Secure ON: Require PolicyKit authentication
-      # We authenticate first, then run as user to avoid PulseAudio "Connection refused"
-      if pkexec /usr/bin/true; then
+      # Use unique binary path to avoid conflict with screen recording
+      if pkexec /usr/local/bin/hyprde-mic-auth; then
           pactl set-source-mute @DEFAULT_SOURCE@ off
           save_state "on"
       fi
@@ -67,7 +67,7 @@ toggle() {
 turn_on() {
   local target=$1
   notify-send -t 3000 "Security Alert" "Microphone activation requested. Please authenticate to enable audio recording."
-  if pkexec /usr/bin/true; then
+  if pkexec /usr/local/bin/hyprde-mic-auth; then
       pactl set-source-mute @DEFAULT_SOURCE@ off
       save_state "on"
   fi
