@@ -1,0 +1,119 @@
+@import "../../hypr/themes/current.css";
+
+* {
+    background-color: transparent;
+    font-family: "JetBrainsMono Nerd Font";
+}
+
+#waybar {
+    border-radius: 40px;
+}
+
+/* Specific styling for the panel container */
+#ctrl_panel {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    margin-right: 15px;
+}
+
+#row1, #row2, #row3, #row4, #row5 {
+    margin: 5px 0;
+}
+
+#row2 .module {
+    min-width: 75px; /* Make backlight and audio wider like sliders */
+    padding: 10px 15px;
+}
+
+.module {
+    background-color: alpha(@theme_module_bg, 0.85); /* Darker, more solid base */
+    color: @theme_module_fg;
+    font-size: 18px; /* SETTINGS_PANEL_FONT_SIZE */
+    font-weight: 700; /* Bolder icons */
+    /* Balanced optical correction */
+    padding: 10px 16px 10px 14px;
+    min-width: 35px;
+    margin: 0 5px;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+}
+
+.module:hover {
+    background-color: alpha(@theme_panel_hover_bg, 0.95);
+}
+
+.enbld {
+    background-color: @theme_active_bg; /* Full brightness background */
+    color: @theme_active_fg; /* Full contrast icon */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.auto {
+    background-color: alpha(@theme_active_bg, 0.5);
+    color: #ffffff;
+    border: 2px solid @theme_active_bg;
+    box-shadow: 0 0 12px 3px rgba(255, 50, 50, 0.7);
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+.auto-theme {
+    background-color: alpha(@theme_active_bg, 0.5);
+    color: #ffffff;
+    border: 2px solid @theme_active_bg;
+    box-shadow: 0 0 12px 3px rgba(0, 180, 255, 0.7);
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+.recording {
+    background-color: #ff3344; /* Brighter Red */
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(255, 51, 68, 0.6);
+    animation: blink 1s linear infinite;
+}
+
+@keyframes blink {
+    0% { opacity: 1; background-color: #ff3344; }
+    50% { opacity: 0.7; background-color: #ff0000; }
+    100% { opacity: 1; background-color: #ff3344; }
+}
+
+.disbld {
+    background-color: alpha(@theme_disabled_bg, 0.15); /* More subtle background for disabled */
+    color: alpha(@theme_disabled_fg, 0.5); /* Dimmer icon for disabled */
+}
+
+#pulseaudio, #backlight {
+    min-width: 75px;
+    background-color: alpha(@theme_module_bg, 0.7);
+    color: @theme_module_fg;
+}
+
+#pulseaudio:hover, #backlight:hover {
+    background-color: alpha(@theme_panel_hover_bg, 0.8);
+}
+
+#custom-wifi, #custom-bluetooth, #custom-mic, #custom-camera, #custom-gammastep, #custom-wallpaper, #custom-screenshot, #custom-session, #custom-theme {
+    /* Color handled by state class (.enbld / .disbld) */
+}
+
+#custom-wifi {
+    /* Ensure visibility */
+}
+
+#custom-session {
+    color: #ed333b; 
+}
+
+tooltip {
+    background-color: alpha(@theme_tooltip_bg, 0.8);
+    border: 1px solid @theme_border_color;
+    border-radius: 10px;
+}
+
+tooltip label {
+    color: @theme_base_fg;
+    font-size: 14px;
+    padding: 5px;
+}

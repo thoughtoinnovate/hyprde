@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Reboot
+Exec=systemctl reboot
+Type=Application
+Icon=system-reboot
+Categories=System;

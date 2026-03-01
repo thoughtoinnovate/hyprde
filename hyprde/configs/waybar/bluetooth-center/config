@@ -1,0 +1,40 @@
+{
+    "id": "bluetooth-center",
+    "layer": "overlay",
+    "exclusive": false,
+    "passthrough": false,
+    "position": "top",
+    "margin": "22px 15px 0px 0px",
+    "spacing": 10,
+    "modules-right": [
+        "group/bt_panel"
+    ],
+    "group/bt_panel": {
+        "orientation": "vertical",
+        "modules": [
+            "custom/bt-header",
+            "custom/bt-list",
+            "custom/bt-footer"
+        ]
+    },
+    "custom/bt-header": {
+        "exec": "~/.config/hypr/scripts/bluetooth.sh status",
+        "return-type": "json",
+        "interval": 2,
+        "format": "󰂯 Bluetooth Center",
+        "tooltip": false,
+        "on-click": "~/.config/hypr/scripts/bluetooth.sh toggle"
+    },
+    "custom/bt-list": {
+        "exec": "~/.config/hypr/scripts/bluetooth_list.py",
+        "return-type": "json",
+        "interval": 2,
+        "format": "{}",
+        "tooltip": true
+    },
+    "custom/bt-footer": {
+        "format": "<span>Advanced Settings 󰒓</span>",
+        "on-click": "blueman-manager",
+        "tooltip": false
+    }
+}

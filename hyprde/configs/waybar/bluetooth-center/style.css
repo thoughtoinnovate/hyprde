@@ -1,0 +1,84 @@
+@import "../../hypr/themes/current.css";
+
+* {
+    background-color: transparent;
+    font-family: "JetBrainsMono Nerd Font";
+}
+
+#waybar {
+    border-radius: 40px;
+}
+
+#bt_panel {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    margin-right: 15px;
+    min-width: 350px;
+}
+
+.module {
+    background-color: alpha(@theme_module_bg, 0.7);
+    color: @theme_module_fg;
+    font-size: 16px; 
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    margin: 3px 0;
+}
+
+.module:hover {
+    background-color: alpha(@theme_panel_hover_bg, 0.8);
+}
+
+/* Match Control Center Button Themes */
+.enbld {
+    background-color: alpha(@theme_active_bg, 0.8);
+    color: alpha(@theme_active_fg, 0.9);
+}
+
+.enbld:hover {
+    background-color: alpha(@theme_active_bg, 1.0);
+}
+
+.disbld {
+    background-color: alpha(@theme_disabled_bg, 0.4);
+    color: alpha(@theme_disabled_fg, 0.5);
+}
+
+.disbld:hover {
+    background-color: alpha(@theme_disabled_bg, 0.6); /* was rgba(60,60,60) */
+}
+
+#custom-bt-header {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+/* Section Titles */
+#custom-title-conn, #custom-title-pair {
+    background-color: transparent;
+    font-size: 12px;
+    color: @theme_accent;
+    padding: 10px 5px 2px 5px;
+    margin-top: 5px;
+    font-weight: 800;
+}
+
+#custom-title-pair {
+    color: #888888;
+}
+
+#custom-bt-footer {
+    color: alpha(@theme_base_fg, 0.6);
+    font-size: 14px;
+    margin-top: 8px;
+    background-color: alpha(@theme_base_fg, 0.1);
+}
+
+#custom-bt-footer:hover {
+    background-color: alpha(@theme_base_fg, 0.2);
+    color: @theme_base_fg;
+}

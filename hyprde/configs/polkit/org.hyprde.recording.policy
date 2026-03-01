@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+
+  <vendor>HyprDE Project</vendor>
+  <vendor_url>https://github.com/hyprde/hyprde</vendor_url>
+
+  <action id="org.hyprde.recording.camera">
+    <description>Enable Camera Driver</description>
+    <message>Security Alert: Camera activation requested. Please authenticate to enable video recording.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/sbin/modprobe</annotate>
+  </action>
+
+  <action id="org.hyprde.recording.mic">
+    <description>Enable Microphone</description>
+    <message>Security Alert: Microphone activation requested. Please authenticate to enable audio recording.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <!-- Use /usr/bin/true for general auth check that works with user pulseaudio sessions -->
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/true</annotate>
+  </action>
+
+  <action id="org.hyprde.recording.screen">
+    <description>Start Screen Recording</description>
+    <message>Security Alert: Screen recording requested. Please authenticate to start recording.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/true</annotate>
+  </action>
+
+</policyconfig>

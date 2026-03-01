@@ -1,0 +1,9 @@
+feat: Refine Waybar styling and camera icon
+
+This commit refines Waybar styling and updates the camera icon.
+
+Key changes include:
+- Updated the camera off icon to `\udb86\uddbf` (U+E67F) in both main Waybar and Waybar Control Center configurations.
+- Reverted the `format-muted` change in the `pulseaudio` module, removing the `---` placeholder.
+- Reverted `min-width` from the `.module` class in `style.css`.
+- Added `min-width: 50px;` to `#pulseaudio`, `#battery`, `#cpu`, `#memory`, and `#network` modules in `style.css` to prevent layout shifts when percentage values change.

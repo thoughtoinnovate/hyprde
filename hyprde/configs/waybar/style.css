@@ -1,0 +1,252 @@
+@import "../hypr/themes/current.css";
+
+/* Waybar Style with Settings Manager Tags */
+
+#waybar {
+    background-color: transparent;
+    font-family: "JetBrainsMono Nerd Font";
+    font-weight: 500;
+    color: @theme_base_fg;
+    font-size: 17px; /* SETTINGS_MAIN_FONT_SIZE */
+}
+
+.module {
+    margin: 0px 10px 0px 10px; /* SETTINGS_ICON_SPACING */
+    border-radius: 15px;
+    padding: 3px 6px;
+    transition: background-color 0.3s;
+}
+
+.module:hover {
+    color: @theme_hover_fg;
+    font-weight: 700;
+    border-radius: 15px;
+    padding: 0px 4px 0px 4px;
+}
+
+#centerBar {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 15px;
+    margin: 0px 2px 0px 0px;
+}
+
+#centerBar .module {
+    min-width: 0px;
+    padding: 3px 10px 3px 10px;
+    transition: background-color 0.3s;
+}
+
+#centerBar .module#clock {
+    min-width: 150px;
+}
+
+#statusbar #custom-mic-dot, #statusbar #custom-cam-dot, #statusbar #custom-record-dot {
+    font-size: 14px;
+    padding: 0;
+    min-width: 12px; /* Fixed width for uniform spacing */
+    margin: 0;
+    background-color: transparent;
+}
+
+#statusbar #custom-record-dot {
+    margin-left: 10px;
+}
+
+#statusbar #custom-record-dot.recording {
+    color: #ff3344; /* Brighter Red */
+    text-shadow: 0 0 8px rgba(255, 51, 68, 1), 0 0 12px rgba(255, 51, 68, 0.6);
+    animation: blink-bright 1s linear infinite;
+}
+
+@keyframes blink-bright {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+#statusbar #custom-mic-dot {
+    margin-left: 10px; /* Spacing from the left edge of the group */
+}
+
+#statusbar #custom-mic-dot.disbld, #statusbar #custom-cam-dot.disbld {
+    background-color: transparent;
+    color: alpha(@theme_base_fg, 0.3);
+    margin: 0;
+    padding: 0;
+}
+
+#statusbar #custom-mic-dot.disbld {
+    margin-left: 10px; /* Keep left margin when disabled */
+}
+
+#statusbar #custom-cam-dot {
+    margin: 0px 10px 0px 0px; /* Keep the privacy gap */
+}
+
+#statusbar #custom-cam-dot.disbld {
+    margin: 0px 10px 0px 0px; /* Keep the privacy gap even when disabled */
+}
+
+#custom-mic-dot.enbld {
+    background-color: transparent;
+    color: #FF8C00; /* High Contrast Orange */
+    text-shadow: 0 0 8px rgba(255, 140, 0, 1), 0 0 12px rgba(255, 140, 0, 0.6);
+}
+
+#custom-cam-dot.enbld {
+    background-color: transparent;
+    color: #00FF00; /* High Contrast Green */
+    text-shadow: 0 0 8px rgba(0, 255, 0, 1), 0 0 12px rgba(0, 255, 0, 0.6);
+}
+
+
+#centerBar .module:hover {
+    background-color: alpha(@theme_hover_bg, 0.875);
+    color: @theme_hover_fg;
+}
+
+#critical {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 15px;
+    padding: 5px 0px 5px 0px;
+    margin: 0px 2px 0px 0px;
+}
+
+#critical .module {
+    padding: 3px 10px;
+    transition: background-color 0.3s;
+}
+
+#critical .module:hover {
+    background-color: alpha(@theme_hover_bg, 0.875);
+    color: @theme_hover_fg;
+}
+
+#custom-ctrl {
+    color: @theme_base_fg;
+    padding: 3px 10px;
+}
+
+#statusbar {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 15px;
+    margin: 0px 2px 0px 0px;
+}
+
+#statusbar .module, #critical .module {
+    margin-right: 1px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 3px 10px 3px 8px;
+}
+
+#statusbar .module:hover {
+    background-color: alpha(@theme_hover_bg, 0.875);
+    color: @theme_hover_fg;
+}
+
+#leftActions {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 15px;
+    margin: 0px 0px 0px 2px;
+}
+
+#leftActions .module {
+    margin-right: 0px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+#leftActions .module:hover {
+    background-color: alpha(@theme_hover_bg, 0.875);
+    color: @theme_hover_fg;
+    border-radius: 15px;
+    padding: 3px 5px 3px 5px;
+}
+
+#leftinfo {
+    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    border-radius: 15px;
+    margin: 0px 0px 0px 2px;
+}
+
+#leftinfo .module {
+    margin-right: 2px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+#leftinfo .module:hover {
+    background-color: alpha(@theme_hover_bg, 0.875);
+    color: @theme_hover_fg;
+    border-radius: 15px;
+    padding: 3px 5px 3px 5px;
+}
+
+tooltip {
+    background-color: alpha(@theme_tooltip_bg, 0.8);
+    border: 1px solid @theme_border_color;
+    border-radius: 10px;
+}
+
+tooltip label {
+    color: @theme_base_fg;
+    font-size: 14px;
+    padding: 5px;
+}
+
+#workspaces button {
+    padding: 0px 12px;
+    color: alpha(@theme_base_fg, 0.4);
+    transition: all 0.3s ease;
+}
+
+#workspaces button.active {
+    color: @theme_base_fg;
+    font-weight: 700;
+}
+
+#workspaces button:hover {
+    color: @theme_base_fg;
+    background: alpha(@theme_base_fg, 0.1);
+    border-radius: 10px;
+}
+
+#statusbar .critical {
+    background-color: alpha(@theme_critical_bg, 0.733);
+}
+
+#statusbar .warning {
+    background-color: alpha(@theme_warning_bg, 0.927);
+}
+
+#statusbar .normal {
+    background-color: transparent;
+}
+
+#statusbar .green, #custom-ps_toggle.green {
+    background-color: @theme_success_bg;
+    color: @theme_success_fg;
+}
+
+.enbld {
+    /* Generic enabled style - overridden for dots */
+    background-color: @theme_success_bg;
+    color: @theme_success_fg;
+    border-radius: 15px;
+}
+
+.disbld {
+    background-color: @theme_critical_bg;
+    color: @theme_base_fg;
+    border-radius: 15px;
+}
+
+#critical .enbld {
+    background-color: @theme_success_bg;
+    color: @theme_success_fg;
+}
+
+#critical .disbld {
+    background-color: @theme_critical_bg;
+    color: @theme_base_fg;
+}
