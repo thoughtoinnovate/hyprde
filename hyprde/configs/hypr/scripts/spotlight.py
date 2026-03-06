@@ -78,7 +78,7 @@ class App:
         if icon and hasattr(icon, 'get_names'):
             theme = Gtk.IconTheme.get_default()
             for name in icon.get_names():
-                if theme.has_icon(name):
+                if theme.lookup_icon(name, 48, 0):
                     self.icon_name = name
                     break
 
