@@ -32,7 +32,13 @@ class App:
         self.app_info = app_info
         self.name = app_info.get_name()
         icon = app_info.get_icon()
-        self.icon_name = icon.get_names()[0] if icon and hasattr(icon, 'get_names') else "application-x-executable"
+        self.icon_name = "distributor-logo"
+        if icon and hasattr(icon, 'get_names'):
+            theme = Gtk.IconTheme.get_default()
+            for name in icon.get_names():
+                if theme.has_icon(name):
+                    self.icon_name = name
+                    break
 
 class LauncherWindow(Gtk.Window):
     def __init__(self):
