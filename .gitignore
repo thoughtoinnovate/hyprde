@@ -33,3 +33,4 @@ Thumbs.db
 ~/.config/hypr/wallpaper-fixed.conf
 ~/.config/hypr/wallpaper-schedule.conf
 ~/.config/hypr/wallpaper-schedule.conf.tmp
+hyprde/src/launcher/.zig-cache/
