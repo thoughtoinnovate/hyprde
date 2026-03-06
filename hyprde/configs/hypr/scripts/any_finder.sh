@@ -74,11 +74,9 @@ selected=$(fd . --type f --type d --max-depth 3 2>/dev/null | fzf --ansi \
     --bind 'ctrl-p:execute-silent(rm -f /tmp/hyprde-preview-secure)+preview(true)' \
     --header 'ENTER (Yazi) | CTRL-E (viewer) | CTRL-P (show image) | CTRL-S (metadata only) | CTRL-O (folder)')
 
-# Handle --print-query output (Line 1: Query, Line 2: Match)
-# We remove --print-query from the flags to simplify extraction unless needed.
-# For now, let's keep it simple and ensure we only get the selection.
-# Re-running without --print-query for stability.
-
+# Only open if user pressed Enter (not ESC)
+if [ -n "$selected" ]; then
+    file_path=$(echo "$selected")
 
     # Launch Yazi in a NEW separate terminal window
     case "$terminal" in
