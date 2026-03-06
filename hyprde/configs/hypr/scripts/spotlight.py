@@ -187,7 +187,6 @@ class LauncherWindow(Gtk.Window):
         row {{
             padding: 5px 10px;
             color: {c['fg']};
-            border-bottom: 1px solid {c['border']};
         }}
         row:selected {{
             background-color: {c['sel_bg']};
