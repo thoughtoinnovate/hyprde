@@ -58,11 +58,7 @@ get_preview_mode() {
 }
 
 # Launch fzf - scanning only HOME folder
-selected=$(fd . --type f --type d --max-depth 3 2>/dev/null | while IFS= read -r file; do
-    # icon=$(get_symbol "$file")
-    # printf "%s\t%s\n" "$icon" "$file"
-    printf "%s\n" "$file"
-done | fzf --ansi \
+selected=$(fd . --type f --type d --max-depth 3 2>/dev/null | fzf --ansi \
     --prompt "Search Files/Dirs: " \
     --height=100% \
     --layout=reverse \
@@ -74,13 +70,15 @@ done | fzf --ansi \
     --bind 'ctrl-d:down' \
     --bind 'ctrl-o:execute-silent(if [[ "$OSTYPE" == "darwin"* ]]; then open -R {}; else xdg-open "$(dirname {})"; fi)' \
     --bind 'ctrl-e:execute-silent(if file -b --mime-type {} | grep -q "^image/"; then if command -v feh >/dev/null 2>&1; then if command -v firejail >/dev/null 2>&1; then firejail --quiet --noprofile --private-tmp --net=none --seccomp --caps.drop=all feh {} 2>/dev/null; else feh {}; fi; elif command -v sxiv >/dev/null 2>&1; then if command -v firejail >/dev/null 2>&1; then firejail --quiet --noprofile --private-tmp --net=none --seccomp --caps.drop=all sxiv {} 2>/dev/null; else sxiv {}; fi; else xdg-open {}; fi; fi)' \
-    --bind 'ctrl-s:execute-silent(touch /tmp/hyprde-preview-secure && reload(echo {}))' \
-    --bind 'ctrl-i:execute-silent(rm -f /tmp/hyprde-preview-secure && reload(echo {}))' \
-    --header 'ENTER (Yazi) | CTRL-E (viewer) | CTRL-I (show image) | CTRL-S (metadata only) | CTRL-O (folder) | 🛡️ Images: chafa ANSI art in firejail')
+    --bind 'ctrl-s:execute-silent(touch /tmp/hyprde-preview-secure)+preview(true)' \
+    --bind 'ctrl-p:execute-silent(rm -f /tmp/hyprde-preview-secure)+preview(true)' \
+    --header 'ENTER (Yazi) | CTRL-E (viewer) | CTRL-P (show image) | CTRL-S (metadata only) | CTRL-O (folder)')
 
-# Only open if user pressed Enter (not ESC)
-if [ -n "$selected" ]; then
-    file_path=$(echo "$selected")
+# Handle --print-query output (Line 1: Query, Line 2: Match)
+# We remove --print-query from the flags to simplify extraction unless needed.
+# For now, let's keep it simple and ensure we only get the selection.
+# Re-running without --print-query for stability.
+
 
     # Launch Yazi in a NEW separate terminal window
     case "$terminal" in
