@@ -74,7 +74,7 @@ class App:
         self.app_info = app_info
         self.name = app_info.get_name()
         icon = app_info.get_icon()
-        self.icon_name = "distributor-logo"
+        self.icon_name = "system-run"
         if icon and hasattr(icon, 'get_names'):
             theme = Gtk.IconTheme.get_default()
             for name in icon.get_names():
