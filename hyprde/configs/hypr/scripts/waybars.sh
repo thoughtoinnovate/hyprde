@@ -57,6 +57,7 @@ elif [ "$1" = "close-all" ]; then
     close_bar "control-center/config"
     close_bar "waybar_bt_gen.json"
     pkill wofi || true
+    pkill -f "python3.*spotlight.py" || true
     exit 0
 else
     echo "Invalid argument. Please provide 'ctrl-cntr', 'sys-metrics', 'bluetooth', or 'close-all'."
