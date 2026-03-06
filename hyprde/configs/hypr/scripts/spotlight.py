@@ -320,6 +320,15 @@ class LauncherWindow(Gtk.Window):
             self.listbox.grab_focus()
             self.listbox.emit("move-cursor", Gtk.MovementStep.DISPLAY_LINES, 1, False)
             return True
+        elif not self.entry.has_focus():
+            # If not focused on entry, check if it's a key that should be redirected
+            is_nav = event.keyval in [Gdk.KEY_Up, Gdk.KEY_Down, Gdk.KEY_Return, Gdk.KEY_KP_Enter, 
+                                     Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab, Gdk.KEY_Escape]
+            if not is_nav:
+                self.entry.grab_focus()
+                # If it's backspace, we need to manually handle it or let it propagate
+                # Propagating is better
+                return False
         return False
 
 if __name__ == '__main__':
