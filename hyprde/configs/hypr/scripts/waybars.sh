@@ -58,6 +58,7 @@ elif [ "$1" = "close-all" ]; then
     close_bar "waybar_bt_gen.json"
     pkill wofi || true
     pkill -f "python3.*spotlight.py" || true
+    pkill -x "hyprsearch" || true
     pkill -f "any_finder.sh" || true
     # Close any floating terminal launchers by class
     hyprctl dispatch closewindow "class:com.fzf.launcher" > /dev/null 2>&1 || true
