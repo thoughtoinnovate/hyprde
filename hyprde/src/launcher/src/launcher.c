@@ -15,16 +15,17 @@ typedef struct {
 
 typedef struct {
     char *name;
+    char *name_lower;
     char *icon;
     GAppInfo *info;
-    char *math_result;
 } App;
 
 GtkWidget *main_window;
 GtkWidget *centered_box;
 GtkWidget *entry;
 GtkWidget *listbox;
-GList *apps = NULL;
+GtkWidget *scrolled_window;
+GList *apps_list = NULL;
 Theme current_theme;
 
 char* extract_color(const char *line) {
@@ -71,7 +72,12 @@ void load_theme() {
     g_free(path);
 }
 
+void quit_launcher() {
+    gtk_main_quit();
+}
+
 void on_row_activated(GtkListBox *lb, GtkListBoxRow *row, gpointer user_data) {
+    if (!row) return;
     char *math = g_object_get_data(G_OBJECT(row), "math_result");
     if (math) {
         char *cmd = g_strdup_printf("echo -n '%s' | wl-copy", math);
@@ -79,42 +85,101 @@ void on_row_activated(GtkListBox *lb, GtkListBoxRow *row, gpointer user_data) {
         g_free(cmd);
         system("notify-send -t 2000 'Calculator' 'Copied to clipboard'");
     } else {
-        GAppInfo *info = g_object_get_data(G_OBJECT(row), "app_info");
-        if (info) g_app_info_launch(info, NULL, NULL, NULL);
+        App *app = g_object_get_data(G_OBJECT(row), "app_data");
+        if (app && app->info) {
+            GdkAppLaunchContext *context = gdk_display_get_app_launch_context(gdk_display_get_default());
+            GError *error = NULL;
+            if (!g_app_info_launch(app->info, NULL, G_APP_LAUNCH_CONTEXT(context), &error)) {
+                g_warning("Launch failed: %s", error->message);
+                g_error_free(error);
+            }
+            g_object_unref(context);
+        }
     }
-    gtk_main_quit();
+    quit_launcher();
 }
 
-gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
-    if (event->keyval == GDK_KEY_Escape) {
-        gtk_main_quit();
-        return TRUE;
-    }
-    if (!gtk_widget_has_focus(entry)) {
-        if (event->keyval != GDK_KEY_Up && event->keyval != GDK_KEY_Down && 
-            event->keyval != GDK_KEY_Return && event->keyval != GDK_KEY_KP_Enter) {
-            gtk_widget_grab_focus(entry);
-            return FALSE;
-        }
-    } else if (event->keyval == GDK_KEY_Down) {
-        gtk_widget_grab_focus(listbox);
-        return TRUE;
+gboolean on_list_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data) {
+    GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(listbox), (int)event->y);
+    if (row) {
+        gtk_list_box_select_row(GTK_LIST_BOX(listbox), row);
     }
     return FALSE;
 }
 
-gboolean on_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+gboolean on_list_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    if (event->button == 1) { // Left click
+        GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(listbox), (int)event->y);
+        if (row) {
+            on_row_activated(GTK_LIST_BOX(listbox), row, NULL);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+    if (event->keyval == GDK_KEY_Escape) {
+        quit_launcher();
+        return TRUE;
+    }
+    
+    if (event->keyval == GDK_KEY_Down || event->keyval == GDK_KEY_Up) {
+        GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(listbox));
+        int idx = row ? gtk_list_box_row_get_index(row) : -1;
+        int new_idx = (event->keyval == GDK_KEY_Down) ? idx + 1 : idx - 1;
+        
+        GtkListBoxRow *target = gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), new_idx);
+        if (target) {
+            gtk_list_box_select_row(GTK_LIST_BOX(listbox), target);
+            
+            GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(scrolled_window));
+            GtkAllocation r_alloc;
+            gtk_widget_get_allocation(GTK_WIDGET(target), &r_alloc);
+            
+            int ty;
+            gtk_widget_translate_coordinates(GTK_WIDGET(target), GTK_WIDGET(listbox), 0, 0, NULL, &ty);
+            
+            double current_val = gtk_adjustment_get_value(adj);
+            double page_size = gtk_adjustment_get_page_size(adj);
+            
+            if (ty < current_val) {
+                gtk_adjustment_set_value(adj, ty);
+            } else if (ty + r_alloc.height > current_val + page_size) {
+                gtk_adjustment_set_value(adj, ty + r_alloc.height - page_size);
+            }
+        }
+        return TRUE;
+    }
+
+    if (event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter) {
+        GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(listbox));
+        if (row) on_row_activated(GTK_LIST_BOX(listbox), row, NULL);
+        return TRUE;
+    }
+    
+    if (!gtk_widget_has_focus(entry)) {
+        if ((event->keyval >= 32 && event->keyval <= 126) || event->keyval == GDK_KEY_BackSpace) {
+            gtk_widget_grab_focus(entry);
+            return FALSE;
+        }
+    }
+    return FALSE;
+}
+
+gboolean on_main_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
     GtkAllocation alloc;
     gtk_widget_get_allocation(centered_box, &alloc);
     if (event->x < alloc.x || event->x > alloc.x + alloc.width ||
         event->y < alloc.y || event->y > alloc.y + alloc.height) {
-        gtk_main_quit();
+        quit_launcher();
+        return TRUE;
     }
     return FALSE;
 }
 
 char* try_math(const char *query) {
-    if (strlen(query) < 3) return NULL;
+    if (!query || strlen(query) < 3) return NULL;
     if (!strpbrk(query, "+-*/^")) return NULL;
     char *cmd = g_strdup_printf("qalc -t '%s'", query);
     char *output = NULL;
@@ -122,12 +187,10 @@ char* try_math(const char *query) {
         g_free(cmd);
         if (output) {
             char *trimmed = g_strstrip(output);
-            if (strlen(trimmed) > 0) return trimmed;
+            if (strlen(trimmed) > 0 && strchr(trimmed, '=') == NULL) return trimmed;
             g_free(output);
         }
-    } else {
-        g_free(cmd);
-    }
+    } else { g_free(cmd); }
     return NULL;
 }
 
@@ -139,18 +202,22 @@ void populate_list(const char *query) {
     g_list_free(children);
 
     int count = 0;
+    char *query_lower = query ? g_ascii_strdown(query, -1) : NULL;
     
     char *math_res = try_math(query);
     if (math_res) {
         GtkWidget *row = gtk_list_box_row_new();
         g_object_set_data_full(G_OBJECT(row), "math_result", g_strdup(math_res), g_free);
-        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 15);
-        gtk_container_set_border_width(GTK_CONTAINER(hbox), 8);
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20);
+        gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
         GtkWidget *icon = gtk_image_new_from_icon_name("accessories-calculator", GTK_ICON_SIZE_DND);
-        gtk_image_set_pixel_size(GTK_IMAGE(icon), 28);
+        gtk_image_set_pixel_size(GTK_IMAGE(icon), 32);
         gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
         char *label_text = g_strdup_printf("%s = %s", query, math_res);
-        gtk_box_pack_start(GTK_BOX(hbox), gtk_label_new(label_text), TRUE, TRUE, 0);
+        GtkWidget *label = gtk_label_new(label_text);
+        gtk_widget_set_halign(label, GTK_ALIGN_START);
+        gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
+        gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
         g_free(label_text);
         gtk_container_add(GTK_CONTAINER(row), hbox);
         gtk_container_add(GTK_CONTAINER(listbox), row);
@@ -158,22 +225,26 @@ void populate_list(const char *query) {
         g_free(math_res);
     }
 
-    for (GList *l = apps; l != NULL; l = l->next) {
+    for (GList *l = apps_list; l != NULL; l = l->next) {
         App *app = (App*)l->data;
-        if (!query || strlen(query) == 0 || g_strrstr(g_ascii_strdown(app->name, -1), g_ascii_strdown(query, -1))) {
+        if (!query_lower || strlen(query_lower) == 0 || strstr(app->name_lower, query_lower)) {
             GtkWidget *row = gtk_list_box_row_new();
-            g_object_set_data(G_OBJECT(row), "app_info", app->info);
-            GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 15);
-            gtk_container_set_border_width(GTK_CONTAINER(hbox), 8);
+            g_object_set_data(G_OBJECT(row), "app_data", app);
+            GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20);
+            gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
             GtkWidget *icon = gtk_image_new_from_icon_name(app->icon, GTK_ICON_SIZE_DND);
-            gtk_image_set_pixel_size(GTK_IMAGE(icon), 28);
+            gtk_image_set_pixel_size(GTK_IMAGE(icon), 32);
             gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
-            gtk_box_pack_start(GTK_BOX(hbox), gtk_label_new(app->name), TRUE, TRUE, 0);
+            GtkWidget *label = gtk_label_new(app->name);
+            gtk_widget_set_halign(label, GTK_ALIGN_START);
+            gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
+            gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
             gtk_container_add(GTK_CONTAINER(row), hbox);
             gtk_container_add(GTK_CONTAINER(listbox), row);
             if (++count > 100) break;
         }
     }
+    if (query_lower) g_free(query_lower);
     gtk_widget_show_all(listbox);
     if (count > 0) gtk_list_box_select_row(GTK_LIST_BOX(listbox), gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), 0));
 }
@@ -192,10 +263,11 @@ int main(int argc, char *argv[]) {
         if (g_app_info_should_show(info)) {
             App *app = g_new0(App, 1);
             app->name = g_strdup(g_app_info_get_name(info));
+            app->name_lower = g_ascii_strdown(app->name, -1);
             GIcon *gicon = g_app_info_get_icon(info);
             app->icon = gicon ? g_icon_to_string(gicon) : g_strdup("system-run");
             app->info = g_object_ref(info);
-            apps = g_list_append(apps, app);
+            apps_list = g_list_append(apps_list, app);
         }
     }
     g_list_free_full(all_infos, g_object_unref);
@@ -212,6 +284,8 @@ int main(int argc, char *argv[]) {
 
     GtkWidget *outer = gtk_event_box_new();
     gtk_container_add(GTK_CONTAINER(main_window), outer);
+    g_signal_connect(outer, "button-press-event", G_CALLBACK(on_main_button_press), NULL);
+
     centered_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_widget_set_name(centered_box, "main-window");
     gtk_widget_set_halign(centered_box, GTK_ALIGN_CENTER);
@@ -231,27 +305,31 @@ int main(int argc, char *argv[]) {
 
     entry = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Search Apps...");
+    gtk_widget_set_margin_start(entry, 5);
+    gtk_widget_set_margin_end(entry, 5);
     g_signal_connect(entry, "changed", G_CALLBACK(on_search_changed), NULL);
-    g_signal_connect(entry, "activate", G_CALLBACK(gtk_main_quit), NULL);
+    g_signal_connect(entry, "key-press-event", G_CALLBACK(on_key_press), NULL);
     gtk_box_pack_start(GTK_BOX(centered_box), entry, FALSE, FALSE, 10);
 
-    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_box_pack_start(GTK_BOX(centered_box), scrolled, TRUE, TRUE, 0);
+    scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_box_pack_start(GTK_BOX(centered_box), scrolled_window, TRUE, TRUE, 0);
+    
     listbox = gtk_list_box_new();
-    g_signal_connect(listbox, "row-activated", G_CALLBACK(on_row_activated), NULL);
-    gtk_container_add(GTK_CONTAINER(scrolled), listbox);
-
-    g_signal_connect(main_window, "key-press-event", G_CALLBACK(on_key_press), NULL);
-    g_signal_connect(main_window, "button-press-event", G_CALLBACK(on_button_press), NULL);
+    gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_BROWSE);
+    g_signal_connect(listbox, "motion-notify-event", G_CALLBACK(on_list_motion), NULL);
+    g_signal_connect(listbox, "button-press-event", G_CALLBACK(on_list_button_press), NULL);
+    gtk_widget_add_events(listbox, GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK);
+    gtk_container_add(GTK_CONTAINER(scrolled_window), listbox);
 
     char *css = g_strdup_printf(
         "window { background-color: transparent; }"
-        "#main-window { background-color: %s; border-radius: 10px; }"
-        "entry { font-size: 20px; padding: 10px; background: %s; color: %s; border: none; }"
-        "row { color: %s; }"
-        "row:selected { background-color: %s; color: %s; }",
-        current_theme.bg, current_theme.entry_bg, current_theme.fg, current_theme.fg, current_theme.sel_bg, current_theme.sel_fg
+        "#main-window { background-color: %s; border-radius: 16px; border: 1px solid rgba(51,204,255,0.3); box-shadow: 0 0 20px rgba(51,204,255,0.4), 0 10px 30px rgba(0,0,0,0.5); }"
+        "entry { font-size: 24px; padding: 15px 30px; background: transparent; color: %s; border: none; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; }"
+        "list { background: transparent; padding: 5px; }"
+        "row { color: %s; font-size: 16px; border-radius: 8px; margin: 2px 10px; }"
+        "row:selected { background-color: %s; color: %s; box-shadow: 0 0 10px %s; }",
+        current_theme.bg, current_theme.fg, current_theme.fg, current_theme.sel_bg, current_theme.sel_fg, current_theme.sel_bg
     );
     GtkCssProvider *provider = gtk_css_provider_new();
     gtk_css_provider_load_from_data(provider, css, -1, NULL);
