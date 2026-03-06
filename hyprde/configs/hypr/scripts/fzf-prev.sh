@@ -499,12 +499,12 @@ preview_image_rendered() {
         
         # Try Kitty format for pixel-perfect rendering (Ghostty supports it)
         if command_exists chafa; then
-            if chafa --format=kitty --size="${cols}x${lines}" --animate=off "${file}" 2>/dev/null; then
+            if chafa --probe=off --format=kitty --size="${cols}x${lines}" --animate=off "${file}" 2>/dev/null; then
                 render_method="kitty"
                 debug_preview_log "  -> Rendered: kitty format"
             else
                 # Fallback to ANSI if Kitty doesn't work in fzf preview
-                chafa --format=ANSI --size="${cols}x${lines}" --scale=max --animate=off --dither=ordered "${file}" 2>/dev/null
+                chafa --probe=off --format=ANSI --size="${cols}x${lines}" --scale=max --animate=off --dither=ordered "${file}" 2>/dev/null
                 render_method="ansi"
                 debug_preview_log "  -> Rendered: ANSI format"
             fi
