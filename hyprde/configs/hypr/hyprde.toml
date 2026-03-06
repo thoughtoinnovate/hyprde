@@ -336,7 +336,6 @@ mainMod = "SUPER"                         # Main modifier key (SUPER/ALT/CTRL)
 [binds.normal]
 list = [
     # Window management
-    "$mainMod, Return, exec, $HOME/.config/hypr/scripts/spotlight_wrapper.sh",  # Python GTK Spotlight
     "$mainMod, T, exec, $terminal",                       # Open terminal
     "$mainMod SHIFT, B, exec, $HOME/.config/hypr/scripts/waybars.sh toggle-main", # Toggle Status Bar
     "$mainMod, Q, killactive,",                           # Close window
