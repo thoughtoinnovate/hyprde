@@ -432,7 +432,7 @@ list = [
 # Key release bindings
 [binds.release]
 list = [
-    "$mainMod, space, exec, wofi --show drun --conf $HOME/.config/wofi/config --style $HOME/.config/wofi/style.css"
+    "$mainMod, space, exec, $HOME/.config/hypr/scripts/spotlight_wrapper.sh"
 ]
 
 # Mouse bindings

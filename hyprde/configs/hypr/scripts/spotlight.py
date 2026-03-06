@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import gi
 import subprocess
 gi.require_version('Gtk', '3.0')
@@ -26,6 +27,47 @@ def eval_expr(expr):
     
     expr = expr.replace('^', '**')
     return eval_(ast.parse(expr, mode='eval').body)
+
+def get_theme_colors():
+    # Path to the symlinked current theme
+    theme_path = os.path.expanduser("~/.config/hypr/themes/current.css")
+    
+    # Defaults (Dark)
+    colors = {
+        "bg": "rgba(26, 26, 26, 0.95)",
+        "fg": "#ffffff",
+        "entry_bg": "#2a2a2a",
+        "sel_bg": "#33ccff",
+        "sel_fg": "#000000",
+        "border": "rgba(255, 255, 255, 0.1)"
+    }
+    
+    if os.path.exists(theme_path):
+        try:
+            with open(theme_path, 'r') as f:
+                content = f.read()
+                if "theme_wofi_bg_alpha" in content:
+                    import re
+                    # Simple regex to extract colors from CSS @define-color
+                    def find_color(var):
+                        m = re.search(f"{var}\\s+([^;]+);", content)
+                        return m.group(1).strip() if m else None
+                    
+                    colors["bg"] = find_color("theme_wofi_bg_alpha") or colors["bg"]
+                    colors["fg"] = find_color("theme_wofi_fg") or colors["fg"]
+                    colors["sel_bg"] = find_color("theme_wofi_sel_bg") or colors["sel_bg"]
+                    colors["sel_fg"] = find_color("theme_wofi_sel_fg") or colors["sel_fg"]
+                    
+                    # Entry background should be a bit lighter/darker than main bg
+                    if "light" in content.lower():
+                        colors["entry_bg"] = "rgba(0, 0, 0, 0.05)"
+                        colors["border"] = "rgba(0, 0, 0, 0.1)"
+                    else:
+                        colors["entry_bg"] = "rgba(255, 255, 255, 0.05)"
+                        colors["border"] = "rgba(255, 255, 255, 0.1)"
+        except:
+            pass
+    return colors
 
 class App:
     def __init__(self, app_info):
@@ -122,50 +164,52 @@ class LauncherWindow(Gtk.Window):
         self.populate_list("")
 
     def apply_css(self):
-        css = b"""
-        window {
+        c = get_theme_colors()
+        css_data = f"""
+        window {{
             background-color: transparent;
-        }
-        #main-window {
-            background-color: rgba(30, 30, 30, 0.95);
+        }}
+        #main-window {{
+            background-color: {c['bg']};
             border-radius: 10px;
-        }
-        entry {
+        }}
+        entry {{
             font-size: 20px;
             padding: 10px;
-            background: #2a2a2a;
-            color: white;
+            background: {c['entry_bg']};
+            color: {c['fg']};
             border: none;
             border-radius: 5px;
-        }
-        list {
+        }}
+        list {{
             background: transparent;
-        }
-        row {
+        }}
+        row {{
             padding: 5px 10px;
-            color: white;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        row:selected {
-            background-color: #33ccff;
-            color: black;
+            color: {c['fg']};
+            border-bottom: 1px solid {c['border']};
+        }}
+        row:selected {{
+            background-color: {c['sel_bg']};
+            color: {c['sel_fg']};
             border-radius: 5px;
-        }
-        scrollbar {
+        }}
+        scrollbar {{
             background-color: transparent;
-        }
-        scrollbar slider {
+        }}
+        scrollbar slider {{
             background-color: rgba(255, 255, 255, 0.2);
             border-radius: 5px;
             min-width: 8px;
             min-height: 40px;
-        }
-        scrollbar slider:hover {
+        }}
+        scrollbar slider:hover {{
             background-color: rgba(255, 255, 255, 0.4);
-        }
-        """
+        }}
+        """.encode()
+        
         provider = Gtk.CssProvider()
-        provider.load_from_data(css)
+        provider.load_from_data(css_data)
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), 
             provider, 
@@ -278,9 +322,6 @@ class LauncherWindow(Gtk.Window):
             self.listbox.emit("move-cursor", Gtk.MovementStep.DISPLAY_LINES, 1, False)
             return True
         return False
-
-    def on_focus_out(self, widget, event):
-        sys.exit(0)
 
 if __name__ == '__main__':
     win = LauncherWindow()
