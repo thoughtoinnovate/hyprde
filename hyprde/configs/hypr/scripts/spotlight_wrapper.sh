@@ -1,4 +1,5 @@
 #!/bin/bash
+# Native High-Performance Spotlight Launcher (built with Zig/GTK)
 # Kill any existing instance before launching to prevent zombies
-pkill -f "python3.*spotlight.py" || true
-exec python3 "$HOME/.config/hypr/scripts/spotlight.py"
+pkill -x "hyprsearch" || true
+exec "$HOME/.config/hypr/scripts/hyprsearch"
