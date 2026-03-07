@@ -9,9 +9,9 @@ if ! command -v fd >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v wofi >/dev/null 2>&1; then
-    notify-send "Error" "wofi is not installed"
-    exit 1
+LAUNCHER="$HOME/.config/hypr/scripts/hyprsearch"
+if [ ! -f "$LAUNCHER" ]; then
+    LAUNCHER="hyprsearch"
 fi
 
 # Generate list with symbols
@@ -22,15 +22,24 @@ list_with_symbols() {
     done
 }
 
-# Launch wofi with fd output including symbols
-selected=$(list_with_symbols | wofi --dmenu --prompt "Search Files/Dirs:" --conf "$HOME/.config/wofi/config" --style "$HOME/.config/wofi/style.css")
+# Launch hyprsearch in dmenu mode
+selected=$(list_with_symbols | $LAUNCHER --dmenu --prompt "Search Files/Dirs:")
 
 if [ -n "$selected" ]; then
     # Remove the symbol from the selected line
     file_path=$(echo "$selected" | cut -d' ' -f2-)
     notify-send "Opening:" "$file_path"
-    # Get the default terminal from Hyprland config
-    terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 | tr -d ' ')
+    
+    # Get the terminal from hyprde.toml if possible, else fallback
+    # We'll use ghostty as default if not found
+    terminal="ghostty"
+    if [ -f "$HOME/.config/hypr/hyprde.toml" ]; then
+        toml_term=$(grep 'terminal =' "$HOME/.config/hypr/hyprde.toml" | cut -d'"' -f2)
+        if [ -n "$toml_term" ]; then
+            terminal="$toml_term"
+        fi
+    fi
+
     # Open all files in Yazi file explorer, highlighted
     "$terminal" -e yazi "$file_path" || notify-send "Error" "Could not open $file_path in Yazi"
 fi

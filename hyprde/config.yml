@@ -1,6 +1,6 @@
 configs:
   - type: prerequisites
-    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk","fish","ripgrep","chafa","cmake","cpio","gpu-screen-recorder","gst-libav","gst-plugins-ugly","gst-plugins-good","gst-plugins-bad"]
+    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk","fish","ripgrep","chafa","cmake","cpio","gpu-screen-recorder","gst-libav","gst-plugins-ugly","gst-plugins-good","gst-plugins-bad","zig","gtk3","gtk-layer-shell","libqalculate"]
   - type: notification
     packages: ["mako"]
   - type: terminal
@@ -8,9 +8,10 @@ configs:
   - type: filemanager
     packages: ["yazi"]
   - type: launcher
-    packages: ["wofi", "fd", "fzf"]
+    packages: ["fd", "fzf"]
+    handler: "$HOME/.config/hypr/scripts/hyprsearch"
   - type: power-menu
-    packages: ["wofi"]
+    packages: []
     handler: "$HOME/.config/hypr/scripts/session_menu.sh"
   - type: calendar
     packages: ["zenity"]

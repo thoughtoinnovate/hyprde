@@ -35,8 +35,8 @@ rules = [
 [programs]
 terminal = "ghostty"                      # Terminal emulator (SUPER+T)
 fileManager = "thunar"                    # File manager (SUPER+E)
-launcher = "wofi"                         # Application launcher
-launcher_cmd = "wofi --show drun"         # Full launcher command with args
+launcher = "hyprsearch"                     # Native GTK3 launcher
+launcher_cmd = "hyprsearch"               # Native spotlight launcher
 notification_service = "mako"             # Notification daemon
 status_bar = "waybar"                     # Status bar program
 autohide_bar = false                      # Autohide status bar (use SUPER+B to toggle)
@@ -158,6 +158,58 @@ column_width = 0.5                        # Column width multiplier
 fullscreen_on_one_column = true           # Auto-fullscreen single column
 focus_fit_method = 0                      # 0 = center focused, 1 = fit to screen
 explicit_column_widths = "0.333, 0.5, 0.667, 1.0" # Widths to cycle through
+
+# =============================================================================
+# LAUNCHER (hyprsearch)
+# High-performance native GTK3 launcher configuration
+# =============================================================================
+[launcher]
+width_percent = 70                        # Global default width
+rounding = 24                             # Global default rounding
+border_size = 1                           # Global default border
+# LAUNCHER COLORS (Optional overrides - uncomment to follow system theme)
+# border_color = "rgba(51, 204, 255, 0.3)"
+# bg_color = "rgba(30, 30, 30, 0.95)"
+# fg_color = "#ffffff"
+# sel_bg_color = "rgba(255, 255, 255, 0.1)"
+# sel_fg_color = "#ffffff"
+# sel_shadow_color = "rgba(255, 255, 255, 0.05)"
+font_size = 24                            # Main entry font size
+row_spacing = 10                          # Spacing between rows
+icon_size = 32                            # Icon size in pixels
+
+# DRUN MODE (App Launcher)
+[launcher.drun]
+position = "top"
+margin_top = 100
+width_percent = 60
+
+# POWER MENU MODE
+[launcher.power_menu]
+position = "center"
+width_percent = 40
+
+# DMENU MODE (Used by scripts)
+[launcher.dmenu]
+position = "center"
+width_percent = 50
+
+# MAC-LIKE DOCK CONFIGURATION
+[launcher.dock]
+enabled = true
+autohide = true                           # Hide dock when not hovered
+position = "bottom"                       # bottom, left, right
+icon_size = 48                            # Icon size
+padding = 12                              # Inner padding
+rounding = 24                             # Shelf rounding
+margin = 10                               # Screen edge offset
+apps = [                                  # Persistent apps
+    "ghostty",
+    "thunar",
+    "firefox",
+    "code",
+    "spotify"
+]
 
 # =============================================================================
 # HYPRROCKET
@@ -425,7 +477,8 @@ list = [
     ", Print, exec, ~/.config/hypr/scripts/screenshot.sh",
     ", escape, exec, $HOME/.config/hypr/scripts/waybars.sh close-all",
     "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh",
-    "$mainMod, C, exec, $HOME/.config/hypr/scripts/settings_manager.py"
+    "$mainMod, C, exec, $HOME/.config/hypr/scripts/settings_manager.py",
+    "$mainMod, D, exec, $HOME/.config/hypr/scripts/dock-toggle.sh"
 ]
 
 # Key release bindings
