@@ -16,13 +16,21 @@ install_packages() {
 
     # Package translation layer
     if [ "$os" == "debian" ]; then
-        # Map Arch-style GStreamer/recorder names to Debian names
+        # Map Arch-style packages to Debian names
         packages=$(echo "$packages" | sed 's/gst-libav/gstreamer1.0-libav/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-ugly/gstreamer1.0-plugins-ugly/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-good/gstreamer1.0-plugins-good/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-bad/gstreamer1.0-plugins-bad/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-base/gstreamer1.0-plugins-base/g')
-        packages=$(echo "$packages" | sed 's/gpu-screen-recorder/gpu-screen-recorder/g') # Same name or needs PPA
+        packages=$(echo "$packages" | sed 's/gtk3/libgtk-3-dev/g')
+        packages=$(echo "$packages" | sed 's/gtk-layer-shell/libgtk-layer-shell-dev/g')
+        packages=$(echo "$packages" | sed 's/libqalculate/libqalculate-dev qalc/g')
+        packages=$(echo "$packages" | sed 's/ttf-font-awesome/fonts-font-awesome/g')
+        packages=$(echo "$packages" | sed 's/bluez-utils/bluez/g')
+        packages=$(echo "$packages" | sed 's/networkmanager/network-manager/g')
+        packages=$(echo "$packages" | sed 's/pavucontrol/pavucontrol/g')
+        packages=$(echo "$packages" | sed 's/pulseaudio-utils/pulseaudio-utils/g')
+        packages=$(echo "$packages" | sed 's/gpu-screen-recorder/gpu-screen-recorder/g')
     fi
 
     case "$os" in
@@ -325,6 +333,32 @@ echo "Making scripts executable..."
 chmod +x $USER_HOME/.config/hypr/scripts/*.sh
 chmod +x $USER_HOME/.config/hypr/scripts/*.py
 chmod +x $USER_HOME/.config/hypr/scripts/gammastep/*.sh
+
+echo "Building native Spotlight launcher (hyprsearch)..."
+if command -v zig >/dev/null 2>&1; then
+    # Ensure src directory exists in the repo
+    if [ -d "./src/launcher" ]; then
+        (
+            cd ./src/launcher
+            echo "   Compiling with Zig..."
+            if zig build -Doptimize=ReleaseFast; then
+                echo "   Deploying binary to $USER_HOME/.config/hypr/scripts/hyprsearch"
+                cp -f ./zig-out/bin/hyprsearch "$USER_HOME/.config/hypr/scripts/hyprsearch"
+                chmod +x "$USER_HOME/.config/hypr/scripts/hyprsearch"
+                
+                # Also sync back to repo configs for future installs
+                mkdir -p ../../configs/hypr/scripts
+                cp -f ./zig-out/bin/hyprsearch ../../configs/hypr/scripts/hyprsearch
+            else
+                echo "❌ ERROR: Failed to build native launcher. Falling back to default tools."
+            fi
+        )
+    else
+        echo "⚠️  WARNING: Source directory ./src/launcher not found. Skipping build."
+    fi
+else
+    echo "❌ ERROR: Zig compiler not found. Please install 'zig' to use the high-performance launcher."
+fi
 
 echo "Configuring passwordless TLP and privacy-preserving camera/mic toggle..."
 TLP_PATH=$(which tlp 2>/dev/null || echo "/usr/bin/tlp")

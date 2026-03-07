@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.addCSourceFile(.{ .file = b.path("src/launcher.c"), .flags = &.{} });
+    exe.addCSourceFile(.{ .file = b.path("src/toml.c"), .flags = &.{} });
     exe.linkLibC();
     exe.linkSystemLibrary("gtk+-3.0");
     exe.linkSystemLibrary("gtk-layer-shell-0");

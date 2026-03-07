@@ -222,9 +222,11 @@
         "format-icons": [
             "󰀉"
         ],
-        "tooltip-format": "Current User: {text}",
-        "on-click": "~/.config/hypr/scripts/wofi_session.sh",
-        "exec": "echo \"$(whoami)\""
+        "tooltip": true,
+        "tooltip-format": "User: {text}",
+        "on-click": "~/.config/hypr/scripts/session_menu.sh",
+        "exec": "whoami",
+        "interval": "once"
     },
     "custom/gpu-usage": {
         "exec": "~/.config/hypr/scripts/gpu_monitor.sh",
