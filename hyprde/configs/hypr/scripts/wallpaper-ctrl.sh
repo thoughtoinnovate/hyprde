@@ -3,8 +3,37 @@
 # State management
 STATE_FILE="$HOME/.config/hypr/wallpaper_mode"
 LOG_FILE="/tmp/hypr_wallpaper.log"
-WALLPAPER_DIR="$HOME/Pictures/wallpapers/"
-INTERVAL=60
+
+# Get config from hyprde.toml
+if [ -f "$HOME/.config/hypr/hyprde.toml" ]; then
+    # Use python for reliable extraction
+    CONFIG_VALS=$(python3 -c "
+import tomlkit, os
+path = os.path.expanduser('~/.config/hypr/hyprde.toml')
+try:
+    with open(path, 'r') as f: data = tomlkit.load(f)
+    wp = data.get('wallpapers', {})
+    mode = wp.get('mode', 'fixed')
+    wp_path = wp.get('path', '~/Pictures/wallpapers/')
+    interval = wp.get('interval', 60)
+    
+    def expand_p(p):
+        return os.path.expanduser(str(p).replace('\$HOME', os.path.expanduser('~')).replace('$HOME', os.path.expanduser('~')))
+    
+    print(f'MODE=\"{mode}\"')
+    print(f'WALLPAPER_DIR=\"{expand_p(wp_path)}\"')
+    print(f'INTERVAL={interval}')
+except Exception as e:
+    print('MODE=\"fixed\"')
+    print('WALLPAPER_DIR=\"' + os.path.expanduser('~/Pictures/wallpapers/') + '\"')
+    print('INTERVAL=60')
+")
+    eval "$CONFIG_VALS"
+else
+    MODE="fixed"
+    WALLPAPER_DIR="$HOME/Pictures/wallpapers/"
+    INTERVAL=60
+fi
 
 # Load Icons
 source "$HOME/.config/hypr/scripts/hyprrocket.icons"
@@ -67,10 +96,7 @@ with open(path, 'w') as f: f.write(tomlkit.dumps(data))
 }
 
 toggle() {
-  # Get current mode from toml
-  MODE=$(grep -A 5 "\[wallpapers\]" "$HOME/.config/hypr/hyprde.toml" | grep "mode =" | head -1 | cut -d'"' -f2)
-  [ -z "$MODE" ] && MODE="fixed"
-  
+  # MODE is already set from TOML at top of script
   if [ "$MODE" == "dynamic" ]; then
       # Switch to Fixed (Static)
       pkill -f "dynamic-wallpapers.sh"

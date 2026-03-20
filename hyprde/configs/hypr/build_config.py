@@ -1297,6 +1297,7 @@ if __name__ == "__main__":
     generate_hypridle_conf(data_full)
     generate_hyprlock_conf(data_full)
     generate_hyprpaper_conf(data_full)
+    generate_fixed_wallpaper_config(data_full)
     generate_hyrocket_systemd_units(data_full)
     generate_wallpaper_schedule_config(data_full)
     generate_css_overrides(data_full)

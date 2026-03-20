@@ -4,49 +4,48 @@ import os
 import gi
 import subprocess
 import tomlkit
+import re
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkLayerShell', '0.1')
 from gi.repository import Gtk, Gdk, GtkLayerShell, Gio, GLib, Pango
 
 def get_theme_colors():
     theme_path = os.path.expanduser("~/.config/hypr/themes/current.css")
-    # Robust high-contrast defaults
+    # Base Defaults (Dark)
     colors = {
-        "bg": "rgba(30, 30, 35, 0.96)",
-        "fg": "#ffffff",
-        "fg_dim": "rgba(255, 255, 255, 0.7)",
-        "entry_bg": "rgba(255, 255, 255, 0.08)",
-        "sel_bg": "#33ccff",
-        "sel_fg": "#000000",
+        "is_light": False,
+        "base_bg": "#1e1e21",
+        "base_fg": "#ffffff",
+        "module_bg": "#2d2d2d",
+        "module_fg": "#ffffff",
+        "active_bg": "#007aff",
+        "active_fg": "#ffffff",
+        "hover_bg": "#505050",
         "border": "rgba(255, 255, 255, 0.15)",
-        "accent": "#33ccff"
+        "accent": "#007aff"
     }
     
     if os.path.exists(theme_path):
         try:
             with open(theme_path, 'r') as f:
                 content = f.read()
-                import re
                 def find_color(var):
                     m = re.search(f"{var}\\s+([^;]+);", content)
                     return m.group(1).strip() if m else None
                 
-                colors["bg"] = find_color("theme_wofi_bg_alpha") or colors["bg"]
-                colors["fg"] = find_color("theme_wofi_fg") or colors["fg"]
-                colors["sel_bg"] = find_color("theme_wofi_sel_bg") or colors["sel_bg"]
-                colors["sel_fg"] = find_color("theme_wofi_sel_fg") or colors["sel_fg"]
-                colors["accent"] = colors["sel_bg"]
+                colors["base_bg"] = find_color("theme_base_bg") or colors["base_bg"]
+                colors["base_fg"] = find_color("theme_base_fg") or colors["base_fg"]
+                colors["module_bg"] = find_color("theme_module_bg") or colors["module_bg"]
+                colors["module_fg"] = find_color("theme_module_fg") or colors["module_fg"]
+                colors["active_bg"] = find_color("theme_active_bg") or colors["active_bg"]
+                colors["active_fg"] = find_color("theme_active_fg") or colors["active_fg"]
+                colors["hover_bg"] = find_color("theme_panel_hover_bg") or colors["hover_bg"]
+                colors["border"] = find_color("theme_border_color") or colors["border"]
+                colors["accent"] = find_color("theme_accent") or colors["accent"]
                 
                 if "light" in content.lower():
-                    colors["fg_dim"] = "rgba(0, 0, 0, 0.6)"
-                    colors["entry_bg"] = "rgba(0, 0, 0, 0.06)"
-                    colors["border"] = "rgba(0, 0, 0, 0.15)"
-                else:
-                    colors["fg_dim"] = "rgba(255, 255, 255, 0.6)"
-                    colors["entry_bg"] = "rgba(255, 255, 255, 0.08)"
-                    colors["border"] = "rgba(255, 255, 255, 0.15)"
-        except:
-            pass
+                    colors["is_light"] = True
+        except: pass
     return colors
 
 class SettingsManager(Gtk.Window):
@@ -55,21 +54,17 @@ class SettingsManager(Gtk.Window):
         self.config_path = os.path.expanduser("~/.config/hypr/hyprde.toml")
         self.load_config()
         
-        # Setup Layer Shell
         GtkLayerShell.init_for_window(self)
         GtkLayerShell.set_namespace(self, "hyprde-settings")
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
-        
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, True)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, True)
+        for edge in [GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT]:
+            GtkLayerShell.set_anchor(self, edge, True)
 
         self.connect("destroy", Gtk.main_quit)
         self.connect("key-press-event", self.on_key_press)
 
-        # 1. Outer Background (Click to close)
+        # 1. Background (Click to close)
         bg_event_box = Gtk.EventBox()
         bg_event_box.connect("button-press-event", lambda w, e: sys.exit(0))
         self.add(bg_event_box)
@@ -77,92 +72,68 @@ class SettingsManager(Gtk.Window):
         overlay = Gtk.Overlay()
         bg_event_box.add(overlay)
         
-        # 2. Main Container (Catch clicks)
+        # 2. Main Catcher
         self.click_catcher = Gtk.EventBox()
-        self.click_catcher.set_halign(Gtk.Align.CENTER)
-        self.click_catcher.set_valign(Gtk.Align.CENTER)
-        self.click_catcher.connect("button-press-event", lambda w, e: True) # Stop propagation
+        self.click_catcher.set_halign(Gtk.Align.CENTER); self.click_catcher.set_valign(Gtk.Align.CENTER)
+        self.click_catcher.connect("button-press-event", lambda w, e: True)
         overlay.add(self.click_catcher)
 
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.main_box.set_name("main-window")
         self.click_catcher.add(self.main_box)
         
-        # Size
         display = Gdk.Display.get_default()
         monitor = display.get_primary_monitor() or display.get_monitor(0)
         if monitor:
             geo = monitor.get_geometry()
-            self.main_box.set_size_request(int(geo.width * 0.55), int(geo.height * 0.65))
+            self.win_w = int(geo.width * 0.65)
+            self.win_h = int(geo.height * 0.75)
+            self.main_box.set_size_request(self.win_w, self.win_h)
         else:
-            self.main_box.set_size_request(1000, 750)
+            self.main_box.set_size_request(1200, 900)
         
-        # Title Bar
+        # Header
         title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        title_box.set_margin_top(20)
-        title_box.set_margin_bottom(10)
-        title_box.set_margin_start(25)
-        title_box.set_margin_end(25)
-        
-        title_label = Gtk.Label(label="HyprDE Settings")
-        title_label.set_name("title-label")
+        title_box.set_margin_top(30); title_box.set_margin_bottom(15); title_box.set_margin_start(45); title_box.set_margin_end(45)
+        title_label = Gtk.Label(label="System Settings"); title_label.set_name("title-label")
         title_box.pack_start(title_label, False, False, 0)
-        
-        spacer = Gtk.Box()
-        title_box.pack_start(spacer, True, True, 0)
-        
-        close_btn = Gtk.Button(label="✕")
-        close_btn.set_name("close-button")
+        spacer = Gtk.Box(); title_box.pack_start(spacer, True, True, 0)
+        close_btn = Gtk.Button(label="✕"); close_btn.set_name("close-button")
         close_btn.connect("clicked", lambda x: sys.exit(0))
         title_box.pack_end(close_btn, False, False, 0)
-        
         self.main_box.pack_start(title_box, False, False, 0)
 
-        # Content Area
+        # Body
         content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self.main_box.pack_start(content_box, True, True, 0)
         
-        # Sidebar
-        self.sidebar = Gtk.ListBox()
-        self.sidebar.set_name("sidebar")
-        self.sidebar.set_size_request(240, -1)
+        sidebar_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        sidebar_vbox.set_name("sidebar-area")
+        sidebar_vbox.set_size_request(300, -1)
+        self.sidebar = Gtk.ListBox(); self.sidebar.set_name("sidebar")
         self.sidebar.connect("row-activated", self.on_sidebar_row_activated)
         
         sidebar_scroll = Gtk.ScrolledWindow()
         sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         sidebar_scroll.add(self.sidebar)
-        content_box.pack_start(sidebar_scroll, False, False, 0)
+        sidebar_vbox.pack_start(sidebar_scroll, True, True, 0)
+        content_box.pack_start(sidebar_vbox, False, False, 0)
         
         # Stack
-        self.stack = Gtk.Stack()
-        self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
-        self.stack.set_transition_duration(250)
-        
-        self.stack_scroll = Gtk.ScrolledWindow()
-        self.stack_scroll.set_name("content-scroll")
+        self.stack = Gtk.Stack(); self.stack.set_homogeneous(False); self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        self.stack_scroll = Gtk.ScrolledWindow(); self.stack_scroll.set_name("content-scroll")
         self.stack_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.stack_scroll.add(self.stack)
         content_box.pack_start(self.stack_scroll, True, True, 0)
         
-        # Bottom Bar
-        bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        bottom_box.set_margin_top(15)
-        bottom_box.set_margin_bottom(15)
-        bottom_box.set_margin_start(25)
-        bottom_box.set_margin_end(25)
-        
-        self.status_label = Gtk.Label(label="")
-        self.status_label.set_name("status-label")
-        bottom_box.pack_start(self.status_label, False, False, 0)
-        
-        spacer2 = Gtk.Box()
-        bottom_box.pack_start(spacer2, True, True, 0)
-        
-        self.save_btn = Gtk.Button(label="Apply Changes")
-        self.save_btn.set_name("save-button")
+        # Footer
+        bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+        bottom_box.set_margin_top(25); bottom_box.set_margin_bottom(25); bottom_box.set_margin_start(45); bottom_box.set_margin_end(45)
+        self.status_label = Gtk.Label(label=""); self.status_label.set_name("status-label"); bottom_box.pack_start(self.status_label, False, False, 0)
+        spacer2 = Gtk.Box(); bottom_box.pack_start(spacer2, True, True, 0)
+        self.save_btn = Gtk.Button(label="Apply Changes"); self.save_btn.set_name("save-button")
         self.save_btn.connect("clicked", self.on_save_clicked)
         bottom_box.pack_end(self.save_btn, False, False, 0)
-        
         self.main_box.pack_start(bottom_box, False, False, 0)
         
         self.apply_css()
@@ -171,308 +142,213 @@ class SettingsManager(Gtk.Window):
         self.sidebar.grab_focus()
 
     def load_config(self):
-        with open(self.config_path, 'r') as f:
-            self.doc = tomlkit.load(f)
+        with open(self.config_path, 'r') as f: self.doc = tomlkit.load(f)
 
     def apply_css(self):
         c = get_theme_colors()
-        css_data = f"""
+        css = f"""
         window {{ background-color: transparent; }}
-        #main-window {{
-            background-color: {c['bg']};
-            border-radius: 20px;
-            border: 1px solid {c['border']};
-            color: {c['fg']};
+        #main-window {{ 
+            background-color: {c['base_bg']}; 
+            border-radius: 32px; 
+            border: 1px solid {c['border']}; 
+            color: {c['base_fg']}; 
         }}
-        #title-label {{ font-size: 24px; font-weight: 800; color: {c['fg']}; }}
-        #sidebar {{ background: rgba(0,0,0,0.15); padding: 15px; }}
-        #sidebar row {{ 
-            padding: 12px 15px; 
-            border-radius: 10px; 
-            margin-bottom: 5px; 
-            color: {c['fg_dim']}; 
-            font-weight: 600;
-        }}
-        #sidebar row:selected {{ background-color: {c['accent']}; color: {c['sel_fg']}; font-weight: 800; }}
+        #title-label {{ font-size: 32px; font-weight: 800; color: {c['base_fg']}; }}
         
-        #close-button {{ background: transparent; border: none; font-size: 20px; color: {c['fg']}; opacity: 0.6; }}
+        #sidebar-area, #sidebar {{ background-color: rgba(0,0,0,0.1); border-right: 1px solid {c['border']}; }}
+        #sidebar row {{ padding: 16px 22px; border-radius: 16px; margin: 4px 10px; color: {c['base_fg']}; opacity: 0.7; font-weight: 600; background: transparent; }}
+        #sidebar row:selected {{ background-color: {c['active_bg']}; color: {c['active_fg']}; opacity: 1.0; font-weight: 800; }}
+        #sidebar row label {{ color: inherit; }}
+        
+        #close-button {{ background: transparent; border: none; font-size: 26px; color: {c['base_fg']}; opacity: 0.5; }}
         #close-button:hover {{ opacity: 1.0; color: #ff5f57; }}
         
         #save-button {{ 
-            background-color: {c['accent']}; 
-            color: {c['sel_fg']}; 
+            background-color: {c['active_bg']}; 
+            color: {c['active_fg']}; 
             font-weight: 800; 
-            padding: 12px 30px; 
-            border-radius: 12px; 
-            border: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            padding: 16px 55px; 
+            border-radius: 18px; 
+            border: none; 
+            font-size: 17px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
         }}
-        #save-button:hover {{ opacity: 0.95; box-shadow: 0 6px 18px rgba(0,0,0,0.4); }}
+        #save-button:hover {{  }}
         
-        #content-scroll {{ padding: 25px; }}
-        label {{ color: {c['fg']}; font-weight: 600; }}
-        .section-title {{ font-size: 20px; font-weight: 800; margin-bottom: 20px; color: {c['accent']}; }}
         .group-frame {{ 
-            background: {c['entry_bg']}; 
-            border-radius: 14px; 
-            padding: 20px; 
-            margin-bottom: 20px; 
-            border: 1px solid {c['border']};
+            background: rgba(255,255,255,0.05); 
+            border-radius: 24px; 
+            padding: 30px; 
+            margin-bottom: 25px; 
+            border: 1px solid {c['border']}; 
         }}
+        .section-title {{ font-size: 24px; font-weight: 800; margin-bottom: 25px; color: {c['base_fg']}; }}
         
         entry, spinbutton {{ 
-            background: rgba(0,0,0,0.3); 
-            color: {c['fg']}; 
+            background: {c['module_bg']}; 
+            color: {c['module_fg']}; 
             border: 1px solid {c['border']}; 
-            border-radius: 8px; 
-            padding: 8px;
+            border-radius: 14px; 
+            padding: 12px; 
         }}
         
-        scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 20px; min-width: 20px; }}
-        switch:checked {{ background: {c['accent']}; }}
-        scrollbar slider {{ background-color: rgba(255, 255, 255, 0.2); border-radius: 10px; }}
-        """.encode()
+        button.picker {{ 
+            background-color: {c['module_bg']}; 
+            color: {c['module_fg']}; 
+            border: 1px solid {c['border']}; 
+            border-radius: 14px; 
+            padding: 10px 25px; 
+            font-weight: 700; 
+        }}
+        button.picker:hover {{ background-color: {c['hover_bg']}; }}
         
-        provider = Gtk.CssProvider()
-        provider.load_from_data(css_data)
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 28px; min-width: 28px; }}
+        scale trough {{ background: rgba(255,255,255,0.1); border-radius: 12px; min-height: 10px; }}
+        switch:checked {{ background: {c['active_bg']}; }}
+        scrollbar slider {{ background-color: rgba(255, 255, 255, 0.2); border-radius: 12px; min-width: 10px; }}
+        """.encode()
+        p = Gtk.CssProvider(); p.load_from_data(css); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def open_picker(self, title, folder=False):
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        action = Gtk.FileChooserAction.SELECT_FOLDER if folder else Gtk.FileChooserAction.OPEN
+        dialog = Gtk.FileChooserNative.new(title, self, action, "_Select", "_Cancel"); res = dialog.run()
+        path = dialog.get_filename() if res == Gtk.ResponseType.ACCEPT else None; dialog.destroy()
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        return path
 
     def create_row(self, label_text, widget):
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
-        hbox.set_margin_bottom(12)
-        label = Gtk.Label(label=label_text)
-        label.set_xalign(0)
-        hbox.pack_start(label, True, True, 0)
-        hbox.pack_end(widget, False, False, 0)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=30); hbox.set_margin_bottom(20); label = Gtk.Label(label=label_text); label.set_xalign(0); hbox.pack_start(label, True, True, 0); hbox.pack_end(widget, False, False, 0)
         return hbox
 
-    def add_sidebar_item(self, name, title, icon_name):
-        row = Gtk.ListBoxRow()
-        row.name = name
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.MENU)
-        box.pack_start(icon, False, False, 0)
-        box.pack_start(Gtk.Label(label=title), False, False, 0)
-        row.add(box)
-        self.sidebar.add(row)
-        return row
+    def build_dynamic_list(self, items, label_title):
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); vbox.get_style_context().add_class("group-frame")
+        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15); title_box.pack_start(Gtk.Label(label=label_title), True, True, 0)
+        add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic", Gtk.IconSize.BUTTON); add_btn.connect("clicked", lambda x: add_entry(""))
+        title_box.pack_end(add_btn, False, False, 0); vbox.pack_start(title_box, False, False, 10)
+        list_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); vbox.pack_start(list_container, False, False, 0)
+        def add_entry(val=""):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15); entry = Gtk.Entry(); entry.set_text(val); entry.set_hexpand(True)
+            del_btn = Gtk.Button.new_from_icon_name("list-remove-symbolic", Gtk.IconSize.BUTTON); del_btn.connect("clicked", lambda x: list_container.remove(row))
+            row.pack_start(entry, True, True, 0); row.pack_end(del_btn, False, False, 0); list_container.add(row); row.show_all(); return entry
+        for item in items: add_entry(item)
+        return vbox, list_container
 
     def create_settings_pages(self):
         self.widgets = {}
-        pages = [
-            ("appearance", "Appearance", "preferences-desktop-theme", self.build_appearance_page),
-            ("wallpapers", "Wallpapers", "background", self.build_wallpapers_page),
-            ("launcher", "Launcher & Dock", "start-here", self.build_launcher_page),
-            ("lockscreen", "Lock & Power", "system-lock-screen", self.build_lock_page),
-            ("nightlight", "Nightlight", "weather-clear-night", self.build_nightlight_page),
-            ("input", "Input Devices", "input-keyboard", self.build_input_page),
-            ("layout", "Layout & Tiling", "view-grid", self.build_layout_page),
-            ("programs", "Default Apps", "applications-other", self.build_programs_page),
-            ("system", "System", "emblem-system", self.build_system_page)
-        ]
+        pages = [("appearance", "Appearance", "preferences-desktop-theme", self.build_appearance), ("monitors", "Displays", "video-display", self.build_monitors), ("wallpapers", "Wallpapers", "background", self.build_wallpapers), ("launcher", "Launcher & Dock", "start-here", self.build_launcher), ("animations", "Motion Effects", "view-restore", self.build_animations), ("lockscreen", "Lock & Power", "system-lock-screen", self.build_lock), ("nightlight", "Nightlight", "weather-clear-night", self.build_nightlight), ("input", "Keyboard & Binds", "input-keyboard", self.build_input), ("plugins", "Extensions", "system-run", self.build_plugins), ("programs", "Default Apps", "applications-other", self.build_programs)]
         for name, title, icon, builder in pages:
-            self.add_sidebar_item(name, title, icon)
-            self.stack.add_titled(builder(), name, title)
-
+            row = Gtk.ListBoxRow(); row.name = name; row.set_can_focus(True); box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20); box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0); box.pack_start(Gtk.Label(label=title), False, False, 0); row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
         self.sidebar.select_row(self.sidebar.get_row_at_index(0))
-        self.stack.set_visible_child_name("appearance")
 
     def build_page_vbox(self, title_text):
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        vbox.set_margin_top(10)
-        vbox.set_margin_bottom(10)
-        vbox.set_margin_start(10)
-        vbox.set_margin_end(10)
-        title = Gtk.Label(label=title_text)
-        title.set_xalign(0)
-        title.get_style_context().add_class("section-title")
-        vbox.pack_start(title, False, False, 0)
-        return vbox
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20); v.set_margin_top(30); v.set_margin_bottom(30); v.set_margin_start(45); v.set_margin_end(45); lbl = Gtk.Label(label=title_text); lbl.set_xalign(0); lbl.get_style_context().add_class("section-title"); v.pack_start(lbl, False, False, 0); return v
 
-    def build_appearance_page(self):
-        vbox = self.build_page_vbox("Window & Desktop Appearance")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        
-        for key, label, min_val, max_val in [
-            ('gaps_in', 'Inner Gaps (px)', 0, 100),
-            ('gaps_out', 'Outer Gaps (px)', 0, 200),
-            ('border_size', 'Border Size (px)', 0, 20),
-            ('rounding', 'Window Rounding', 0, 50)
-        ]:
-            self.widgets[key] = Gtk.SpinButton.new_with_range(min_val, max_val, 1)
-            # Handle both 'general' and 'decoration' tables from TOML
-            table = 'general' if 'gaps' in key or 'border' in key else 'decoration'
-            self.widgets[key].set_value(self.doc[table].get(key, 0))
-            group.pack_start(self.create_row(label, self.widgets[key]), False, False, 0)
-        
-        for key, label in [('active_opacity', 'Active Opacity'), ('inactive_opacity', 'Inactive Opacity')]:
-            self.widgets[key] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05)
-            self.widgets[key].set_size_request(150, -1)
-            self.widgets[key].set_value(self.doc['decoration'].get(key, 1.0))
-            group.pack_start(self.create_row(label, self.widgets[key]), False, False, 0)
+    def build_appearance(self):
+        v = self.build_page_vbox("Desktop Appearance"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
+        for k, l, t in [('gaps_in','Inner Gaps','general'),('gaps_out','Outer Gaps','general'),('border_size','Border Size','general'),('rounding','Rounding','decoration')]:
+            self.widgets[k] = Gtk.SpinButton.new_with_range(0, 500, 1); self.widgets[k].set_value(self.doc[t].get(k, 0)); f.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
+        v.pack_start(f, False, False, 0); f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
+        for k, l in [('active_opacity','Active Window'),('inactive_opacity','Inactive Window'),('waybar_opacity','Waybar Opacity'),('wofi_opacity','Launcher Opacity')]:
+            self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_size_request(300,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
+        v.pack_start(f2, False, False, 0); return v
 
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_monitors(self):
+        v = self.build_page_vbox("Displays & Layout"); f, self.widgets['monitor_list'] = self.build_dynamic_list(self.doc['monitors'].get('rules', []), "Monitor Configuration Rules"); v.pack_start(f, False, False, 0); return v
 
-    def build_wallpapers_page(self):
-        vbox = self.build_page_vbox("Wallpaper Management")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        
+    def build_wallpapers(self):
+        v = self.build_page_vbox("Wallpaper Management"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15); f.get_style_context().add_class("group-frame")
         self.widgets['wp_mode'] = Gtk.ComboBoxText()
         for m in ["fixed", "dynamic", "disabled"]: self.widgets['wp_mode'].append(m, m.capitalize())
-        self.widgets['wp_mode'].set_active_id(self.doc['wallpapers'].get('mode', "fixed"))
-        group.pack_start(self.create_row("Mode", self.widgets['wp_mode']), False, False, 0)
-        
-        self.widgets['wp_image'] = Gtk.Entry()
-        self.widgets['wp_image'].set_width_chars(30)
-        self.widgets['wp_image'].set_text(self.doc['wallpapers']['fixed'].get('image', ""))
-        group.pack_start(self.create_row("Fixed Image Path", self.widgets['wp_image']), False, False, 0)
-        
-        self.widgets['wp_interval'] = Gtk.SpinButton.new_with_range(10, 3600, 60)
-        self.widgets['wp_interval'].set_value(self.doc['wallpapers'].get('interval', 60))
-        group.pack_start(self.create_row("Dynamic Interval (s)", self.widgets['wp_interval']), False, False, 0)
-        
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+        self.widgets['wp_mode'].set_active_id(self.doc['wallpapers'].get('mode', "fixed")); f.pack_start(self.create_row("Active Mode", self.widgets['wp_mode']), False, False, 0)
+        self.widgets['wp_image_btn'] = Gtk.Button(label="Browse Image..."); self.widgets['wp_image_btn'].get_style_context().add_class("picker"); self.widgets['wp_image_btn'].connect("clicked", lambda x: self.update_picker_path('wp_image_path', "Select Wallpaper"))
+        self.widgets['wp_image_path'] = Gtk.Entry(); self.widgets['wp_image_path'].set_text(self.doc['wallpapers']['fixed'].get('image', "")); f.pack_start(self.create_row("Static Image", self.widgets['wp_image_btn']), False, False, 0); f.pack_start(self.widgets['wp_image_path'], False, False, 0)
+        self.widgets['wp_dir_btn'] = Gtk.Button(label="Browse Folder..."); self.widgets['wp_dir_btn'].get_style_context().add_class("picker"); self.widgets['wp_dir_btn'].connect("clicked", lambda x: self.update_picker_path('wp_dir_path', "Select Wallpaper Folder", True))
+        self.widgets['wp_dir_path'] = Gtk.Entry(); self.widgets['wp_dir_path'].set_text(self.doc['wallpapers'].get('path', "~/Pictures/wallpapers")); f.pack_start(self.create_row("Collection Folder", self.widgets['wp_dir_btn']), False, False, 0); f.pack_start(self.widgets['wp_dir_path'], False, False, 0); v.pack_start(f, False, False, 0); return v
 
-    def build_launcher_page(self):
-        vbox = self.build_page_vbox("Launcher & Dock")
-        l_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        l_group.get_style_context().add_class("group-frame")
-        self.widgets['l_width'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1)
-        self.widgets['l_width'].set_value(self.doc['launcher'].get('width_percent', 70))
-        l_group.pack_start(self.create_row("Spotlight Width %", self.widgets['l_width']), False, False, 0)
-        vbox.pack_start(l_group, False, False, 0)
-        
-        d_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        d_group.get_style_context().add_class("group-frame")
-        self.widgets['dock_enabled'] = Gtk.Switch()
-        self.widgets['dock_enabled'].set_active(self.doc['launcher']['dock'].get('enabled', True))
-        d_group.pack_start(self.create_row("Enable Dock", self.widgets['dock_enabled']), False, False, 0)
-        
-        self.widgets['dock_size'] = Gtk.SpinButton.new_with_range(24, 128, 4)
-        self.widgets['dock_size'].set_value(self.doc['launcher']['dock'].get('icon_size', 48))
-        d_group.pack_start(self.create_row("Icon Size", self.widgets['dock_size']), False, False, 0)
-        vbox.pack_start(d_group, False, False, 0)
-        return vbox
+    def update_picker_path(self, key, title, folder=False):
+        p = self.open_picker(title, folder)
+        if p: self.widgets[key].set_text(p)
 
-    def build_lock_page(self):
-        vbox = self.build_page_vbox("Lockscreen & Power")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        self.widgets['idle_lock'] = Gtk.SpinButton.new_with_range(0, 3600, 30)
-        self.widgets['idle_lock'].set_value(self.doc['idle'].get('lock_timeout', 300))
-        group.pack_start(self.create_row("Lock Timeout (s)", self.widgets['idle_lock']), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_animations(self):
+        v = self.build_page_vbox("Motion Engine"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
+        self.widgets['anim_enabled'] = Gtk.Switch(); self.widgets['anim_enabled'].set_active(self.doc['animations'].get('enabled', True)); f.pack_start(self.create_row("Enable Motion Effects", self.widgets['anim_enabled']), False, False, 0)
+        for k, l in [('windows','Open Style'),('windowsOut','Exit Style'),('border','Border Speed'),('fade','Fading Curve'),('workspaces','Workspace Transition')]:
+            self.widgets[f'anim_{k}'] = Gtk.Entry(); self.widgets[f'anim_{k}'].set_text(str(self.doc['animations'].get(k, ""))); f.pack_start(self.create_row(l, self.widgets[f'anim_{k}']), False, False, 0)
+        v.pack_start(f, False, False, 0); return v
 
-    def build_nightlight_page(self):
-        vbox = self.build_page_vbox("Nightlight Settings")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        self.widgets['nl_enabled'] = Gtk.Switch()
-        self.widgets['nl_enabled'].set_active(self.doc['nightlight'].get('enabled', True))
-        group.pack_start(self.create_row("Enabled", self.widgets['nl_enabled']), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_lock(self):
+        v = self.build_page_vbox("Lockscreen & Power")
+        f1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f1.get_style_context().add_class("group-frame")
+        self.widgets['idle_lock'] = Gtk.SpinButton.new_with_range(0, 3600, 30); self.widgets['idle_lock'].set_value(self.doc['idle'].get('lock_timeout', 300))
+        f1.pack_start(self.create_row("Auto-Lock (s)", self.widgets['idle_lock']), False, False, 0); v.pack_start(f1, False, False, 0)
+        f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
+        self.widgets['lock_wp_btn'] = Gtk.Button(label="Select Wallpaper..."); self.widgets['lock_wp_btn'].get_style_context().add_class("picker"); self.widgets['lock_wp_btn'].connect("clicked", lambda x: self.update_picker_path('lock_wp_path', "Select Lock Wallpaper"))
+        self.widgets['lock_wp_path'] = Gtk.Entry(); self.widgets['lock_wp_path'].set_text(self.doc['lockscreen'].get('background', ""))
+        f2.pack_start(self.create_row("Lock Wallpaper", self.widgets['lock_wp_btn']), False, False, 0); f2.pack_start(self.widgets['lock_wp_path'], False, False, 5)
+        self.widgets['lock_blur_passes'] = Gtk.SpinButton.new_with_range(0, 20, 1); self.widgets['lock_blur_passes'].set_value(self.doc['lockscreen'].get('blur_passes', 3))
+        f2.pack_start(self.create_row("Blur Passes", self.widgets['lock_blur_passes']), False, False, 0)
+        self.widgets['lock_blur_size'] = Gtk.SpinButton.new_with_range(0, 20, 1); self.widgets['lock_blur_size'].set_value(self.doc['lockscreen'].get('blur_size', 8))
+        f2.pack_start(self.create_row("Blur Size", self.widgets['lock_blur_size']), False, False, 0); v.pack_start(f2, False, False, 0)
+        f3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f3.get_style_context().add_class("group-frame")
+        self.widgets['profile_btn'] = Gtk.Button(label="Select Picture..."); self.widgets['profile_btn'].get_style_context().add_class("picker"); self.widgets['profile_btn'].connect("clicked", lambda x: self.update_picker_path('profile_path', "Select Profile Picture"))
+        self.widgets['profile_path'] = Gtk.Entry(); self.widgets['profile_path'].set_text(self.doc['lockscreen'].get('profile_image', "")); f3.pack_start(self.create_row("User Picture", self.widgets['profile_btn']), False, False, 0); f3.pack_start(self.widgets['profile_path'], False, False, 0); v.pack_start(f3, False, False, 0); return v
 
-    def build_input_page(self):
-        vbox = self.build_page_vbox("Input Devices")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        self.widgets['kb_layout'] = Gtk.Entry()
-        self.widgets['kb_layout'].set_text(self.doc['input'].get('kb_layout', "us"))
-        group.pack_start(self.create_row("Keyboard Layout", self.widgets['kb_layout']), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_nightlight(self):
+        v = self.build_page_vbox("Eye Care"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame"); self.widgets['nl_enabled'] = Gtk.Switch(); self.widgets['nl_enabled'].set_active(self.doc['nightlight'].get('enabled', True)); f.pack_start(self.create_row("Enable Night Light", self.widgets['nl_enabled']), False, False, 0); v.pack_start(f, False, False, 0); return v
 
-    def build_layout_page(self):
-        vbox = self.build_page_vbox("Layout & Tiling")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        self.widgets['active_layout'] = Gtk.ComboBoxText()
-        for l in ["scroll", "dwindle", "master"]: self.widgets['active_layout'].append(l, l.capitalize())
-        self.widgets['active_layout'].set_active_id(self.doc['general'].get('layout', "scroll"))
-        group.pack_start(self.create_row("Tiling Layout", self.widgets['active_layout']), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_input(self):
+        v = self.build_page_vbox("Keyboard & Shortcuts"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame"); self.widgets['kb_layout'] = Gtk.Entry(); self.widgets['kb_layout'].set_text(self.doc['input'].get('kb_layout', "us")); f.pack_start(self.create_row("Keyboard Layout", self.widgets['kb_layout']), False, False, 0); v.pack_start(f, False, False, 0); f2, self.widgets['bind_list'] = self.build_dynamic_list(self.doc['binds']['normal'].get('list', []), "Shortcuts (MOD, KEY, ACTION, ARGS)"); v.pack_start(f2, False, False, 0); return v
 
-    def build_programs_page(self):
-        vbox = self.build_page_vbox("Default Applications")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        for app in ["terminal", "fileManager", "status_bar"]:
-            self.widgets[app] = Gtk.Entry()
-            self.widgets[app].set_text(self.doc['programs'].get(app, ""))
-            group.pack_start(self.create_row(app.capitalize(), self.widgets[app]), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_plugins(self):
+        v = self.build_page_vbox("Extensions"); f, self.widgets['plugin_list'] = self.build_dynamic_list(self.doc['plugins'].get('enabled', []), "Active Plugins"); v.pack_start(f, False, False, 0); return v
 
-    def build_system_page(self):
-        vbox = self.build_page_vbox("System Automation")
-        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        group.get_style_context().add_class("group-frame")
-        self.widgets['hyprrocket_enabled'] = Gtk.Switch()
-        self.widgets['hyprrocket_enabled'].set_active(self.doc['hyprrocket'].get('enabled', True))
-        group.pack_start(self.create_row("HyprRocket Enabled", self.widgets['hyprrocket_enabled']), False, False, 0)
-        vbox.pack_start(group, False, False, 0)
-        return vbox
+    def build_programs(self):
+        v = self.build_page_vbox("Default Apps"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
+        for k in ["terminal", "fileManager", "status_bar"]:
+            self.widgets[k] = Gtk.Entry(); self.widgets[k].set_text(self.doc['programs'].get(k, "")); f.pack_start(self.create_row(k.capitalize(), self.widgets[k]), False, False, 0)
+        v.pack_start(f, False, False, 0); return v
 
-    def on_sidebar_row_activated(self, listbox, row):
-        self.stack.set_visible_child_name(row.name)
+    def build_launcher(self):
+        v = self.build_page_vbox("Navigation"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame"); self.widgets['l_width'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1); self.widgets['l_width'].set_value(self.doc['launcher'].get('width_percent', 70)); self.widgets['l_width'].set_hexpand(True); self.widgets['l_width'].set_size_request(300,-1); f.pack_start(self.create_row("Spotlight Width %", self.widgets['l_width']), False, False, 0); self.widgets['dock_enabled'] = Gtk.Switch(); self.widgets['dock_enabled'].set_active(self.doc['launcher']['dock'].get('enabled', True)); f.pack_start(self.create_row("Enable Mac Dock", self.widgets['dock_enabled']), False, False, 0); v.pack_start(f, False, False, 0); return v
+
+    def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.name)
 
     def on_save_clicked(self, btn):
         try:
-            # Sync all values back to self.doc
-            self.doc['general']['gaps_in'] = int(self.widgets['gaps_in'].get_value())
-            self.doc['general']['gaps_out'] = int(self.widgets['gaps_out'].get_value())
-            self.doc['general']['border_size'] = int(self.widgets['border_size'].get_value())
-            self.doc['decoration']['rounding'] = int(self.widgets['rounding'].get_value())
-            self.doc['decoration']['active_opacity'] = self.widgets['active_opacity'].get_value()
-            self.doc['decoration']['inactive_opacity'] = self.widgets['inactive_opacity'].get_value()
-            self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id()
-            self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image'].get_text()
-            self.doc['wallpapers']['interval'] = int(self.widgets['wp_interval'].get_value())
-            self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value())
-            self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active()
-            self.doc['launcher']['dock']['icon_size'] = int(self.widgets['dock_size'].get_value())
-            self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value())
-            self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
-            self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
-            self.doc['general']['layout'] = self.widgets['active_layout'].get_active_id()
-            for app in ["terminal", "fileManager", "status_bar"]:
-                self.doc['programs'][app] = self.widgets[app].get_text()
-            self.doc['hyprrocket']['enabled'] = self.widgets['hyprrocket_enabled'].get_active()
-
-            with open(self.config_path, 'w') as f:
-                f.write(tomlkit.dumps(self.doc))
+            for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
+            for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','wofi_opacity']: self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
+            self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image_path'].get_text(); self.doc['wallpapers']['path'] = self.widgets['wp_dir_path'].get_text()
+            self.doc['lockscreen']['profile_image'] = self.widgets['profile_path'].get_text(); self.doc['lockscreen']['background'] = self.widgets['lock_wp_path'].get_text()
+            self.doc['lockscreen']['blur_passes'] = int(self.widgets['lock_blur_passes'].get_value()); self.doc['lockscreen']['blur_size'] = int(self.widgets['lock_blur_size'].get_value())
+            def get_items(container): return [c.get_children()[0].get_text() for c in container.get_children() if c.get_children()[0].get_text().strip()]
+            self.doc['monitors']['rules'] = get_items(self.widgets['monitor_list']); self.doc['binds']['normal']['list'] = get_items(self.widgets['bind_list']); self.doc['plugins']['enabled'] = get_items(self.widgets['plugin_list'])
+            for k in ['windows','windowsOut','border','fade','workspaces']: self.doc['animations'][k] = self.widgets[f'anim_{k}'].get_text()
+            self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id(); self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value()); self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active(); self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value()); self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active(); self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
+            for k in ["terminal", "fileManager", "status_bar"]: self.doc['programs'][k] = self.widgets[k].get_text()
+            with open(self.config_path, 'w') as f: f.write(tomlkit.dumps(self.doc))
+            subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])
             
-            self.status_label.set_text("Settings Applied Successfully")
-            GLib.idle_add(self.rebuild_and_exit)
-        except Exception as e:
-            self.status_label.set_text(f"Error: {str(e)}")
-
-    def rebuild_and_exit(self):
-        subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])
-        subprocess.run(["pkill", "-f", "hyprsearch --dock"])
-        if self.widgets['dock_enabled'].get_active():
-            subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"])
-        subprocess.run(["notify-send", "Settings Saved", "Hyprland reloaded."])
-        sys.exit(0)
+            # Apply wallpaper changes immediately
+            subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")])
+            
+            subprocess.run(["pkill", "-f", "hyprsearch --dock"])
+            if self.widgets['dock_enabled'].get_active():
+                subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"])
+            subprocess.run(["notify-send", "Settings Applied", "System updated."]); sys.exit(0)
+        except Exception as e: self.status_label.set_text(f"Error: {str(e)}")
 
     def on_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_Escape:
-            sys.exit(0)
-        elif event.keyval in [Gdk.KEY_Tab, Gdk.KEY_Right]:
+        if event.keyval == Gdk.KEY_Escape: sys.exit(0)
+        elif event.keyval == Gdk.KEY_Tab:
             if self.sidebar.has_focus():
-                self.stack_scroll.child_focus(Gtk.DirectionType.TAB_FORWARD)
-                return True
+                row = self.sidebar.get_selected_row(); idx = (row.get_index() + 1) % len(self.sidebar.get_children()) if row else 0
+                next_row = self.sidebar.get_row_at_index(idx); self.sidebar.select_row(next_row); next_row.grab_focus(); return True
+        elif event.keyval == Gdk.KEY_Right:
+            if self.sidebar.has_focus(): self.stack_scroll.child_focus(Gtk.DirectionType.TAB_FORWARD); return True
         elif event.keyval == Gdk.KEY_Left:
-            if not self.sidebar.has_focus():
-                self.sidebar.grab_focus()
-                return True
+            if not self.sidebar.has_focus(): self.sidebar.grab_focus(); return True
         return False
 
 if __name__ == "__main__":
