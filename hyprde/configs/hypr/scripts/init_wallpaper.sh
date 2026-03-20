@@ -14,14 +14,40 @@ log() {
 # Ensure log file exists
 touch "$LOG_FILE"
 
-# Get mode from hyprde.toml
+# Get config from hyprde.toml
 if [ -f "$HOME/.config/hypr/hyprde.toml" ]; then
     # Use python for reliable extraction
-    MODE=$(python3 -c "import tomlkit, os; path = os.path.expanduser('~/.config/hypr/hyprde.toml'); data = tomlkit.load(open(path)); print(data.get('wallpapers', {}).get('mode', 'fixed'))" 2>/dev/null)
-    [ -z "$MODE" ] && MODE="fixed"
+    CONFIG_VALS=$(python3 -c "
+import tomlkit, os
+path = os.path.expanduser('~/.config/hypr/hyprde.toml')
+try:
+    with open(path, 'r') as f: data = tomlkit.load(f)
+    wp = data.get('wallpapers', {})
+    mode = wp.get('mode', 'fixed')
+    wp_path = wp.get('path', '~/Pictures/wallpapers/')
+    interval = wp.get('interval', 60)
+    
+    def expand_p(p):
+        return os.path.expanduser(str(p).replace('\$HOME', os.path.expanduser('~')).replace('$HOME', os.path.expanduser('~')))
+    
+    print(f'MODE=\"{mode}\"')
+    print(f'WP_PATH=\"{expand_p(wp_path)}\"')
+    print(f'INTERVAL_VAL={interval}')
+except Exception as e:
+    print('MODE=\"fixed\"')
+    print('WP_PATH=\"' + os.path.expanduser('~/Pictures/wallpapers/') + '\"')
+    print('INTERVAL_VAL=60')
+")
+    eval "$CONFIG_VALS"
 else
     MODE="fixed"
+    WP_PATH="$HOME/Pictures/wallpapers/"
+    INTERVAL_VAL=60
 fi
+
+# Override with arguments if provided
+WALLPAPER_DIR="${1:-$WP_PATH}"
+INTERVAL="${2:-$INTERVAL_VAL}"
 
 # Sync state file for Waybar and other scripts
 echo "$MODE" > "$STATE_FILE"
