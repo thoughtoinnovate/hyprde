@@ -311,7 +311,55 @@ class SettingsManager(Gtk.Window):
         v.pack_start(f, False, False, 0); return v
 
     def build_launcher(self):
-        v = self.build_page_vbox("Navigation"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame"); self.widgets['l_width'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1); self.widgets['l_width'].set_value(self.doc['launcher'].get('width_percent', 70)); self.widgets['l_width'].set_hexpand(True); self.widgets['l_width'].set_size_request(300,-1); f.pack_start(self.create_row("Spotlight Width %", self.widgets['l_width']), False, False, 0); self.widgets['dock_enabled'] = Gtk.Switch(); self.widgets['dock_enabled'].set_active(self.doc['launcher']['dock'].get('enabled', True)); f.pack_start(self.create_row("Enable Mac Dock", self.widgets['dock_enabled']), False, False, 0); v.pack_start(f, False, False, 0); return v
+        v = self.build_page_vbox("Navigation & Launcher")
+        
+        # 1. Launcher Layout
+        f1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f1.get_style_context().add_class("group-frame")
+        lbl1 = Gtk.Label(label="Launcher Layout"); lbl1.set_xalign(0); lbl1.set_margin_bottom(10); f1.pack_start(lbl1, False, False, 0)
+        
+        self.widgets['l_pos'] = Gtk.ComboBoxText()
+        for p in ["top", "center"]: self.widgets['l_pos'].append(p, p.capitalize())
+        self.widgets['l_pos'].set_active_id(self.doc['launcher'].get('position', "top"))
+        f1.pack_start(self.create_row("Screen Position", self.widgets['l_pos']), False, False, 0)
+        
+        self.widgets['l_width'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1)
+        self.widgets['l_width'].set_value(self.doc['launcher'].get('width_percent', 70))
+        self.widgets['l_width'].set_size_request(300,-1)
+        f1.pack_start(self.create_row("Width %", self.widgets['l_width']), False, False, 0)
+        
+        self.widgets['l_margin'] = Gtk.SpinButton.new_with_range(0, 1000, 10)
+        self.widgets['l_margin'].set_value(self.doc['launcher'].get('margin_top', 100))
+        f1.pack_start(self.create_row("Top Margin (px)", self.widgets['l_margin']), False, False, 0)
+        v.pack_start(f1, False, False, 0)
+        
+        # 2. Content & Scaling
+        f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
+        lbl2 = Gtk.Label(label="Content & Scaling"); lbl2.set_xalign(0); lbl2.set_margin_bottom(10); f2.pack_start(lbl2, False, False, 0)
+        
+        self.widgets['l_font'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 12, 72, 1)
+        self.widgets['l_font'].set_value(self.doc['launcher'].get('font_size', 24))
+        self.widgets['l_font'].set_size_request(300,-1)
+        f2.pack_start(self.create_row("Search Font Size", self.widgets['l_font']), False, False, 0)
+        
+        self.widgets['l_icon'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 16, 128, 4)
+        self.widgets['l_icon'].set_value(self.doc['launcher'].get('icon_size', 32))
+        self.widgets['l_icon'].set_size_request(300,-1)
+        f2.pack_start(self.create_row("App Icon Size", self.widgets['l_icon']), False, False, 0)
+        
+        self.widgets['l_spacing'] = Gtk.SpinButton.new_with_range(0, 50, 1)
+        self.widgets['l_spacing'].set_value(self.doc['launcher'].get('row_spacing', 10))
+        f2.pack_start(self.create_row("Item Spacing", self.widgets['l_spacing']), False, False, 0)
+        v.pack_start(f2, False, False, 0)
+        
+        # 3. Dock
+        f3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f3.get_style_context().add_class("group-frame")
+        lbl3 = Gtk.Label(label="System Dock"); lbl3.set_xalign(0); lbl3.set_margin_bottom(10); f3.pack_start(lbl3, False, False, 0)
+        self.widgets['dock_enabled'] = Gtk.Switch()
+        self.widgets['dock_enabled'].set_active(self.doc['launcher']['dock'].get('enabled', True))
+        f3.pack_start(self.create_row("Enable Mac-style Dock", self.widgets['dock_enabled']), False, False, 0)
+        v.pack_start(f3, False, False, 0)
+        
+        return v
 
     def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.name)
 
@@ -325,7 +373,18 @@ class SettingsManager(Gtk.Window):
             def get_items(container): return [c.get_children()[0].get_text() for c in container.get_children() if c.get_children()[0].get_text().strip()]
             self.doc['monitors']['rules'] = get_items(self.widgets['monitor_list']); self.doc['binds']['normal']['list'] = get_items(self.widgets['bind_list']); self.doc['plugins']['enabled'] = get_items(self.widgets['plugin_list'])
             for k in ['windows','windowsOut','border','fade','workspaces']: self.doc['animations'][k] = self.widgets[f'anim_{k}'].get_text()
-            self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id(); self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value()); self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active(); self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value()); self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active(); self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
+            self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id()
+            
+            # Launcher Settings
+            self.doc['launcher']['position'] = self.widgets['l_pos'].get_active_id()
+            self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value())
+            self.doc['launcher']['margin_top'] = int(self.widgets['l_margin'].get_value())
+            self.doc['launcher']['font_size'] = int(self.widgets['l_font'].get_value())
+            self.doc['launcher']['icon_size'] = int(self.widgets['l_icon'].get_value())
+            self.doc['launcher']['row_spacing'] = int(self.widgets['l_spacing'].get_value())
+            
+            self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active()
+            self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value()); self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active(); self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
             for k in ["terminal", "fileManager", "status_bar"]: self.doc['programs'][k] = self.widgets[k].get_text()
             with open(self.config_path, 'w') as f: f.write(tomlkit.dumps(self.doc))
             subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])

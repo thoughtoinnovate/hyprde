@@ -164,9 +164,9 @@ void populate_list(const char *query) {
     char *math_res = try_math(query);
     if (math_res) {
         GtkWidget *row = gtk_list_box_row_new(); g_object_set_data_full(G_OBJECT(row), "math_result", g_strdup(math_res), g_free);
-        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20); gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, config.row_spacing * 2); gtk_container_set_border_width(GTK_CONTAINER(hbox), config.row_spacing);
         GtkWidget *icon = gtk_image_new_from_icon_name("accessories-calculator", GTK_ICON_SIZE_DND);
-        gtk_image_set_pixel_size(GTK_IMAGE(icon), 40); gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
+        gtk_image_set_pixel_size(GTK_IMAGE(icon), config.icon_size); gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
         char *label_text = g_strdup_printf("%s = %s", query, math_res);
         GtkWidget *label = gtk_label_new(label_text); gtk_widget_set_halign(label, GTK_ALIGN_START);
         gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
@@ -178,10 +178,10 @@ void populate_list(const char *query) {
         App *app = (App*)l->data;
         if (!query_lower || strlen(query_lower) == 0 || strstr(app->name_lower, query_lower)) {
             GtkWidget *row = gtk_list_box_row_new(); g_object_set_data(G_OBJECT(row), "app_data", app);
-            GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20);
-            gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
+            GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, config.row_spacing * 2);
+            gtk_container_set_border_width(GTK_CONTAINER(hbox), config.row_spacing);
             GtkWidget *icon = gtk_image_new_from_icon_name(app->icon, GTK_ICON_SIZE_DND);
-            gtk_image_set_pixel_size(GTK_IMAGE(icon), 40);
+            gtk_image_set_pixel_size(GTK_IMAGE(icon), config.icon_size);
             gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
             GtkWidget *label = gtk_label_new(app->name); gtk_widget_set_halign(label, GTK_ALIGN_START);
             gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
@@ -291,9 +291,10 @@ void load_theme_css() {
 }
 
 void set_default_config() {
-    config.width_percent = 80; config.rounding = 24; config.border_size = 1;
+    config.width_percent = 70; config.rounding = 24; config.border_size = 1;
     config.bg_color = g_strdup("rgba(20, 20, 20, 0.98)"); config.fg_color = g_strdup("#ffffff");
-    config.glow_color = g_strdup("rgba(51, 204, 255, 0.1)"); config.font_size = 36;
+    config.glow_color = g_strdup("rgba(51, 204, 255, 0.1)"); config.font_size = 24;
+    config.icon_size = 32; config.row_spacing = 10;
     config.position = g_strdup("top"); config.margin_top = 100; config.margin_bottom = 50;
     dock_config.enabled = 0; dock_config.autohide = 0; dock_config.icon_size = 48;
     dock_config.bg_color = g_strdup("rgba(20, 20, 20, 0.8)"); dock_config.rounding = 24;
@@ -306,6 +307,8 @@ void apply_table_to_config(toml_table_t* table) {
     d = toml_int_in(table, "width_percent"); if (d.ok) config.width_percent = (double)d.u.i;
     d = toml_int_in(table, "rounding"); if (d.ok) config.rounding = d.u.i;
     d = toml_int_in(table, "icon_size"); if (d.ok) config.icon_size = d.u.i;
+    d = toml_int_in(table, "font_size"); if (d.ok) config.font_size = d.u.i;
+    d = toml_int_in(table, "row_spacing"); if (d.ok) config.row_spacing = d.u.i;
     d = toml_int_in(table, "margin_top"); if (d.ok) config.margin_top = d.u.i;
     d = toml_int_in(table, "margin_bottom"); if (d.ok) config.margin_bottom = d.u.i;
     toml_datum_t s = toml_string_in(table, "position"); if (s.ok) { g_free(config.position); config.position = g_strdup(s.u.s); free(s.u.s); }
@@ -508,7 +511,12 @@ int main(int argc, char *argv[]) {
             dock_config.bg_color, dock_config.rounding, is_dark_mode ? "0 15px 45px rgba(0,0,0,0.6)" : "0 10px 30px rgba(0,0,0,0.15)", transform, highlight, highlight, config.fg_color
         );
     } else {
-        gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL); gtk_widget_set_valign(centered_box, GTK_ALIGN_START);
+        gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);
+        if (strcmp(config.position, "center") == 0) {
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_CENTER);
+        } else {
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_START);
+        }
 
         GtkWidget *search_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); gtk_widget_set_name(search_box, "main-window");
         gtk_widget_set_halign(search_box, GTK_ALIGN_CENTER);
@@ -535,15 +543,19 @@ int main(int argc, char *argv[]) {
         gtk_container_add(GTK_CONTAINER(centered_box), search_box);
 
         const char *entry_bg = is_dark_mode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
+        int row_font_size = config.font_size * 0.8;
+        if (row_font_size < 12) row_font_size = 12;
+
         css = g_strdup_printf(
             "window { background-color: transparent; }"
             "#main-window { background-color: %s; border-radius: %dpx; box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 1px 1px rgba(255,255,255,0.08); }"
             "entry { border: none; box-shadow: none; outline: none; background: none; }"
             "#search-entry { font-size: %dpx; font-weight: 300; padding: 28px 50px; background-color: %s; color: %s; border-top-left-radius: %dpx; border-top-right-radius: %dpx; }"
             "list { background: transparent; padding: 8px; }"
-            "row { color: %s; font-size: 20px; border-radius: 12px; margin: 2px 15px; padding: 6px; transition: all 0.15s ease; }"
+            "row { color: %s; border-radius: 12px; margin: 2px 15px; padding: 6px; transition: all 0.15s ease; }"
+            "row label { font-size: %dpx; }"
             "row:selected { background-color: %s; color: %s; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.3); }",
-            config.bg_color, config.rounding, config.font_size, entry_bg, config.fg_color, config.rounding, config.rounding, config.fg_color, config.sel_bg_color, config.sel_fg_color
+            config.bg_color, config.rounding, config.font_size, entry_bg, config.fg_color, config.rounding, config.rounding, config.fg_color, row_font_size, config.sel_bg_color, config.sel_fg_color
         );
     }
 
