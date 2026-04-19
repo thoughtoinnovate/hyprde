@@ -137,10 +137,15 @@ gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user
         int x, y; gtk_widget_translate_coordinates(widget, gtk_widget_get_parent(dock_shelf), 0, 0, &x, &y);
         GtkRequisition req; gtk_widget_get_preferred_size(dock_label, NULL, &req);
         gtk_widget_set_margin_start(dock_label, 0); gtk_widget_set_margin_top(dock_label, 0);
+        
         if (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) {
             gtk_widget_set_margin_top(dock_label, y + (alloc.height / 2) - (req.height / 2));
+            if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_start(dock_label, x + alloc.width + 12);
+            else gtk_widget_set_margin_start(dock_label, x - req.width - 12);
         } else {
             gtk_widget_set_margin_start(dock_label, x + (alloc.width / 2) - (req.width / 2));
+            if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_top(dock_label, y + alloc.height + 12);
+            else gtk_widget_set_margin_top(dock_label, y - req.height - 12);
         }
         gtk_widget_show(dock_label);
     }
@@ -339,7 +344,15 @@ void load_config() {
                     d = toml_int_in(dock, "rounding"); if (d.ok) dock_config.rounding = d.u.i;
                     d = toml_int_in(dock, "margin"); if (d.ok) dock_config.margin = d.u.i;
                     d = toml_int_in(dock, "padding"); if (d.ok) dock_config.padding = d.u.i;
-                    toml_datum_t ds = toml_string_in(dock, "position"); if (ds.ok) { g_free(dock_config.position); dock_config.position = g_strdup(ds.u.s); free(ds.u.s); }
+                    toml_datum_t ds = toml_string_in(dock, "position"); 
+                    if (ds.ok) { 
+                        g_free(dock_config.position); 
+                        dock_config.position = g_strdup(ds.u.s); 
+                        g_message("Loaded dock position: %s", dock_config.position);
+                        free(ds.u.s); 
+                    } else {
+                        g_message("Using default dock position: %s", dock_config.position);
+                    }
                     toml_array_t* apps = toml_array_in(dock, "apps");
                     if (apps) {
                         dock_config.apps_count = toml_array_nelem(apps);
@@ -439,6 +452,10 @@ int main(int argc, char *argv[]) {
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+        } else if (strcmp(dock_config.position, "top") == 0) {
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
         } else {
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
@@ -464,15 +481,17 @@ int main(int argc, char *argv[]) {
         gtk_widget_set_halign(centered_box, GTK_ALIGN_CENTER); gtk_widget_set_valign(centered_box, GTK_ALIGN_CENTER);
         if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_start(centered_box, dock_config.margin);
         else if (strcmp(dock_config.position, "right") == 0) gtk_widget_set_margin_end(centered_box, dock_config.margin);
+        else if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_top(centered_box, dock_config.margin);
         else gtk_widget_set_margin_bottom(centered_box, dock_config.margin);
 
         GtkWidget *overlay = gtk_overlay_new(); gtk_box_pack_start(GTK_BOX(centered_box), overlay, FALSE, FALSE, 0);
         dock_shelf = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0); gtk_widget_set_name(dock_shelf, "dock-shelf");
         if (dock_config.autohide) gtk_widget_set_opacity(dock_shelf, 0.05);
         
-        int buffer = 45;
+        int buffer = 80;
         if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_end(dock_shelf, buffer);
         else if (strcmp(dock_config.position, "right") == 0) gtk_widget_set_margin_start(dock_shelf, buffer);
+        else if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_bottom(dock_shelf, buffer);
         else gtk_widget_set_margin_top(dock_shelf, buffer);
 
         GtkOrientation orient = (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
@@ -491,6 +510,8 @@ int main(int argc, char *argv[]) {
         GtkWidget *add_img = gtk_image_new_from_icon_name("list-add-symbolic", GTK_ICON_SIZE_DND);
         gtk_image_set_pixel_size(GTK_IMAGE(add_img), dock_config.icon_size); gtk_container_add(GTK_CONTAINER(add_eb), add_img);
         g_signal_connect(add_eb, "button-press-event", G_CALLBACK(on_add_button_press), NULL);
+        g_signal_connect(add_eb, "enter-notify-event", G_CALLBACK(on_dock_enter), NULL);
+        g_signal_connect(add_eb, "leave-notify-event", G_CALLBACK(on_dock_leave), NULL);
         gtk_box_pack_start(GTK_BOX(icons_box), add_eb, FALSE, FALSE, 0);
         gtk_container_add(GTK_CONTAINER(dock_shelf), icons_box); gtk_container_add(GTK_CONTAINER(overlay), dock_shelf);
 
@@ -502,13 +523,14 @@ int main(int argc, char *argv[]) {
         const char *transform = "translateY(-20px)";
         if (strcmp(dock_config.position, "left") == 0) transform = "translateX(20px)";
         else if (strcmp(dock_config.position, "right") == 0) transform = "translateX(-20px)";
-        const char *highlight = is_dark_mode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)";
+        const char *highlight = "rgba(255,255,255,0.18)";
         css = g_strdup_printf(
-            "window { background-color: transparent; } #dock-shelf { background-color: %s; border-radius: %dpx; border: 1px solid rgba(255,255,255,0.1); box-shadow: %s; transition: all 0.3s ease; }"
-            "#dock-item, #dock-item-add { padding: 8px; border-radius: 12px; transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease; }"
-            "#dock-item:hover { transform: scale(1.5) %s; background: %s; } #dock-item-add:hover { transform: scale(1.2); background: %s; }"
-            "#dock-label { color: %s; background: transparent; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }",
-            dock_config.bg_color, dock_config.rounding, is_dark_mode ? "0 15px 45px rgba(0,0,0,0.6)" : "0 10px 30px rgba(0,0,0,0.15)", transform, highlight, highlight, config.fg_color
+            "window { background-color: transparent; } "
+            "#dock-shelf { background-color: rgba(255,255,255,0.15); border-radius: 100px; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: all 0.3s ease; }"
+            "#dock-item, #dock-item-add { padding: 8px; border-radius: 100px; transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease; }"
+            "#dock-item:hover { transform: scale(2.0) %s; background: %s; } #dock-item-add:hover { transform: scale(1.6); background: %s; }"
+            "#dock-label { color: #ffffff; background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; text-shadow: none; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }",
+            transform, highlight, highlight
         );
     } else {
         gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);

@@ -357,6 +357,12 @@ class SettingsManager(Gtk.Window):
         self.widgets['dock_enabled'] = Gtk.Switch()
         self.widgets['dock_enabled'].set_active(self.doc['launcher']['dock'].get('enabled', True))
         f3.pack_start(self.create_row("Enable Mac-style Dock", self.widgets['dock_enabled']), False, False, 0)
+        
+        self.widgets['dock_pos'] = Gtk.ComboBoxText()
+        for p in ["bottom", "top", "left", "right"]: self.widgets['dock_pos'].append(p, p.capitalize())
+        self.widgets['dock_pos'].set_active_id(self.doc['launcher']['dock'].get('position', "bottom"))
+        f3.pack_start(self.create_row("Dock Position", self.widgets['dock_pos']), False, False, 0)
+        
         v.pack_start(f3, False, False, 0)
         
         return v
@@ -384,6 +390,7 @@ class SettingsManager(Gtk.Window):
             self.doc['launcher']['row_spacing'] = int(self.widgets['l_spacing'].get_value())
             
             self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active()
+            self.doc['launcher']['dock']['position'] = self.widgets['dock_pos'].get_active_id()
             self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value()); self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active(); self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
             for k in ["terminal", "fileManager", "status_bar"]: self.doc['programs'][k] = self.widgets[k].get_text()
             with open(self.config_path, 'w') as f: f.write(tomlkit.dumps(self.doc))
@@ -393,8 +400,11 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")])
             
             subprocess.run(["pkill", "-f", "hyprsearch --dock"])
+            time.sleep(0.5) # Wait for old process to exit
             if self.widgets['dock_enabled'].get_active():
-                subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"])
+                # Start new process detached from parent
+                subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"], 
+                               start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["notify-send", "Settings Applied", "System updated."]); sys.exit(0)
         except Exception as e: self.status_label.set_text(f"Error: {str(e)}")
 
