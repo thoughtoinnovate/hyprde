@@ -1,30 +1,30 @@
-/* Dark Theme (Default) */
-@define-color theme_base_bg #000000;
+/* Dark Theme */
+@define-color theme_base_bg #1e1e1e;
 @define-color theme_base_fg #ffffff;
-@define-color theme_module_bg #2d2d2d;
+@define-color theme_module_bg #2c2c2e;
 @define-color theme_module_fg #ffffff;
-@define-color theme_hover_bg #ede5e5;
-@define-color theme_hover_fg #000000;
-@define-color theme_panel_hover_bg #505050;
-@define-color theme_border_color rgba(255, 255, 255, 0.2);
-@define-color theme_tooltip_bg #000000;
-@define-color theme_active_bg #ffffff;
-@define-color theme_active_fg #000000;
-@define-color theme_disabled_bg #646464;
+@define-color theme_hover_bg #3a3a3c;
+@define-color theme_hover_fg #ffffff;
+@define-color theme_panel_hover_bg #444446;
+@define-color theme_border_color rgba(255, 255, 255, 0.1);
+@define-color theme_tooltip_bg #1e1e1e;
+@define-color theme_active_bg #007aff;
+@define-color theme_active_fg #ffffff;
+@define-color theme_disabled_bg #3a3a3c;
 @define-color theme_disabled_fg #ffffff;
-@define-color theme_accent #33ccff;
-@define-color theme_critical_bg #ff0000;
-@define-color theme_warning_bg #f17d16;
-@define-color theme_success_bg #09ff01;
-@define-color theme_success_fg #000000;
-@define-color theme_wofi_bg #1a1a1a;
-@define-color theme_wofi_bg_alpha rgba(26, 26, 26, 0.95);
+@define-color theme_accent #007aff;
+@define-color theme_critical_bg #ff3b30;
+@define-color theme_warning_bg #ff9500;
+@define-color theme_success_bg #007aff;
+@define-color theme_success_fg #ffffff;
+@define-color theme_wofi_bg #1e1e1e;
+@define-color theme_wofi_bg_alpha rgba(30, 30, 30, 0.95);
 @define-color theme_wofi_fg #ffffff;
 @define-color theme_wofi_entry_fg #ffffff;
-@define-color theme_wofi_sel_bg #333333;
+@define-color theme_wofi_sel_bg #007aff;
 @define-color theme_wofi_sel_fg #ffffff;
 
 /* Notifications (Mako) */
-@define-color theme_notif_bg #000000;
+@define-color theme_notif_bg #1e1e1e;
 @define-color theme_notif_fg #ffffff;
-@define-color theme_notif_border rgba(51, 204, 255, 0.933);
+@define-color theme_notif_border rgba(0, 122, 255, 0.9);

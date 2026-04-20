@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import time
 import gi
 import subprocess
 import tomlkit
@@ -30,7 +31,10 @@ def get_theme_colors():
             with open(theme_path, 'r') as f:
                 content = f.read()
                 def find_color(var):
-                    m = re.search(f"{var}\\s+([^;]+);", content)
+                    # Handle both plain variable and @define-color prefix
+                    m = re.search(f"@define-color\\s+{var}\\s+([^;]+);", content)
+                    if not m:
+                        m = re.search(f"{var}\\s+([^;]+);", content)
                     return m.group(1).strip() if m else None
                 
                 colors["base_bg"] = find_color("theme_base_bg") or colors["base_bg"]
@@ -165,16 +169,16 @@ class SettingsManager(Gtk.Window):
         #close-button:hover {{ opacity: 1.0; color: #ff5f57; }}
         
         #save-button {{ 
-            background-color: {c['active_bg']}; 
-            color: {c['active_fg']}; 
+            background-color: {c['module_bg']}; 
+            color: {c['module_fg']}; 
             font-weight: 800; 
             padding: 16px 55px; 
             border-radius: 18px; 
-            border: none; 
+            border: 1px solid {c['border']}; 
             font-size: 17px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
         }}
-        #save-button:hover {{  }}
+        #save-button:hover {{ background-color: {c['hover_bg']}; }}
         
         .group-frame {{ 
             background: rgba(255,255,255,0.05); 
@@ -206,6 +210,19 @@ class SettingsManager(Gtk.Window):
         scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 28px; min-width: 28px; }}
         scale trough {{ background: rgba(255,255,255,0.1); border-radius: 12px; min-height: 10px; }}
         switch:checked {{ background: {c['active_bg']}; }}
+        
+        /* Generic button styling */
+        button {{
+            background: {c['module_bg']};
+            color: {c['module_fg']};
+            border: 1px solid {c['border']};
+            border-radius: 14px;
+            padding: 10px 20px;
+        }}
+        button:hover {{
+            background: {c['hover_bg']};
+        }}
+        
         scrollbar slider {{ background-color: rgba(255, 255, 255, 0.2); border-radius: 12px; min-width: 10px; }}
         """.encode()
         p = Gtk.CssProvider(); p.load_from_data(css); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -370,7 +387,9 @@ class SettingsManager(Gtk.Window):
     def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.name)
 
     def on_save_clicked(self, btn):
+        self.save_btn.set_label("Applying...")
         try:
+            if 'appearance' not in self.doc: self.doc['appearance'] = tomlkit.table()
             for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
             for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','wofi_opacity']: self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
             self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image_path'].get_text(); self.doc['wallpapers']['path'] = self.widgets['wp_dir_path'].get_text()
@@ -400,13 +419,19 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")])
             
             subprocess.run(["pkill", "-f", "hyprsearch --dock"])
+            subprocess.run(["pkill", "-USR2", "waybar"])
             time.sleep(0.5) # Wait for old process to exit
             if self.widgets['dock_enabled'].get_active():
                 # Start new process detached from parent
                 subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"], 
                                start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(["notify-send", "Settings Applied", "System updated."]); sys.exit(0)
-        except Exception as e: self.status_label.set_text(f"Error: {str(e)}")
+            subprocess.run(["notify-send", "Settings Applied", "System updated."])
+            self.save_btn.set_label("Done!")
+            time.sleep(0.3)
+            sys.exit(0)
+        except Exception as e: 
+            self.save_btn.set_label("Apply Changes")
+            self.status_label.set_text(f"Error: {str(e)}")
 
     def on_key_press(self, widget, event):
         if event.keyval == Gdk.KEY_Escape: sys.exit(0)
