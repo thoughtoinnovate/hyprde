@@ -58,7 +58,11 @@ autohide_bar = false                      # Autohide status bar (use SUPER+B to 
 [autostart]
 exec_once = [
     "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1",
-    "$notification_service & $status_bar & hyprpaper -c $HOME/.config/hypr/hyprpaper.conf & hypridle & blueman-applet"
+    "$notification_service",
+    "$status_bar",
+    "hyprpaper -c $HOME/.config/hypr/hyprpaper.conf",
+    "hypridle",
+    "blueman-applet"
 ]
 
 # =============================================================================
