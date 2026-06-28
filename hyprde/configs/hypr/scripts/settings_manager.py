@@ -8,6 +8,34 @@ import tomlkit
 import re
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkLayerShell', '0.1')
+import signal
+LOCK_FILE = "/tmp/hyprde-settings.pid"
+
+def check_single_instance():
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, 'r') as f:
+                pid = int(f.read().strip())
+            # Check if process is still running
+            os.kill(pid, 0)
+            # If so, kill it to toggle it off
+            os.kill(pid, signal.SIGTERM)
+            try:
+                os.remove(LOCK_FILE)
+            except:
+                pass
+            sys.exit(0)
+        except OSError:
+            # Stale lock file
+            try:
+                os.remove(LOCK_FILE)
+            except:
+                pass
+    try:
+        with open(LOCK_FILE, 'w') as f:
+            f.write(str(os.getpid()))
+    except:
+        pass
 from gi.repository import Gtk, Gdk, GtkLayerShell, Gio, GLib, Pango
 
 def get_theme_colors():
@@ -66,7 +94,7 @@ class SettingsManager(Gtk.Window):
             GtkLayerShell.set_anchor(self, edge, True)
 
         self.init_time = time.time()
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", lambda w: (self.cleanup_lock(), Gtk.main_quit()))
         self.connect("key-press-event", self.on_key_press)
 
         # 1. Background (Click to close)
@@ -168,8 +196,16 @@ class SettingsManager(Gtk.Window):
     def load_config(self):
         with open(self.config_path, 'r') as f: self.doc = tomlkit.load(f)
 
+    def cleanup_lock(self):
+        try:
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
+        except:
+            pass
+
     def close_window(self):
         """Trigger close animation then quit after it completes."""
+        self.cleanup_lock()
         self.main_box.get_style_context().add_class("closing")
         GLib.timeout_add(200, Gtk.main_quit)
 
@@ -550,5 +586,6 @@ class SettingsManager(Gtk.Window):
         return False
 
 if __name__ == "__main__":
+    check_single_instance()
     win = SettingsManager()
     Gtk.main()
