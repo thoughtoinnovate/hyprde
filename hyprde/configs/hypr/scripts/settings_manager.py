@@ -65,13 +65,14 @@ class SettingsManager(Gtk.Window):
         for edge in [GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT]:
             GtkLayerShell.set_anchor(self, edge, True)
 
+        self.init_time = time.time()
         self.connect("destroy", Gtk.main_quit)
         self.connect("key-press-event", self.on_key_press)
 
         # 1. Background (Click to close)
         bg_event_box = Gtk.EventBox()
         bg_event_box.set_name("bg-overlay")
-        bg_event_box.connect("button-press-event", lambda w, e: self.close_window())
+        bg_event_box.connect("button-press-event", lambda w, e: self.close_window() if (time.time() - self.init_time) > 0.3 else None)
         self.add(bg_event_box)
         
         overlay = Gtk.Overlay()
