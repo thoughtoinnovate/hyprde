@@ -194,7 +194,9 @@ class SettingsManager(Gtk.Window):
         self.sidebar.grab_focus()
 
     def load_config(self):
-        with open(self.config_path, 'r') as f: self.doc = tomlkit.load(f)
+        with open(self.config_path, 'r') as f:
+            self.doc = tomlkit.load(f)
+        self.initial_config_str = tomlkit.dumps(self.doc)
 
     def cleanup_lock(self):
         try:
@@ -551,7 +553,14 @@ class SettingsManager(Gtk.Window):
             self.doc['launcher']['dock']['position'] = self.widgets['dock_pos'].get_active_id()
             self.doc['idle']['lock_timeout'] = int(self.widgets['idle_lock'].get_value()); self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active(); self.doc['input']['kb_layout'] = self.widgets['kb_layout'].get_text()
             for k in ["terminal", "fileManager", "status_bar"]: self.doc['programs'][k] = self.widgets[k].get_text()
-            with open(self.config_path, 'w') as f: f.write(tomlkit.dumps(self.doc))
+
+            # Change validation
+            new_config_str = tomlkit.dumps(self.doc)
+            if new_config_str == self.initial_config_str:
+                self.close_window()
+                return
+
+            with open(self.config_path, 'w') as f: f.write(new_config_str)
             subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])
             
             # Apply wallpaper changes immediately
