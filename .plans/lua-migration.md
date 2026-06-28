@@ -49,6 +49,8 @@ The `hyprctl keyword` command is used for **runtime** config changes:
 
 These may need updating in 0.55 if the `keyword` syntax changed. **Verify against Hyprland 0.55+ during implementation.**
 
+**Fallback if `hyprctl keyword` is removed in 0.55:** Replace runtime keyword calls with `build_config.py && hyprctl reload`. This is slower but guaranteed to work, since `build_config.py` writes full Lua configs and `hyprctl reload` reads them fresh. The theme/layout/gamma scripts would call the config builder instead of directly setting keywords.
+
 ### 0.4 `hypridle.conf` DPMS Note
 The static `hypridle.conf` in the repo is **generated** by `build_config.py`. The dpms command changes are handled in Phase 2 when we update `generate_hypridle_conf()`. The `hypridle.conf` file format (hyprlang) itself is unchanged — only the shell commands *inside* it need updating.
 
@@ -188,7 +190,7 @@ lua_lines = [  # Only this works in Lua output mode
 lines = []     # Ignored in Lua mode, warn if non-empty
 ```
 
-### 1.7 ICC Profile Support (NEW in 0.55)
+### 1.8 ICC Profile Support (NEW in 0.55)
 
 New optional TOML section:
 ```toml
@@ -233,7 +235,6 @@ hl.config({
 ### Add
 - `generate_user_lua()` → returns string of Lua config
 - `create_main_lua(content)` → writes `~/.config/hypr/hyprland.lua`
-- `generate_user_legacy_conf()` → optional fallback (see "Rollback Strategy")
 
 ### Modified
 - `generate_hypridle_conf()` — change shell commands inside from `hyprctl dispatch dpms on/off` → `hyprctl dispatch 'hl.dsp.dpms("on"/"off")'`. The *file format* stays hyprlang, only the *shell command strings* change.
@@ -241,27 +242,7 @@ hl.config({
 
 ---
 
-## Phase 3: Output File Changes
-
-| Old File | New File | Status |
-|---|---|---|
-| `hyprland.conf` | Removed | No longer needed |
-| `hyprland.base.conf` | Removed | No longer needed |
-| `hyprde.generated.conf` | Removed | Replaced by Lua |
-| `hyprland.lua` | **NEW** | Single entry point |
-| `hypridle.conf` | Kept | Unchanged (hyprlang) |
-| `hyprlock.conf` | Kept | Unchanged (hyprlang) |
-| `hyprpaper.conf` | Kept | Unchanged (hyprlang) |
-| `wallpaper-fixed.conf` | Kept | Unchanged |
-| `wallpaper-schedule.conf` | Kept | Unchanged |
-| CSS overrides | Kept | Unchanged |
-| Systemd units | Kept | Unchanged |
-
-The generated `hyprland.lua` is self-contained — no `source =` lines, no base config merge. The Lua file contains everything needed.
-
----
-
-## Phase 4: "Make Configs Easier" — UX Improvements
+## Phase 3: Config Simplification
 
 ### 4.1 TOML Simplifications
 
@@ -318,7 +299,7 @@ hl.config({
 
 ---
 
-## Phase 5: Testing Strategy
+## Phase 4: Testing
 
 ### Unit Tests (`test_builder.py`)
 - Update all existing tests to expect Lua output instead of hyprlang
@@ -343,6 +324,15 @@ hl.config({
 ### Script Testing
 - Test every `hyprctl dispatch` change with `dry-run` or mock
 - Verify `hyprctl keyword` still works in 0.55
+
+---
+
+## Phase 5: Documentation
+
+- Update `AGENTS.md` — new build/test commands, Lua-specific conventions
+- Update `CONFIG_SCHEMA.md` — add `[custom].lua_lines`, `[color].icc_profiles`, deprecate `[custom].lines`
+- Migration notes for users — especially `hyprctl dispatch` syntax change and 0.55+ requirement
+- Update README with 0.55+ requirement
 
 ---
 

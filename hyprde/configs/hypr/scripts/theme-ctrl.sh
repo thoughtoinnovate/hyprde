@@ -84,7 +84,7 @@ set_theme() {
         notify-send -t 2000 "System Theme" "Switched to $theme_name"
     fi
 
-    # 2. Apply Hyprland colors
+    # 2. Apply Hyprland colors immediately, then reload to persist
     hyprctl keyword general:col.active_border "$active_border"
     hyprctl keyword general:col.inactive_border "$inactive_border"
 
@@ -103,9 +103,9 @@ if os.path.exists(path):
     with open(path, 'w') as f: f.write(tomlkit.dumps(data))
 EOF
 
-    # 4. Generate dynamic config and reload Waybar
+    # 4. Generate Lua config and reload
     python3 "$HOME/.config/hypr/build_config.py" > /dev/null 2>&1
-    pkill -USR2 waybar
+    hyprctl reload
 }
 
 toggle() {

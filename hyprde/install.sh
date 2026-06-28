@@ -35,10 +35,10 @@ install_packages() {
 
     case "$os" in
         arch)
-           sudo pacman -S --noconfirm --needed base-devel $packages
+           sudo pacman -S --noconfirm --needed base-devel $packages || true
             ;;
         debian)
-            sudo apt install -y --no-install-recommends build-essential $packages
+            sudo apt install -y --no-install-recommends build-essential $packages || true
             ;;
         *)
             echo "Unsupported distribution: $os"
@@ -167,6 +167,9 @@ install_nerd_fonts() {
     
     rm -rf "$temp_dir"
 }
+
+# Change to script directory so relative paths work
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
 # Prompt for root password at the start
 echo "Need priviledges for installation of packages..."
@@ -336,16 +339,20 @@ chmod +x $USER_HOME/.config/hypr/scripts/gammastep/*.sh
 
 echo "Building native Spotlight launcher (hyprsearch)..."
 if command -v zig >/dev/null 2>&1; then
-    # Ensure src directory exists in the repo
     if [ -d "./src/launcher" ]; then
         (
-            cd ./src/launcher
+            cd ./src/launcher || exit 1
+            # Fix cache permissions if zig was previously run as root
+            if [ -n "$SUDO_USER" ]; then
+                chown -R "$SUDO_USER:$SUDO_USER" .zig-cache 2>/dev/null || true
+                chown -R "$SUDO_USER:$SUDO_USER" "$(sudo -u "$SUDO_USER" zig env 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['global_cache_dir'])" 2>/dev/null || echo /nonexistent)" 2>/dev/null || true
+            fi
             echo "   Compiling with Zig..."
             if zig build -Doptimize=ReleaseFast; then
                 echo "   Deploying binary to $USER_HOME/.config/hypr/scripts/hyprsearch"
                 cp -f ./zig-out/bin/hyprsearch "$USER_HOME/.config/hypr/scripts/hyprsearch"
                 chmod +x "$USER_HOME/.config/hypr/scripts/hyprsearch"
-                
+
                 # Also sync back to repo configs for future installs
                 mkdir -p ../../configs/hypr/scripts
                 cp -f ./zig-out/bin/hyprsearch ../../configs/hypr/scripts/hyprsearch
@@ -368,12 +375,16 @@ PACTL_PATH=$(which pactl 2>/dev/null || echo "/usr/bin/pactl")
 SUDOERS_FILE="/etc/sudoers.d/hyprde-nopasswd"
 # ALLOW (NOPASSWD): tlp (all), modprobe -r (removing camera), rmmod -f (force removing camera), pactl set-source-mute (muting mic)
 # DENY (NOPASSWD): modprobe (adding camera), pactl set-source-mute (unmuting mic)
+TEECMD="tee"
+if command -v sudo >/dev/null 2>&1; then
+    TEECMD="sudo tee"
+fi
 if [ -n "$SUDO_USER" ]; then
     printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
 else
-    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | tee "$SUDOERS_FILE" > /dev/null
-    chmod 440 "$SUDOERS_FILE"
+    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    sudo chmod 440 "$SUDOERS_FILE"
 fi
 
 echo "Creating wallpaper directories."

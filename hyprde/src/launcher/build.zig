@@ -12,12 +12,12 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.addCSourceFile(.{ .file = b.path("src/launcher.c"), .flags = &.{} });
-    exe.addCSourceFile(.{ .file = b.path("src/toml.c"), .flags = &.{} });
-    exe.linkLibC();
-    exe.linkSystemLibrary("gtk+-3.0");
-    exe.linkSystemLibrary("gtk-layer-shell-0");
-    exe.linkSystemLibrary("gio-2.0");
+    exe.root_module.addCSourceFile(.{ .file = b.path("src/launcher.c"), .flags = &.{} });
+    exe.root_module.addCSourceFile(.{ .file = b.path("src/toml.c"), .flags = &.{} });
+    exe.root_module.link_libc = true;
+    exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
+    exe.root_module.linkSystemLibrary("gtk-layer-shell-0", .{});
+    exe.root_module.linkSystemLibrary("gio-2.0", .{});
 
     b.installArtifact(exe);
 }

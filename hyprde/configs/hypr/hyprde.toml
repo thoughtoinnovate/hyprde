@@ -49,7 +49,7 @@ autohide_bar = false                      # Autohide status bar (use SUPER+B to 
 [autostart]
 exec_once = [
     "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1",
-    "$notification_service & $status_bar & hyprpaper & hypridle & blueman-applet"
+    "$notification_service & $status_bar & hyprpaper -c $HOME/.config/hypr/hyprpaper.conf & hypridle & blueman-applet"
 ]
 
 # =============================================================================
@@ -133,24 +133,11 @@ green_intensity = 0.85                    # Green light reduction (0.0 to 1.0)
 # Hyprland plugin management via hyprpm
 # Enable plugins and configure their settings
 # NOTE: Plugins must be installed via hyprpm before enabling them here
-#   1. hyprpm add https://github.com/hyprwm/hyprland-plugins
-#   2. hyprpm enable hyprexpo
-#   3. Add "hyprexpo" to enabled = [] below
+#   Example: hyprpm enable <plugin-name>
 # =============================================================================
 [plugins]
 manage_official = true                    # Enable hyprpm official plugin repo
 enabled = []                              # Enable plugins here (e.g. ["hyprexpo"])
-
-# hyprexpo plugin - workspace overview/expose
-[plugin.hyprexpo]
-columns = 3                               # Number of columns in grid
-gap_size = 5                              # Gap between workspace previews
-bg_col = "rgb(111111)"                    # Background color
-workspace_method = "center current"       # How to position current workspace
-enable_gesture = true                     # Enable touchpad gesture
-gesture_fingers = 3                       # Number of fingers for gesture
-gesture_distance = 300                    # Gesture distance threshold
-gesture_positive = false                  # Gesture direction
 
 # native scrolling layout - integrated into Hyprland 0.54.0+
 [scrolling]
@@ -229,17 +216,15 @@ action = "theme-ctrl.sh --mode auto"       # Automatic theme transition
 
 # =============================================================================
 # GESTURES
-# Trackpad gesture configuration for hyprexpo
-# Uses Hyprland's native gesture system via hyprexpo-gesture keyword
-# Format: FINGERS, DIRECTION, ACTION (expo/unset)
+# Native Hyprland trackpad gestures (hl.gesture() calls)
+# Format: "field1 = value1, field2 = value2, ..."
+# Fields: fingers (int), direction (quoted string), action (quoted string),
+#         mods (quoted string, optional), scale (number, optional)
 # =============================================================================
 [gesture]
 list = [
-    # 3-finger swipe up to open hyprexpo expo
-    "hyprexpo-gesture = 3, up, expo",
-    
-    # 3-finger swipe down to close hyprexpo expo
-    "hyprexpo-gesture = 3, down, expo"
+    # 3-finger horizontal swipe for workspace switching
+    'fingers = 3, direction = "horizontal", action = "workspace"',
 ]
 
 # =============================================================================
@@ -247,22 +232,7 @@ list = [
 # Keyboard modes (submaps) for complex keybindings
 # Each submap defines a mode with its own keybindings
 # =============================================================================
-[submaps.expo]
-binds = [
-    # Navigation and control within expo mode
-    ", escape, hyprexpo:expo, off",         # Exit expo with Escape
-    ", escape, submap, reset",              # Return to default submap
-    ", return, hyprexpo:expo, off",         # Exit expo with Enter
-    ", return, submap, reset",              # Return to default submap
-    ", left, movefocus, l",                 # Navigate left
-    ", right, movefocus, r",                # Navigate right
-    ", up, movefocus, u",                   # Navigate up
-    ", down, movefocus, d",                 # Navigate down
-    ", h, movefocus, l",                    # Vim-style: left (h)
-    ", l, movefocus, r",                    # Vim-style: right (l)
-    ", k, movefocus, u",                    # Vim-style: up (k)
-    ", j, movefocus, d"                     # Vim-style: down (j)
-]
+# (expo submap removed - hyprexpo plugin not enabled)
 
 # =============================================================================
 # ENV
@@ -355,7 +325,6 @@ workspaces = "1, 6, default"              # Workspace switch animation
 # Dwindle (fibonacci spiral) layout settings
 # =============================================================================
 [dwindle]
-pseudotile = true                         # Enable pseudotile behavior
 preserve_split = true                     # Keep split orientation
 
 # =============================================================================
@@ -460,8 +429,7 @@ list = [
     "$mainMod, A, layoutmsg, addmaster",
     "$mainMod, D, layoutmsg, removemaster",
     
-    # Hyprexpo (SUPER+G to activate workspace overview)
-    "$mainMod, G, hyprexpo:expo, toggle",
+    # (SUPER+G freed - hyprexpo plugin not enabled)
     
     # Scripts and utilities
     "$mainMod SHIFT, f, exec, $HOME/.config/hypr/scripts/file_search.sh",

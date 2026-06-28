@@ -61,8 +61,8 @@ elif [ "$1" = "close-all" ]; then
     pkill -x "hyprsearch" || true
     pkill -f "any_finder.sh" || true
     # Close any floating terminal launchers by class
-    hyprctl dispatch closewindow "class:com.fzf.launcher" > /dev/null 2>&1 || true
-    hyprctl dispatch closewindow "class:fzf-launcher" > /dev/null 2>&1 || true
+    hyprctl dispatch 'hl.dsp.closewindow("class:com.fzf.launcher")' > /dev/null 2>&1 || true
+    hyprctl dispatch 'hl.dsp.closewindow("class:fzf-launcher")' > /dev/null 2>&1 || true
     exit 0
 else
     echo "Invalid argument. Please provide 'ctrl-cntr', 'sys-metrics', 'bluetooth', or 'close-all'."

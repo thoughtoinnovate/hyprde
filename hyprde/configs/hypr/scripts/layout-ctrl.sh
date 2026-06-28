@@ -2,10 +2,22 @@
 
 CURRENT_LAYOUT=$(hyprctl getoption general:layout -j | jq -r '.str')
 
+TARGET="dwindle"
 if [ "$CURRENT_LAYOUT" == "dwindle" ]; then
-    hyprctl keyword general:layout scroll
-    notify-send -t 1000 "Layout Switched" "Scroll (Horizontal Tape)"
-else
-    hyprctl keyword general:layout dwindle
-    notify-send -t 1000 "Layout Switched" "Dwindle (Standard)"
+    TARGET="scroll"
 fi
+
+# Persist in TOML
+python3 -c "
+import tomlkit, os
+path = os.path.expanduser('~/.config/hypr/hyprde.toml')
+with open(path, 'r') as f: data = tomlkit.load(f)
+if 'general' not in data: data['general'] = tomlkit.table()
+data['general']['layout'] = '$TARGET'
+with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+"
+
+# Regenerate Lua config and reload
+python3 "$HOME/.config/hypr/build_config.py" > /dev/null 2>&1
+hyprctl reload
+notify-send -t 1000 "Layout Switched" "$TARGET (Standard)"

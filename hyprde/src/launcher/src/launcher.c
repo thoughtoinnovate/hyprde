@@ -234,7 +234,7 @@ void load_apps() {
 
 void load_power_menu() {
     struct { char *name; char *icon; char *exec; } items[] = {
-        {"Lock", "system-lock-screen", "hyprlock"}, {"Logout", "system-log-out", "hyprctl dispatch exit"},
+        {"Lock", "system-lock-screen", "hyprlock"},         {"Logout", "system-log-out", "hyprctl dispatch 'hl.dsp.exit()'"},
         {"Suspend", "system-suspend", "systemctl suspend"}, {"Hibernate", "system-suspend-hibernate", "systemctl hibernate"},
         {"Reboot", "system-reboot", "systemctl reboot"}, {"Shutdown", "system-shutdown", "systemctl poweroff"}
     };
