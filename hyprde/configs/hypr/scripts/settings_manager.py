@@ -317,7 +317,7 @@ class SettingsManager(Gtk.Window):
             lbl = Gtk.Label(label=group_label); lbl.set_xalign(0); lbl.get_style_context().add_class("sidebar-group-label")
             lbl_row = Gtk.ListBoxRow(); lbl_row.set_selectable(False); lbl_row.set_activatable(False); lbl_row.add(lbl); self.sidebar.add(lbl_row)
             for name, title, icon, builder in pages:
-                row = Gtk.ListBoxRow(); row.set_name(name); row.set_can_focus(True)
+                row = Gtk.ListBoxRow(); row.row_name = name; row.set_name(name); row.set_can_focus(True)
                 box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
                 box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
                 box.pack_start(Gtk.Label(label=title), False, False, 0)
@@ -483,7 +483,7 @@ class SettingsManager(Gtk.Window):
         
         return v
 
-    def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.name)
+    def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.row_name)
 
     def on_save_clicked(self, btn):
         self.save_btn.set_label("Applying...")
