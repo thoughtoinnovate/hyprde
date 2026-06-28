@@ -477,7 +477,7 @@ list = [
     ", Print, exec, ~/.config/hypr/scripts/screenshot.sh",
     ", escape, exec, $HOME/.config/hypr/scripts/waybars.sh close-all",
     "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh",
-    "$mainMod, C, exec, $HOME/.config/hypr/scripts/settings_manager.py",
+    "$mainMod, C, exec, pkill -f settings_manager.py || $HOME/.config/hypr/scripts/settings_manager.py",
     "$mainMod, D, exec, $HOME/.config/hypr/scripts/dock-toggle.sh"
 ]
 

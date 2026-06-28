@@ -70,7 +70,8 @@ class SettingsManager(Gtk.Window):
 
         # 1. Background (Click to close)
         bg_event_box = Gtk.EventBox()
-        bg_event_box.connect("button-press-event", lambda w, e: Gtk.main_quit())
+        bg_event_box.set_name("bg-overlay")
+        bg_event_box.connect("button-press-event", lambda w, e: self.close_window())
         self.add(bg_event_box)
         
         overlay = Gtk.Overlay()
@@ -102,9 +103,11 @@ class SettingsManager(Gtk.Window):
         title_label = Gtk.Label(label="System Settings"); title_label.set_name("title-label")
         title_box.pack_start(title_label, False, False, 0)
         spacer = Gtk.Box(); title_box.pack_start(spacer, True, True, 0)
+        esc_hint = Gtk.Label(label="Esc"); esc_hint.set_name("esc-hint")
         close_btn = Gtk.Button(label="✕"); close_btn.set_name("close-button")
-        close_btn.connect("clicked", lambda x: Gtk.main_quit())
+        close_btn.connect("clicked", lambda x: self.close_window())
         title_box.pack_end(close_btn, False, False, 0)
+        title_box.pack_end(esc_hint, False, False, 8)
         self.main_box.pack_start(title_box, False, False, 0)
 
         # Body
@@ -148,16 +151,27 @@ class SettingsManager(Gtk.Window):
     def load_config(self):
         with open(self.config_path, 'r') as f: self.doc = tomlkit.load(f)
 
+    def close_window(self):
+        """Trigger close animation then quit after it completes."""
+        self.main_box.get_style_context().add_class("closing")
+        GLib.timeout_add(200, Gtk.main_quit)
+
     def apply_css(self):
         c = get_theme_colors()
         css = f"""
         window {{ background-color: transparent; }}
+        #bg-overlay {{ background-color: rgba(0,0,0,0.45); animation: backdrop-in 240ms ease-out; }}
+        @keyframes backdrop-in {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
         #main-window {{ 
             background-color: {c['base_bg']}; 
             border-radius: 32px; 
             border: 1px solid {c['border']}; 
             color: {c['base_fg']}; 
+            animation: panel-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
         }}
+        #main-window.closing {{ animation: panel-out 200ms ease-in forwards; }}
+        @keyframes panel-in {{ from {{ opacity: 0; margin-top: 20px; }} to {{ opacity: 1; margin-top: 0px; }} }}
+        @keyframes panel-out {{ from {{ opacity: 1; margin-top: 0px; }} to {{ opacity: 0; margin-top: -12px; }} }}
         #title-label {{ font-size: 32px; font-weight: 800; color: {c['base_fg']}; }}
         
         #sidebar-area, #sidebar {{ background-color: rgba(0,0,0,0.1); border-right: 1px solid {c['border']}; }}
@@ -165,8 +179,9 @@ class SettingsManager(Gtk.Window):
         #sidebar row:selected {{ background-color: {c['active_bg']}; color: {c['active_fg']}; opacity: 1.0; font-weight: 800; }}
         #sidebar row label {{ color: inherit; }}
         
-        #close-button {{ background: transparent; border: none; font-size: 26px; color: {c['base_fg']}; opacity: 0.5; }}
-        #close-button:hover {{ opacity: 1.0; color: #ff5f57; }}
+        #close-button {{ background: transparent; border: none; font-size: 22px; color: {c['base_fg']}; opacity: 0.45; min-width: 44px; min-height: 44px; padding: 8px; border-radius: 50%; transition: all 150ms ease; }}
+        #close-button:hover {{ opacity: 1.0; color: #ff5f57; background: rgba(255,95,87,0.12); }}
+        #esc-hint {{ font-size: 11px; opacity: 0.30; color: {c['base_fg']}; padding: 3px 8px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }}
         
         #save-button {{ 
             background-color: {c['active_bg']}; 
@@ -462,14 +477,14 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["notify-send", "Settings Applied", "System updated."])
             self.save_btn.set_label("Done!")
             time.sleep(0.3)
-            Gtk.main_quit()
+            self.close_window()
         except Exception as e:
             self.save_btn.set_label("Apply Changes")
             self.status_label.set_text(f"⚠ Error: {str(e)}")
             self.status_label.get_style_context().add_class("error")
 
     def on_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_Escape: Gtk.main_quit()
+        if event.keyval == Gdk.KEY_Escape: self.close_window()
         elif event.keyval == Gdk.KEY_Tab:
             if self.sidebar.has_focus():
                 row = self.sidebar.get_selected_row(); idx = (row.get_index() + 1) % len(self.sidebar.get_children()) if row else 0
