@@ -190,7 +190,7 @@ class SettingsManager(Gtk.Window):
 
         /* Titlebar */
         #titlebar {{ min-height: 38px; }}
-        #titlebar-sep {{ background-color: {c['border']}; min-height: 1px; max-height: 1px; }}
+        #titlebar-sep {{ background-color: {c['border']}; min-height: 1px; }}
         #title-label {{ font-size: 13px; font-weight: 500; color: {c['base_fg']}; opacity: 0.8; }}
 
         /* Traffic lights */
