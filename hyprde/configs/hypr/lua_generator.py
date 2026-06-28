@@ -279,7 +279,7 @@ def _write_nightlight(lines: list, data: dict):
 
 def _write_plugins(lines: list, data: dict):
     pl = data.get("plugins", {})
-    if pl.get("manage_official", False) or pl.get("enabled", []):
+    if pl.get("enabled", []):
         lines.append("-- [[ Hyprpm Plugin Reload ]]")
         lines.append('hl.on("hyprland.start", function() hl.dsp.exec_once("hyprpm reload -n") end)')
         lines.append("")
