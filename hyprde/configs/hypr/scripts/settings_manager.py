@@ -86,6 +86,13 @@ class SettingsManager(Gtk.Window):
         self.config_path = os.path.expanduser("~/.config/hypr/hyprde.toml")
         self.load_config()
         
+        # Enable alpha channels for smooth flicker-free overlay drawing
+        self.set_app_paintable(True)
+        screen = self.get_screen()
+        visual = screen.get_rgba_visual()
+        if visual:
+            self.set_visual(visual)
+        
         GtkLayerShell.init_for_window(self)
         GtkLayerShell.set_namespace(self, "hyprde-settings")
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
