@@ -11,7 +11,7 @@
 
 /* Specific styling for the panel container */
 #ctrl_panel {
-    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */
+    background-color: alpha(@theme_base_bg, 0.85); /* SETTINGS_BAR_OPACITY */
     border-radius: 20px;
     padding: 15px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
@@ -103,7 +103,8 @@
 }
 
 #custom-session {
-    color: #ed333b; 
+    color: @theme_module_fg;
+    opacity: 0.85;
 }
 
 tooltip {
