@@ -15,8 +15,7 @@
             "group/row1",
             "group/row2",
             "group/row3",
-            "group/row4",
-            "group/row5"
+            "group/row4"
         ]
     },
     "group/row1": {
@@ -24,7 +23,8 @@
         "modules": [
             "custom/wifi",
             "custom/bluetooth",
-            "custom/theme"
+            "custom/theme",
+            "battery"
         ]
     },
     "group/row2": {
@@ -39,7 +39,8 @@
         "modules": [
             "custom/mic",
             "custom/camera",
-            "custom/screenshot"
+            "custom/screenshot",
+            "custom/record"
         ]
     },
     "group/row4": {
@@ -50,12 +51,7 @@
             "custom/session"
         ]
     },
-    "group/row5": {
-        "orientation": "horizontal",
-        "modules": [
-            "custom/record"
-        ]
-    },
+
     "custom/record": {
         "return-type": "json",
         "interval": 1,
@@ -151,8 +147,8 @@
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/bluetooth.sh status",
         "interval": 3,
-        "on-click": "~/.config/hypr/scripts/waybars.sh bluetooth",
-        "on-click-right": "~/.config/hypr/scripts/bluetooth.sh toggle",
+        "on-click": "~/.config/hypr/scripts/bluetooth.sh toggle",
+        "on-click-right": "~/.config/hypr/scripts/waybars.sh bluetooth",
         "on-click-middle": "blueman-manager",
         "format": "{}",
         "tooltip": true

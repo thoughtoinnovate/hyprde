@@ -70,7 +70,7 @@ class SettingsManager(Gtk.Window):
 
         # 1. Background (Click to close)
         bg_event_box = Gtk.EventBox()
-        bg_event_box.connect("button-press-event", lambda w, e: sys.exit(0))
+        bg_event_box.connect("button-press-event", lambda w, e: Gtk.main_quit())
         self.add(bg_event_box)
         
         overlay = Gtk.Overlay()
@@ -103,7 +103,7 @@ class SettingsManager(Gtk.Window):
         title_box.pack_start(title_label, False, False, 0)
         spacer = Gtk.Box(); title_box.pack_start(spacer, True, True, 0)
         close_btn = Gtk.Button(label="✕"); close_btn.set_name("close-button")
-        close_btn.connect("clicked", lambda x: sys.exit(0))
+        close_btn.connect("clicked", lambda x: Gtk.main_quit())
         title_box.pack_end(close_btn, False, False, 0)
         self.main_box.pack_start(title_box, False, False, 0)
 
@@ -169,16 +169,17 @@ class SettingsManager(Gtk.Window):
         #close-button:hover {{ opacity: 1.0; color: #ff5f57; }}
         
         #save-button {{ 
-            background-color: {c['module_bg']}; 
-            color: {c['module_fg']}; 
+            background-color: {c['active_bg']}; 
+            color: {c['active_fg']}; 
             font-weight: 800; 
             padding: 16px 55px; 
             border-radius: 18px; 
-            border: 1px solid {c['border']}; 
+            border: none; 
             font-size: 17px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            box-shadow: 0 4px 20px rgba(0,122,255,0.4); 
         }}
-        #save-button:hover {{ background-color: {c['hover_bg']}; }}
+        #save-button:hover {{ opacity: 0.88; box-shadow: 0 6px 28px rgba(0,122,255,0.6); }}
+        #status-label.error {{ color: #ff5f57; font-weight: 700; }}
         
         .group-frame {{ 
             background: rgba(255,255,255,0.05); 
@@ -256,7 +257,7 @@ class SettingsManager(Gtk.Window):
         self.widgets = {}
         pages = [("appearance", "Appearance", "preferences-desktop-theme", self.build_appearance), ("monitors", "Displays", "video-display", self.build_monitors), ("wallpapers", "Wallpapers", "background", self.build_wallpapers), ("launcher", "Launcher & Dock", "start-here", self.build_launcher), ("animations", "Motion Effects", "view-restore", self.build_animations), ("lockscreen", "Lock & Power", "system-lock-screen", self.build_lock), ("nightlight", "Nightlight", "weather-clear-night", self.build_nightlight), ("input", "Keyboard & Binds", "input-keyboard", self.build_input), ("plugins", "Extensions", "system-run", self.build_plugins), ("programs", "Default Apps", "applications-other", self.build_programs)]
         for name, title, icon, builder in pages:
-            row = Gtk.ListBoxRow(); row.name = name; row.set_can_focus(True); box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20); box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0); box.pack_start(Gtk.Label(label=title), False, False, 0); row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
+            row = Gtk.ListBoxRow(); row.name = name; row.set_can_focus(True); box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20); box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR), False, False, 0); box.pack_start(Gtk.Label(label=title), False, False, 0); row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
         self.sidebar.select_row(self.sidebar.get_row_at_index(0))
 
     def build_page_vbox(self, title_text):
@@ -275,14 +276,47 @@ class SettingsManager(Gtk.Window):
         v = self.build_page_vbox("Displays & Layout"); f, self.widgets['monitor_list'] = self.build_dynamic_list(self.doc['monitors'].get('rules', []), "Monitor Configuration Rules"); v.pack_start(f, False, False, 0); return v
 
     def build_wallpapers(self):
-        v = self.build_page_vbox("Wallpaper Management"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15); f.get_style_context().add_class("group-frame")
+        v = self.build_page_vbox("Wallpaper Management")
+        f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
+        f.get_style_context().add_class("group-frame")
+
         self.widgets['wp_mode'] = Gtk.ComboBoxText()
         for m in ["fixed", "dynamic", "disabled"]: self.widgets['wp_mode'].append(m, m.capitalize())
-        self.widgets['wp_mode'].set_active_id(self.doc['wallpapers'].get('mode', "fixed")); f.pack_start(self.create_row("Active Mode", self.widgets['wp_mode']), False, False, 0)
-        self.widgets['wp_image_btn'] = Gtk.Button(label="Browse Image..."); self.widgets['wp_image_btn'].get_style_context().add_class("picker"); self.widgets['wp_image_btn'].connect("clicked", lambda x: self.update_picker_path('wp_image_path', "Select Wallpaper"))
-        self.widgets['wp_image_path'] = Gtk.Entry(); self.widgets['wp_image_path'].set_text(self.doc['wallpapers']['fixed'].get('image', "")); f.pack_start(self.create_row("Static Image", self.widgets['wp_image_btn']), False, False, 0); f.pack_start(self.widgets['wp_image_path'], False, False, 0)
-        self.widgets['wp_dir_btn'] = Gtk.Button(label="Browse Folder..."); self.widgets['wp_dir_btn'].get_style_context().add_class("picker"); self.widgets['wp_dir_btn'].connect("clicked", lambda x: self.update_picker_path('wp_dir_path', "Select Wallpaper Folder", True))
-        self.widgets['wp_dir_path'] = Gtk.Entry(); self.widgets['wp_dir_path'].set_text(self.doc['wallpapers'].get('path', "~/Pictures/wallpapers")); f.pack_start(self.create_row("Collection Folder", self.widgets['wp_dir_btn']), False, False, 0); f.pack_start(self.widgets['wp_dir_path'], False, False, 0); v.pack_start(f, False, False, 0); return v
+        self.widgets['wp_mode'].set_active_id(self.doc['wallpapers'].get('mode', "fixed"))
+        f.pack_start(self.create_row("Active Mode", self.widgets['wp_mode']), False, False, 0)
+
+        # Fixed image section
+        self.widgets['wp_image_btn'] = Gtk.Button(label="Browse Image...")
+        self.widgets['wp_image_btn'].get_style_context().add_class("picker")
+        self.widgets['wp_image_btn'].connect("clicked", lambda x: self.update_picker_path('wp_image_path', "Select Wallpaper"))
+        self.widgets['wp_image_path'] = Gtk.Entry()
+        self.widgets['wp_image_path'].set_text(self.doc['wallpapers']['fixed'].get('image', ""))
+        self.widgets['_wp_fixed_row'] = self.create_row("Static Image", self.widgets['wp_image_btn'])
+        f.pack_start(self.widgets['_wp_fixed_row'], False, False, 0)
+        f.pack_start(self.widgets['wp_image_path'], False, False, 0)
+
+        # Dynamic folder section
+        self.widgets['wp_dir_btn'] = Gtk.Button(label="Browse Folder...")
+        self.widgets['wp_dir_btn'].get_style_context().add_class("picker")
+        self.widgets['wp_dir_btn'].connect("clicked", lambda x: self.update_picker_path('wp_dir_path', "Select Wallpaper Folder", True))
+        self.widgets['wp_dir_path'] = Gtk.Entry()
+        self.widgets['wp_dir_path'].set_text(self.doc['wallpapers'].get('path', "~/Pictures/wallpapers"))
+        self.widgets['_wp_dir_row'] = self.create_row("Collection Folder", self.widgets['wp_dir_btn'])
+        f.pack_start(self.widgets['_wp_dir_row'], False, False, 0)
+        f.pack_start(self.widgets['wp_dir_path'], False, False, 0)
+
+        def on_mode_changed(combo):
+            mode = combo.get_active_id()
+            self.widgets['_wp_fixed_row'].set_visible(mode == "fixed")
+            self.widgets['wp_image_path'].set_visible(mode == "fixed")
+            self.widgets['_wp_dir_row'].set_visible(mode == "dynamic")
+            self.widgets['wp_dir_path'].set_visible(mode == "dynamic")
+
+        self.widgets['wp_mode'].connect("changed", on_mode_changed)
+        on_mode_changed(self.widgets['wp_mode'])  # apply initial visibility
+
+        v.pack_start(f, False, False, 0)
+        return v
 
     def update_picker_path(self, key, title, folder=False):
         p = self.open_picker(title, folder)
@@ -428,13 +462,14 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["notify-send", "Settings Applied", "System updated."])
             self.save_btn.set_label("Done!")
             time.sleep(0.3)
-            sys.exit(0)
-        except Exception as e: 
+            Gtk.main_quit()
+        except Exception as e:
             self.save_btn.set_label("Apply Changes")
-            self.status_label.set_text(f"Error: {str(e)}")
+            self.status_label.set_text(f"⚠ Error: {str(e)}")
+            self.status_label.get_style_context().add_class("error")
 
     def on_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_Escape: sys.exit(0)
+        if event.keyval == Gdk.KEY_Escape: Gtk.main_quit()
         elif event.keyval == Gdk.KEY_Tab:
             if self.sidebar.has_focus():
                 row = self.sidebar.get_selected_row(); idx = (row.get_index() + 1) % len(self.sidebar.get_children()) if row else 0
