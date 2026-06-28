@@ -152,13 +152,13 @@ class TestLuaGeneratorBinds(unittest.TestCase):
 
     @patch("lua_generator._check_hyprexpo", return_value=True)
     def test_custom_dispatcher(self, mock_check_hyprexpo):
-        """Test plugin dispatchers use hl.dsp.custom()."""
+        """Test plugin dispatchers fall back to hl.dispatch()."""
         data = {
             "plugins": {"enabled": ["hyprexpo"]},
             "binds": {"mainMod": "SUPER", "normal": {"list": ["$mainMod, G, hyprexpo:expo, toggle"]}}
         }
         lua = lua_generator.generate_user_lua(data)
-        self.assertIn('hl.dsp.custom("hyprexpo:expo", "toggle")', lua)
+        self.assertIn('hl.dispatch("hyprexpo:expo", "toggle")', lua)
 
     def test_empty_mod_bind(self):
         """Test bind with empty modifier (leading comma)."""
