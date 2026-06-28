@@ -1301,43 +1301,6 @@ if __name__ == "__main__":
     generate_hyrocket_systemd_units(data_full)
     generate_wallpaper_schedule_config(data_full)
     generate_css_overrides(data_full)
-    apply_accent_colors(data_full)
-    
-    create_main_conf()
-    print("Configuration build complete.")
-":
-    if not os.path.exists(CONFIG_DIR):
-        print(f"Creating directory: {CONFIG_DIR}")
-        os.makedirs(CONFIG_DIR)
-        
-    download_base()
-    
-    # Update version cache after download check
-    update_version_cache(HYPR_VERSION)
-    
-    # Load data once
-    data_full = {}
-    try:
-        with open(TOML_FILE, "rb") as f:
-            data_full = tomllib.load(f)
-    except FileNotFoundError as e:
-        logger.error(f"TOML file not found: {e}")
-    except tomllib.TOMLDecodeError as e:
-        logger.error(f"Invalid TOML syntax: {e}")
-    except OSError as e:
-        logger.error(f"File I/O error: {e}")
 
-    generate_user_conf() # Refactor this later to pass data, but for now it reads file again internally which is fine or we can pass it if we refactor.
-    # Actually generate_user_conf reads the file itself. I'll leave it as is to minimize diff, 
-    # but I'll pass data_full to hypridle gen.
-    
-    generate_hypridle_conf(data_full)
-    generate_hyprlock_conf(data_full)
-    generate_hyprpaper_conf(data_full)
-    generate_fixed_wallpaper_config(data_full)
-    generate_hyrocket_systemd_units(data_full)
-    generate_wallpaper_schedule_config(data_full)
-    generate_css_overrides(data_full)
-    
     create_main_conf()
     print("Configuration build complete.")
