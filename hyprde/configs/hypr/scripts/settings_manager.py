@@ -91,57 +91,72 @@ class SettingsManager(Gtk.Window):
         monitor = display.get_primary_monitor() or display.get_monitor(0)
         if monitor:
             geo = monitor.get_geometry()
-            self.win_w = int(geo.width * 0.65)
-            self.win_h = int(geo.height * 0.75)
+            self.win_w = min(860, int(geo.width * 0.85))
+            self.win_h = min(580, int(geo.height * 0.85))
             self.main_box.set_size_request(self.win_w, self.win_h)
         else:
-            self.main_box.set_size_request(1200, 900)
+            self.main_box.set_size_request(860, 580)
         
-        # Header
-        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        title_box.set_margin_top(30); title_box.set_margin_bottom(15); title_box.set_margin_start(45); title_box.set_margin_end(45)
+        # Titlebar: traffic lights | centered title | Done button
+        titlebar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        titlebar.set_name("titlebar")
+        titlebar.set_margin_start(14); titlebar.set_margin_end(14)
+
+        # Traffic light circles
+        tl_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        tl_box.set_valign(Gtk.Align.CENTER)
+        tl_box.set_margin_top(12); tl_box.set_margin_bottom(12)
+        for btn_name in ["tl-close", "tl-minimize", "tl-maximize"]:
+            dot = Gtk.Button(); dot.set_name(btn_name)
+            dot.set_size_request(13, 13); dot.set_can_focus(False)
+            if btn_name == "tl-close":
+                dot.connect("clicked", lambda x: self.close_window())
+            tl_box.pack_start(dot, False, False, 0)
+        titlebar.pack_start(tl_box, False, False, 0)
+
+        # Centered title
+        tl_spacer1 = Gtk.Box(); titlebar.pack_start(tl_spacer1, True, True, 0)
         title_label = Gtk.Label(label="System Settings"); title_label.set_name("title-label")
-        title_box.pack_start(title_label, False, False, 0)
-        spacer = Gtk.Box(); title_box.pack_start(spacer, True, True, 0)
-        esc_hint = Gtk.Label(label="Esc"); esc_hint.set_name("esc-hint")
-        close_btn = Gtk.Button(label="✕"); close_btn.set_name("close-button")
-        close_btn.connect("clicked", lambda x: self.close_window())
-        title_box.pack_end(close_btn, False, False, 0)
-        title_box.pack_end(esc_hint, False, False, 8)
-        self.main_box.pack_start(title_box, False, False, 0)
+        titlebar.pack_start(title_label, False, False, 0)
+        tl_spacer2 = Gtk.Box(); titlebar.pack_start(tl_spacer2, True, True, 0)
+
+        # Right: status + Done button
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        right_box.set_valign(Gtk.Align.CENTER)
+        self.status_label = Gtk.Label(label=""); self.status_label.set_name("status-label")
+        right_box.pack_start(self.status_label, False, False, 0)
+        self.save_btn = Gtk.Button(label="Done"); self.save_btn.set_name("save-button")
+        self.save_btn.connect("clicked", self.on_save_clicked)
+        right_box.pack_start(self.save_btn, False, False, 0)
+        titlebar.pack_end(right_box, False, False, 0)
+        self.main_box.pack_start(titlebar, False, False, 0)
+
+        # Separator under titlebar
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL); sep.set_name("titlebar-sep")
+        self.main_box.pack_start(sep, False, False, 0)
 
         # Body
         content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self.main_box.pack_start(content_box, True, True, 0)
-        
+
         sidebar_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         sidebar_vbox.set_name("sidebar-area")
-        sidebar_vbox.set_size_request(300, -1)
+        sidebar_vbox.set_size_request(220, -1)
         self.sidebar = Gtk.ListBox(); self.sidebar.set_name("sidebar")
         self.sidebar.connect("row-activated", self.on_sidebar_row_activated)
-        
+
         sidebar_scroll = Gtk.ScrolledWindow()
         sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         sidebar_scroll.add(self.sidebar)
         sidebar_vbox.pack_start(sidebar_scroll, True, True, 0)
         content_box.pack_start(sidebar_vbox, False, False, 0)
-        
+
         # Stack
         self.stack = Gtk.Stack(); self.stack.set_homogeneous(False); self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.stack_scroll = Gtk.ScrolledWindow(); self.stack_scroll.set_name("content-scroll")
         self.stack_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.stack_scroll.add(self.stack)
         content_box.pack_start(self.stack_scroll, True, True, 0)
-        
-        # Footer
-        bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
-        bottom_box.set_margin_top(25); bottom_box.set_margin_bottom(25); bottom_box.set_margin_start(45); bottom_box.set_margin_end(45)
-        self.status_label = Gtk.Label(label=""); self.status_label.set_name("status-label"); bottom_box.pack_start(self.status_label, False, False, 0)
-        spacer2 = Gtk.Box(); bottom_box.pack_start(spacer2, True, True, 0)
-        self.save_btn = Gtk.Button(label="Apply Changes"); self.save_btn.set_name("save-button")
-        self.save_btn.connect("clicked", self.on_save_clicked)
-        bottom_box.pack_end(self.save_btn, False, False, 0)
-        self.main_box.pack_start(bottom_box, False, False, 0)
         
         self.apply_css()
         self.create_settings_pages()
@@ -160,86 +175,106 @@ class SettingsManager(Gtk.Window):
         c = get_theme_colors()
         css = f"""
         window {{ background-color: transparent; }}
-        #bg-overlay {{ background-color: rgba(0,0,0,0.45); animation: backdrop-in 240ms ease-out; }}
+        #bg-overlay {{ background-color: rgba(0,0,0,0.5); animation: backdrop-in 240ms ease-out; }}
         @keyframes backdrop-in {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
-        #main-window {{ 
-            background-color: {c['base_bg']}; 
-            border-radius: 32px; 
-            border: 1px solid {c['border']}; 
-            color: {c['base_fg']}; 
+        #main-window {{
+            background-color: {c['base_bg']};
+            border-radius: 12px;
+            border: 1px solid {c['border']};
+            color: {c['base_fg']};
             animation: panel-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
         }}
         #main-window.closing {{ animation: panel-out 200ms ease-in forwards; }}
-        @keyframes panel-in {{ from {{ opacity: 0; margin-top: 20px; }} to {{ opacity: 1; margin-top: 0px; }} }}
-        @keyframes panel-out {{ from {{ opacity: 1; margin-top: 0px; }} to {{ opacity: 0; margin-top: -12px; }} }}
-        #title-label {{ font-size: 32px; font-weight: 800; color: {c['base_fg']}; }}
-        
+        @keyframes panel-in {{ from {{ opacity: 0; margin-top: 16px; }} to {{ opacity: 1; margin-top: 0px; }} }}
+        @keyframes panel-out {{ from {{ opacity: 1; margin-top: 0px; }} to {{ opacity: 0; margin-top: -10px; }} }}
+
+        /* Titlebar */
+        #titlebar {{ min-height: 38px; }}
+        #titlebar-sep {{ background-color: {c['border']}; min-height: 1px; max-height: 1px; }}
+        #title-label {{ font-size: 13px; font-weight: 500; color: {c['base_fg']}; opacity: 0.8; }}
+
+        /* Traffic lights */
+        #tl-close, #tl-minimize, #tl-maximize {{
+            border-radius: 50%; min-width: 13px; min-height: 13px;
+            padding: 0; border: none; box-shadow: none;
+        }}
+        #tl-close {{ background-color: #ff5f57; }}
+        #tl-minimize {{ background-color: #febc2e; }}
+        #tl-maximize {{ background-color: #28c840; }}
+        #tl-close:hover {{ background-color: #e0443c; }}
+        #tl-minimize:hover {{ background-color: #e0a326; }}
+        #tl-maximize:hover {{ background-color: #1fa832; }}
+
+        /* Sidebar */
         #sidebar-area, #sidebar {{ background-color: rgba(0,0,0,0.1); border-right: 1px solid {c['border']}; }}
-        #sidebar row {{ padding: 16px 22px; border-radius: 16px; margin: 4px 10px; color: {c['base_fg']}; opacity: 0.7; font-weight: 600; background: transparent; }}
-        #sidebar row:selected {{ background-color: {c['active_bg']}; color: {c['active_fg']}; opacity: 1.0; font-weight: 800; }}
-        #sidebar row label {{ color: inherit; }}
-        
-        #close-button {{ background: transparent; border: none; font-size: 22px; color: {c['base_fg']}; opacity: 0.45; min-width: 44px; min-height: 44px; padding: 8px; border-radius: 50%; transition: all 150ms ease; }}
-        #close-button:hover {{ opacity: 1.0; color: #ff5f57; background: rgba(255,95,87,0.12); }}
-        #esc-hint {{ font-size: 11px; opacity: 0.30; color: {c['base_fg']}; padding: 3px 8px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }}
-        
-        #save-button {{ 
-            background-color: {c['active_bg']}; 
-            color: {c['active_fg']}; 
-            font-weight: 800; 
-            padding: 16px 55px; 
-            border-radius: 18px; 
-            border: none; 
-            font-size: 17px; 
-            box-shadow: 0 4px 20px rgba(0,122,255,0.4); 
+        #sidebar row {{ padding: 8px 12px; border-radius: 8px; margin: 2px 6px; color: {c['base_fg']}; opacity: 0.65; font-weight: 400; font-size: 13px; background: transparent; }}
+        #sidebar row:selected {{ background-color: rgba(255,255,255,0.07); color: {c['base_fg']}; opacity: 1.0; font-weight: 600; border-left: 3px solid {c['accent']}; padding-left: 9px; }}
+        #sidebar row label {{ color: inherit; font-size: 13px; }}
+        .sidebar-group-label {{ font-size: 10px; font-weight: 700; opacity: 0.35; color: {c['base_fg']}; padding: 10px 14px 3px 14px; letter-spacing: 1px; background: transparent; }}
+
+        /* Done / Save button */
+        #save-button {{
+            background-color: {c['active_bg']};
+            color: {c['active_fg']};
+            font-weight: 600;
+            padding: 5px 16px;
+            border-radius: 7px;
+            border: none;
+            font-size: 13px;
         }}
-        #save-button:hover {{ opacity: 0.88; box-shadow: 0 6px 28px rgba(0,122,255,0.6); }}
-        #status-label.error {{ color: #ff5f57; font-weight: 700; }}
-        
-        .group-frame {{ 
-            background: rgba(255,255,255,0.05); 
-            border-radius: 24px; 
-            padding: 30px; 
-            margin-bottom: 25px; 
-            border: 1px solid {c['border']}; 
+        #save-button:hover {{ opacity: 0.85; }}
+        #status-label {{ font-size: 11px; opacity: 0.5; color: {c['base_fg']}; }}
+        #status-label.error {{ color: #ff5f57; font-weight: 600; opacity: 1.0; }}
+
+        /* Content section title */
+        .section-title {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 12px; color: {c['base_fg']}; opacity: 0.4; }}
+
+        /* Group cards */
+        .group-frame {{
+            background: rgba(255,255,255,0.04);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.07);
         }}
-        .section-title {{ font-size: 24px; font-weight: 800; margin-bottom: 25px; color: {c['base_fg']}; }}
-        
-        entry, spinbutton {{ 
-            background: {c['module_bg']}; 
-            color: {c['module_fg']}; 
-            border: 1px solid {c['border']}; 
-            border-radius: 14px; 
-            padding: 12px; 
+
+        /* Input widgets */
+        entry, spinbutton {{
+            background: {c['module_bg']};
+            color: {c['module_fg']};
+            border: 1px solid {c['border']};
+            border-radius: 7px;
+            padding: 6px 10px;
+            font-size: 13px;
         }}
-        
-        button.picker {{ 
-            background-color: {c['module_bg']}; 
-            color: {c['module_fg']}; 
-            border: 1px solid {c['border']}; 
-            border-radius: 14px; 
-            padding: 10px 25px; 
-            font-weight: 700; 
+        button.picker {{
+            background-color: {c['module_bg']};
+            color: {c['module_fg']};
+            border: 1px solid {c['border']};
+            border-radius: 7px;
+            padding: 5px 14px;
+            font-weight: 500;
+            font-size: 13px;
         }}
         button.picker:hover {{ background-color: {c['hover_bg']}; }}
-        
-        scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 28px; min-width: 28px; }}
-        scale trough {{ background: rgba(255,255,255,0.1); border-radius: 12px; min-height: 10px; }}
+
+        scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 18px; min-width: 18px; }}
+        scale trough {{ background: rgba(255,255,255,0.1); border-radius: 6px; min-height: 4px; }}
+        scale value {{ font-size: 11px; color: {c['base_fg']}; opacity: 0.55; }}
         switch:checked {{ background: {c['active_bg']}; }}
-        
-        /* Generic button styling */
+
+        /* Generic button */
         button {{
             background: {c['module_bg']};
             color: {c['module_fg']};
             border: 1px solid {c['border']};
-            border-radius: 14px;
-            padding: 10px 20px;
+            border-radius: 7px;
+            padding: 5px 12px;
+            font-size: 13px;
         }}
-        button:hover {{
-            background: {c['hover_bg']};
-        }}
-        
-        scrollbar slider {{ background-color: rgba(255, 255, 255, 0.2); border-radius: 12px; min-width: 10px; }}
+        button:hover {{ background: {c['hover_bg']}; }}
+
+        scrollbar slider {{ background-color: rgba(255,255,255,0.2); border-radius: 6px; min-width: 6px; }}
         """.encode()
         p = Gtk.CssProvider(); p.load_from_data(css); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
@@ -252,7 +287,7 @@ class SettingsManager(Gtk.Window):
         return path
 
     def create_row(self, label_text, widget):
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=30); hbox.set_margin_bottom(20); label = Gtk.Label(label=label_text); label.set_xalign(0); hbox.pack_start(label, True, True, 0); hbox.pack_end(widget, False, False, 0)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16); hbox.set_margin_bottom(8); label = Gtk.Label(label=label_text); label.set_xalign(0); hbox.pack_start(label, True, True, 0); hbox.pack_end(widget, False, False, 0)
         return hbox
 
     def build_dynamic_list(self, items, label_title):
@@ -270,13 +305,28 @@ class SettingsManager(Gtk.Window):
 
     def create_settings_pages(self):
         self.widgets = {}
-        pages = [("appearance", "Appearance", "preferences-desktop-theme", self.build_appearance), ("monitors", "Displays", "video-display", self.build_monitors), ("wallpapers", "Wallpapers", "background", self.build_wallpapers), ("launcher", "Launcher & Dock", "start-here", self.build_launcher), ("animations", "Motion Effects", "view-restore", self.build_animations), ("lockscreen", "Lock & Power", "system-lock-screen", self.build_lock), ("nightlight", "Nightlight", "weather-clear-night", self.build_nightlight), ("input", "Keyboard & Binds", "input-keyboard", self.build_input), ("plugins", "Extensions", "system-run", self.build_plugins), ("programs", "Default Apps", "applications-other", self.build_programs)]
-        for name, title, icon, builder in pages:
-            row = Gtk.ListBoxRow(); row.name = name; row.set_can_focus(True); box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20); box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR), False, False, 0); box.pack_start(Gtk.Label(label=title), False, False, 0); row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
-        self.sidebar.select_row(self.sidebar.get_row_at_index(0))
+        groups = [
+            ("APPEARANCE", [("appearance","Appearance","preferences-desktop-theme",self.build_appearance),("wallpapers","Wallpapers","background",self.build_wallpapers),("animations","Motion Effects","view-restore",self.build_animations)]),
+            ("DISPLAY",    [("monitors","Displays","video-display",self.build_monitors)]),
+            ("SYSTEM",     [("lockscreen","Lock & Power","system-lock-screen",self.build_lock),("nightlight","Nightlight","weather-clear-night",self.build_nightlight)]),
+            ("INPUT",      [("input","Keyboard & Binds","input-keyboard",self.build_input)]),
+            ("APPS",       [("launcher","Launcher & Dock","start-here",self.build_launcher),("plugins","Extensions","preferences-system",self.build_plugins),("programs","Default Apps","application-x-executable",self.build_programs)]),
+        ]
+        first_row = None
+        for group_label, pages in groups:
+            lbl = Gtk.Label(label=group_label); lbl.set_xalign(0); lbl.get_style_context().add_class("sidebar-group-label")
+            lbl_row = Gtk.ListBoxRow(); lbl_row.set_selectable(False); lbl_row.set_activatable(False); lbl_row.add(lbl); self.sidebar.add(lbl_row)
+            for name, title, icon, builder in pages:
+                row = Gtk.ListBoxRow(); row.set_name(name); row.set_can_focus(True)
+                box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
+                box.pack_start(Gtk.Label(label=title), False, False, 0)
+                row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
+                if first_row is None: first_row = row
+        if first_row: self.sidebar.select_row(first_row)
 
     def build_page_vbox(self, title_text):
-        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20); v.set_margin_top(30); v.set_margin_bottom(30); v.set_margin_start(45); v.set_margin_end(45); lbl = Gtk.Label(label=title_text); lbl.set_xalign(0); lbl.get_style_context().add_class("section-title"); v.pack_start(lbl, False, False, 0); return v
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); v.set_margin_top(20); v.set_margin_bottom(20); v.set_margin_start(28); v.set_margin_end(28); lbl = Gtk.Label(label=title_text.upper()); lbl.set_xalign(0); lbl.get_style_context().add_class("section-title"); v.pack_start(lbl, False, False, 0); return v
 
     def build_appearance(self):
         v = self.build_page_vbox("Desktop Appearance"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
@@ -284,7 +334,7 @@ class SettingsManager(Gtk.Window):
             self.widgets[k] = Gtk.SpinButton.new_with_range(0, 500, 1); self.widgets[k].set_value(self.doc[t].get(k, 0)); f.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
         v.pack_start(f, False, False, 0); f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         for k, l in [('active_opacity','Active Window'),('inactive_opacity','Inactive Window'),('waybar_opacity','Waybar Opacity'),('wofi_opacity','Launcher Opacity')]:
-            self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_size_request(300,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
+            self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_draw_value(True); self.widgets[k].set_value_pos(Gtk.PositionType.RIGHT); self.widgets[k].set_size_request(220,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
         v.pack_start(f2, False, False, 0); return v
 
     def build_monitors(self):
