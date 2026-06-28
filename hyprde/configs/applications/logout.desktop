@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Logout
-Exec=hyprctl dispatch exit
+Exec=hyprctl dispatch 'hl.dsp.exit()'
 Type=Application
 Icon=system-log-out
 Categories=System;

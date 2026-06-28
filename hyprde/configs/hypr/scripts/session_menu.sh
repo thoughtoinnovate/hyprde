@@ -22,7 +22,7 @@ case $choice in
         ;;
     "Logout")
     	pkill -f dynamic-wallpapers.sh
-        hyprctl dispatch exit
+        hyprctl dispatch 'hl.dsp.exit()'
         ;;
     "Suspend")
         systemctl suspend

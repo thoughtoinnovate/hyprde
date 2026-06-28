@@ -1,4 +1,4 @@
-# Development Guidelines (AGENTS.md)
+# Development Guidelines
 
 ## 🛠 Build & Test Commands
 
@@ -6,39 +6,72 @@
 - **Full Install**: `sudo ./hyprde/install.sh`
 
 ### Configuration Building
-- **Rebuild Config**: `python3 hyprde/configs/hypr/build_config.py`
-- **Verify Syntax**: `./test/validate_config_headless.sh` (Requires Hyprland installed)
+- **Edit Config**: `hyprde/configs/hypr/hyprde.toml`
+- **Rebuild**: `python3 hyprde/configs/hypr/build_config.py`
+- **Output**: `~/.config/hypr/hyprland.lua` (Hyprland 0.55+ Lua format)
 
 ### Testing
 - **Run Unit Tests**: `./hyprde/configs/hypr/run_tests.sh`
-- **Docker Integration Test**: 
-  ```bash
-  docker build -t hyprde-test -f test/Dockerfile.arch .
-  docker run --rm hyprde-test ./test/validate_config_headless.sh
-  ```
+- **Shell Check**: `bash -n hyprde/configs/hypr/scripts/*.sh`
 
-## 📜 Code Style Guidelines
+## 📜 Code Style
 
 ### Python (Config Builder)
-- Use standard library as much as possible (e.g., `tomllib`, `urllib`).
-- Maintain compatibility with Python 3.11+.
+- Use standard library (`tomllib`, `json`, `subprocess`).
+- Compatible with Python 3.11+.
 - Use `unittest` for all logic verification.
 
+### Lua Generator (`lua_generator.py`)
+- New modules go in `configs/hypr/` next to `build_config.py`.
+- Use `hl.config({...})` for structured settings.
+- Use `hl.bind("MOD + KEY", hl.dsp.dispatcher(args))` for keybinds (`+` separator, not comma).
+- Use `hl.on("hyprland.start", function() ... end)` for autostart.
+- Use `_parse_bind()` for converting raw comma-separated bind strings.
+- Animations: use `hl.curve()` for bezier definitions, `hl.animation({leaf="...", ...})` for each leaf.
+- Monitors: use `hl.monitor({output="...", mode="...", position="...", scale="..."})` table format.
+- Window rules: use `hl.window_rule({ match = { class = "..." } }, { ... })` with `match` wrapper.
+
 ### Shell Scripts
-- Use `#!/bin/bash` shebang.
+- `#!/bin/bash` shebang.
 - Functions: `function_name() { ... }`.
-- Variables: lowercase with underscores (`variable_name`).
-- Quotes: Always double-quote variables `"$var"`.
+- Double-quote variables: `"$var"`.
 
-### UI, Styling & Icons
-- **Icon Framework:** ALL Waybar/Control Center toggles must source `~/.config/hypr/scripts/hyprrocket.icons` for their Nerd Font icons instead of hardcoding glyphs.
-- **Waybar Output:** Status scripts must return JSON objects (`{"text": "...", "tooltip": "...", "class": "..."}`) for Waybar.
-- **Auto Mode UI:** Auto modes (like theme or RedGlow) must apply the `.auto` or `.auto-theme` CSS classes to enable visual glow effects in the Control Center.
+### `hyprctl dispatch` Syntax (Hyprland 0.55+)
+- Old: `hyprctl dispatch exit`
+- New: `hyprctl dispatch 'hl.dsp.exit()'`
+- Old: `hyprctl dispatch closewindow class:foo`
+- New: `hyprctl dispatch 'hl.dsp.closewindow("class:foo")'`
 
-### Configuration (TOML)
-- Keep `hyprde.toml` clean and well-commented.
-- Use the `[custom]` block for raw lines that don't fit the schema.
+### TOML Config
+- `[binds.normal]` supports both `list = []` (raw) and `shortcuts = {}` (shorthand dict):
+  ```toml
+  [binds.normal]
+  shortcuts = { "SUPER, T" = "exec, kitty", "SUPER, Q" = "killactive" }
+  ```
+- `[custom].lines` is **deprecated** in Lua mode. Use `[custom].lua_lines` instead.
+- `mainMod` in `[binds]` must be uppercase (`SUPER`, `ALT`, `CTRL`).
+- If `[monitors]` is omitted, monitors are auto-detected at build time.
+
+### Keybind Dispatcher Mapping
+| hyprlang name | Lua function |
+|---|---|---|
+| `exec` | `hl.dsp.exec_cmd` |
+| `killactive` | `hl.dsp.window.close` |
+| `movefocus` | `hl.dsp.focus({ direction = "..." })` |
+| `movewindow` | `hl.dsp.window.drag()` (mouse) / `hl.dsp.window.move({ direction = "..." })` |
+| `workspace` | `hl.dsp.focus({ workspace = N })` |
+| `movetoworkspace` | `hl.dsp.window.move({ workspace = N })` |
+| `togglespecialworkspace` | `hl.dsp.workspace.toggle_special("name")` |
+| `fullscreen` | `hl.dsp.window.fullscreen({ mode = "maximized" })` |
+| `togglefloating` | `hl.dsp.window.float({ action = "toggle" })` |
+| `exit` | `hl.dsp.exit` |
+| `closewindow` | `hl.dsp.closewindow` |
+| `dpms` | `hl.dsp.dpms` |
+| `togglesplit` | `hl.dsp.layout("togglesplit")` |
+| `layoutmsg` | `hl.dsp.layout("...")` |
+| `resizeactive` | `hl.dsp.window.resize({ x = N, y = N, relative = true })` |
+| `hyprexpo:expo` | `hl.dsp.custom("hyprexpo:expo", args)` |
 
 ### Git Workflow
 - Atomic commits preferred.
-- Use conventional commit messages (`feat:`, `fix:`, `test:`, `docs:`).
+- Conventional commit messages (`feat:`, `fix:`, `test:`, `docs:`).
