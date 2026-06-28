@@ -192,8 +192,10 @@ class SettingsManager(Gtk.Window):
         
         self.apply_css()
         self.create_settings_pages()
+        self.main_box.get_style_context().add_class("opening")
         self.show_all()
         self.sidebar.grab_focus()
+        GLib.timeout_add(300, lambda: self.main_box.get_style_context().remove_class("opening"))
 
     def load_config(self):
         with open(self.config_path, 'r') as f:
@@ -224,8 +226,8 @@ class SettingsManager(Gtk.Window):
             border-radius: 12px;
             border: 1px solid {c['border']};
             color: {c['base_fg']};
-            animation: panel-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
         }}
+        #main-window.opening {{ animation: panel-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }}
         #main-window.closing {{ animation: panel-out 200ms ease-in forwards; }}
         @keyframes panel-in {{ from {{ opacity: 0; margin-top: 16px; }} to {{ opacity: 1; margin-top: 0px; }} }}
         @keyframes panel-out {{ from {{ opacity: 1; margin-top: 0px; }} to {{ opacity: 0; margin-top: -10px; }} }}
@@ -585,15 +587,28 @@ class SettingsManager(Gtk.Window):
             self.status_label.get_style_context().add_class("error")
 
     def on_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_Escape: self.close_window()
-        elif event.keyval == Gdk.KEY_Tab:
+        # Escape key to close window
+        if event.keyval == Gdk.KEY_Escape:
+            self.close_window()
+            return True
+        # Enter / Return keys to activate sidebar rows
+        elif event.keyval in [Gdk.KEY_Return, Gdk.KEY_KP_Enter]:
             if self.sidebar.has_focus():
-                row = self.sidebar.get_selected_row(); idx = (row.get_index() + 1) % len(self.sidebar.get_children()) if row else 0
-                next_row = self.sidebar.get_row_at_index(idx); self.sidebar.select_row(next_row); next_row.grab_focus(); return True
+                row = self.sidebar.get_selected_row()
+                if row:
+                    self.sidebar.row_activated(row)
+                    return True
+        # Right arrow moves focus into page content
         elif event.keyval == Gdk.KEY_Right:
-            if self.sidebar.has_focus(): self.stack_scroll.child_focus(Gtk.DirectionType.TAB_FORWARD); return True
+            if self.sidebar.has_focus():
+                self.stack_scroll.child_focus(Gtk.DirectionType.TAB_FORWARD)
+                return True
+        # Left arrow moves focus back to sidebar
         elif event.keyval == Gdk.KEY_Left:
-            if not self.sidebar.has_focus(): self.sidebar.grab_focus(); return True
+            if not self.sidebar.has_focus():
+                self.sidebar.grab_focus()
+                return True
+        # Return False to let GTK handle Tab, Shift+Tab, and Up/Down arrow keys natively
         return False
 
 if __name__ == "__main__":
