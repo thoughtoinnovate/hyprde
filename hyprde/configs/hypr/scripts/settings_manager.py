@@ -144,6 +144,7 @@ class SettingsManager(Gtk.Window):
         sidebar_vbox.set_size_request(220, -1)
         self.sidebar = Gtk.ListBox(); self.sidebar.set_name("sidebar")
         self.sidebar.connect("row-activated", self.on_sidebar_row_activated)
+        self.sidebar.connect("row-selected", lambda lb, row: self.on_sidebar_row_activated(lb, row) if row else None)
 
         sidebar_scroll = Gtk.ScrolledWindow()
         sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -483,7 +484,9 @@ class SettingsManager(Gtk.Window):
         
         return v
 
-    def on_sidebar_row_activated(self, lb, row): self.stack.set_visible_child_name(row.row_name)
+    def on_sidebar_row_activated(self, lb, row):
+        if hasattr(row, 'row_name'):
+            self.stack.set_visible_child_name(row.row_name)
 
     def on_save_clicked(self, btn):
         self.save_btn.set_label("Applying...")
