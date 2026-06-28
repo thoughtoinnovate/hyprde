@@ -342,13 +342,13 @@ if command -v zig >/dev/null 2>&1; then
     if [ -d "./src/launcher" ]; then
         (
             cd ./src/launcher || exit 1
-            # Fix cache permissions if zig was previously run as root
-            if [ -n "$SUDO_USER" ]; then
-                chown -R "$SUDO_USER:$SUDO_USER" .zig-cache 2>/dev/null || true
-                chown -R "$SUDO_USER:$SUDO_USER" "$(sudo -u "$SUDO_USER" zig env 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['global_cache_dir'])" 2>/dev/null || echo /nonexistent)" 2>/dev/null || true
-            fi
+            rm -rf .zig-cache 2>/dev/null || true
             echo "   Compiling with Zig..."
-            if zig build -Doptimize=ReleaseFast; then
+            BUILD_CMD="zig build -Doptimize=ReleaseFast"
+            if [ -n "$SUDO_USER" ]; then
+                BUILD_CMD="sudo -u $SUDO_USER $BUILD_CMD"
+            fi
+            if eval "$BUILD_CMD"; then
                 echo "   Deploying binary to $USER_HOME/.config/hypr/scripts/hyprsearch"
                 cp -f ./zig-out/bin/hyprsearch "$USER_HOME/.config/hypr/scripts/hyprsearch"
                 chmod +x "$USER_HOME/.config/hypr/scripts/hyprsearch"
