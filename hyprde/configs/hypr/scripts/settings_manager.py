@@ -14,6 +14,10 @@ LOCK_FILE = "/tmp/hyprde-settings.pid"
 def check_single_instance():
     if os.path.exists(LOCK_FILE):
         try:
+            # If the lockfile was modified less than 0.8s ago, ignore to prevent key-repeat toggles
+            if (time.time() - os.path.getmtime(LOCK_FILE)) < 0.8:
+                sys.exit(0)
+                
             with open(LOCK_FILE, 'r') as f:
                 pid = int(f.read().strip())
             # Check if process is still running
