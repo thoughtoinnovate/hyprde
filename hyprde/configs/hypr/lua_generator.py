@@ -251,7 +251,7 @@ def _write_autostart(lines: list, data: dict):
     for cmd in cmds:
         expanded = _expand_vars_in_cmd(cmd, programs, main_mod)
         escaped = expanded.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'hl.on("hyprland.start", function() hl.dsp.exec_cmd("{escaped}") end)')
+        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{escaped}") end)')
     lines.append("")
 
 
@@ -262,7 +262,7 @@ def _write_wallpapers(lines: list, data: dict):
         home = os.path.expanduser("~")
         cmd = f"sh {home}/.config/hypr/scripts/init_wallpaper.sh"
         lines.append("-- [[ Wallpapers ]]")
-        lines.append(f'hl.on("hyprland.start", function() hl.dsp.exec_cmd("{cmd}") end)')
+        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{cmd}") end)')
         lines.append("")
 
 
@@ -273,7 +273,7 @@ def _write_nightlight(lines: list, data: dict):
         t_night = nl.get("temp_night", 3400)
         cmd = f"gammastep -t {t_day}:{t_night}"
         lines.append("-- [[ Nightlight ]]")
-        lines.append(f'hl.on("hyprland.start", function() hl.dsp.exec_cmd("{cmd}") end)')
+        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{cmd}") end)')
         lines.append("")
 
 
@@ -281,7 +281,7 @@ def _write_plugins(lines: list, data: dict):
     pl = data.get("plugins", {})
     if pl.get("enabled", []):
         lines.append("-- [[ Hyprpm Plugin Reload ]]")
-        lines.append('hl.on("hyprland.start", function() hl.dsp.exec_cmd("hyprpm reload -n") end)')
+        lines.append('hl.on("hyprland.start", function() hl.exec_cmd("hyprpm reload -n") end)')
         lines.append("")
 
 
