@@ -342,7 +342,7 @@ if command -v zig >/dev/null 2>&1; then
     if [ -d "./src/launcher" ]; then
         (
             cd ./src/launcher || exit 1
-            rm -rf .zig-cache 2>/dev/null || true
+            sudo rm -rf .zig-cache 2>/dev/null || true
             echo "   Compiling with Zig..."
             BUILD_CMD="zig build -Doptimize=ReleaseFast"
             if [ -n "$SUDO_USER" ]; then
