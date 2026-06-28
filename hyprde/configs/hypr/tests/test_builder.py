@@ -228,11 +228,11 @@ class TestLuaGeneratorAutostart(unittest.TestCase):
     """Tests for autostart generation."""
 
     def test_exec_once_becomes_hl_on(self):
-        """Test exec_once items become hl.on handlers."""
+        """Test exec_once items become hl.on handlers using exec_cmd."""
         data = {"autostart": {"exec_once": ["waybar", "mako"]}}
         lua = lua_generator.generate_user_lua(data)
-        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_once("waybar") end)', lua)
-        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_once("mako") end)', lua)
+        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_cmd("waybar") end)', lua)
+        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_cmd("mako") end)', lua)
 
     def test_autostart_resolves_program_vars(self):
         """Test $notification_service is resolved in autostart."""
@@ -241,7 +241,7 @@ class TestLuaGeneratorAutostart(unittest.TestCase):
             "autostart": {"exec_once": ["$notification_service & $status_bar"]}
         }
         lua = lua_generator.generate_user_lua(data)
-        self.assertIn('hl.dsp.exec_once("mako & waybar")', lua)
+        self.assertIn('hl.dsp.exec_cmd("mako & waybar")', lua)
 
 
 class TestBuildConfigAtomicWrite(unittest.TestCase):
