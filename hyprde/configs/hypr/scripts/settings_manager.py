@@ -318,8 +318,12 @@ class SettingsManager(Gtk.Window):
         return path
 
     def open_color_picker(self, title, initial_color=None):
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
-        dialog = Gtk.ColorChooserDialog.new(title, self)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        dialog = Gtk.ColorChooserDialog.new(title, None)
+        GtkLayerShell.init_for_window(dialog)
+        GtkLayerShell.set_layer(dialog, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_keyboard_mode(dialog, GtkLayerShell.KeyboardMode.EXCLUSIVE)
         if initial_color:
             rgba = Gdk.RGBA()
             if rgba.parse(initial_color):
@@ -328,7 +332,8 @@ class SettingsManager(Gtk.Window):
         res = dialog.run()
         color = dialog.get_rgba() if res == Gtk.ResponseType.OK else None
         dialog.destroy()
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
         if color:
             return f"rgba({int(color.red*255)}, {int(color.green*255)}, {int(color.blue*255)}, {color.alpha:.2f})"
         return None
@@ -510,9 +515,14 @@ class SettingsManager(Gtk.Window):
         accent_hbox.pack_start(accent_label, True, True, 0)
 
         current_accent = self._tg('theme','accent','#007aff')
-        self.widgets['theme_accent_btn'] = Gtk.ColorButton.new_with_rgba(self._parse_color(current_accent))
-        self.widgets['theme_accent_btn'].set_use_alpha(True)
-        self.widgets['theme_accent_btn'].set_title("Pick Accent Color")
+        self.widgets['theme_accent_btn'] = Gtk.Button.new_with_label("Pick Color")
+        self.widgets['theme_accent_btn'].get_style_context().add_class("picker")
+        def on_accent_pick(b):
+            c = self.open_color_picker("Accent Color", self._tg('theme','accent','#007aff'))
+            if c:
+                self._st('theme','accent',c)
+                self._update_accent_preview(self._parse_color(c))
+        self.widgets['theme_accent_btn'].connect("clicked", on_accent_pick)
         accent_hbox.pack_end(self.widgets['theme_accent_btn'], False, False, 0)
         f.pack_start(accent_hbox, False, False, 0)
 

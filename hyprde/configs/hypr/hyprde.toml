@@ -428,12 +428,12 @@ list = [
     "$mainMod ALT, down, movewindow, d",
     
     # Scroll Layout Control
-    "$mainMod, comma, layoutmsg, move -col",
-    "$mainMod, period, layoutmsg, move +col",
-    "$mainMod SHIFT, period, layoutmsg, movewindowto r",
+    "$mainMod, comma, layoutmsg, togglesplit",
+    "$mainMod, period, layoutmsg, togglesplit",
+    "$mainMod SHIFT, period, layoutmsg, promote",
     "$mainMod SHIFT, comma, layoutmsg, movewindowto l",
-    "$mainMod CTRL, comma, layoutmsg, swapcol l",
-    "$mainMod CTRL, period, layoutmsg, swapcol r",
+    "$mainMod CTRL, comma, layoutmsg, togglegroup",
+    "$mainMod CTRL, period, layoutmsg, exitgroup",
     "$mainMod, R, layoutmsg, colresize +conf",
     "$mainMod, F, layoutmsg, togglefit",
     
