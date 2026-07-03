@@ -931,10 +931,7 @@ class SettingsManager(Gtk.Window):
             if 'theme' not in self.doc: self.doc['theme'] = tomlkit.table()
             new_mode = self.widgets['theme_mode'].get_active_id()
             self.doc['theme']['mode'] = new_mode
-            rgba = self.widgets['theme_accent_btn'].get_rgba()
-            r, g, b = int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255)
-            accent_hex = f"#{r:02x}{g:02x}{b:02x}"
-            self.doc['theme']['accent'] = accent_hex
+            self.doc['theme']['accent'] = self._tg('theme', 'accent', '#007aff')
 
             # Lockscreen
             self.doc['lockscreen']['profile_image'] = self.widgets['profile_path'].get_text()
