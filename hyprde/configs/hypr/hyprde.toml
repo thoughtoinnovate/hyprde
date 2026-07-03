@@ -373,7 +373,7 @@ list = [
     "$mainMod, T, exec, $terminal",                       # Open terminal
     "$mainMod SHIFT, B, exec, $HOME/.config/hypr/scripts/waybars.sh toggle-main", # Toggle Status Bar
     "$mainMod, Q, killactive,",                           # Close window
-    "$mainMod, M, fullscreen,1,",                         # Fullscreen
+    "$mainMod, M, fullscreen,0,",                         # Fullscreen
     "$mainMod, E, exec, $fileManager",                   # Open file manager
     "$mainMod, V, togglefloating,",                       # Toggle floating
     "$mainMod, L, exec, hyprlock",                       # Lock screen
