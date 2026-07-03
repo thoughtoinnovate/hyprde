@@ -431,7 +431,7 @@ list = [
     "$mainMod, comma, layoutmsg, consume_or_expel",
     "$mainMod, period, layoutmsg, consume_or_expel",
     "$mainMod SHIFT, period, layoutmsg, promote",
-    "$mainMod SHIFT, comma, layoutmsg, movewindowto l",
+    "$mainMod SHIFT, comma, layoutmsg, swapcol l",
     "$mainMod CTRL, comma, layoutmsg, consume",
     "$mainMod CTRL, period, layoutmsg, expel",
     "$mainMod, R, layoutmsg, colresize +conf",
