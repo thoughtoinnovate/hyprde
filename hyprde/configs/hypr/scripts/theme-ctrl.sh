@@ -61,6 +61,14 @@ set_theme() {
     # Update symlink
     ln -sf "$new_theme" "$CURRENT_SYMLINK"
 
+    # Apply accent color to both theme CSS files
+    local accent_hex=$(python3 -c "import tomlkit, os; path=os.path.expanduser('~/.config/hypr/hyprde.toml'); d=tomlkit.load(open(path)) if os.path.exists(path) else {}; print(d.get('theme', {}).get('accent', '#007aff'))" 2>/dev/null || echo "#007aff")
+    for css_file in "$THEMES_DIR/dark.css" "$THEMES_DIR/light.css"; do
+        if [ -f "$css_file" ]; then
+            sed -i "s/@define-color theme_accent [^;]*;/@define-color theme_accent ${accent_hex};/" "$css_file"
+        fi
+    done
+
     # 1. Update Mako config IMMEDIATELY for responsiveness
     local MAKO_DIR="$HOME/.config/mako"
     if [ -d "$MAKO_DIR" ]; then
