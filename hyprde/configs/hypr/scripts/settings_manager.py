@@ -321,9 +321,7 @@ class SettingsManager(Gtk.Window):
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         dialog = Gtk.ColorChooserDialog.new(title, None)
-        GtkLayerShell.init_for_window(dialog)
-        GtkLayerShell.set_layer(dialog, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_keyboard_mode(dialog, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        dialog.set_modal(True)
         if initial_color:
             rgba = Gdk.RGBA()
             if rgba.parse(initial_color):
@@ -372,6 +370,15 @@ class SettingsManager(Gtk.Window):
         if isinstance(d, dict) and key in d:
             return d[key]
         return default
+
+    def _st(self, section, key, value):
+        """Set a value in the TOML doc, creating sections as needed."""
+        d = self.doc
+        for part in section.split('.'):
+            if part not in d:
+                d[part] = tomlkit.table()
+            d = d[part]
+        d[key] = value
 
     def _color_button(self, rgba_str, callback):
         """Create a color swatch button that opens color chooser."""
@@ -548,8 +555,12 @@ class SettingsManager(Gtk.Window):
         return rgba
 
     def _update_accent_preview(self, rgba):
-        css = f"background-color: {rgba.to_string()}; border-radius: 8px;"
-        self.widgets['accent_preview'].override_background_color(Gtk.StateFlags.NORMAL, rgba)
+        css = f"* {{ background-color: {rgba.to_string()}; border-radius: 8px; min-height: 24px; }}"
+        if not hasattr(self, '_accent_css_provider'):
+            self._accent_css_provider = Gtk.CssProvider()
+            self.widgets['accent_preview'].get_style_context().add_provider(
+                self._accent_css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self._accent_css_provider.load_from_data(css.encode())
 
     def build_monitors(self):
         v = self.build_page_vbox("Displays & Layout"); f, self.widgets['monitor_list'] = self.build_dynamic_list(self.doc['monitors'].get('rules', []), "Monitor Configuration Rules"); v.pack_start(f, False, False, 0); return v
@@ -1068,6 +1079,28 @@ class SettingsManager(Gtk.Window):
 
             with open(self.config_path, 'w') as f:
                 f.write(new_config_str)
+
+            # Apply accent color to theme CSS files
+            accent_hex = self._tg('theme', 'accent', '#007aff')
+            themes_dir = os.path.expanduser("~/.config/hypr/themes")
+            for css_file in ["dark.css", "light.css"]:
+                css_path = os.path.join(themes_dir, css_file)
+                if os.path.exists(css_path):
+                    with open(css_path, 'r') as f:
+                        css_content = f.read()
+                    import re
+                    css_content = re.sub(r'@define-color theme_accent [^;]+;', f'@define-color theme_accent {accent_hex};', css_content)
+                    with open(css_path, 'w') as f:
+                        f.write(css_content)
+
+            # Update current.css symlink to match mode
+            current_link = os.path.join(themes_dir, "current.css")
+            if new_mode == "light":
+                os.symlink("light.css", current_link + ".tmp")
+                os.replace(current_link + ".tmp", current_link)
+            else:
+                os.symlink("dark.css", current_link + ".tmp")
+                os.replace(current_link + ".tmp", current_link)
 
             subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])
 

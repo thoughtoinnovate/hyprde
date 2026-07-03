@@ -378,7 +378,7 @@ list = [
     "$mainMod, V, togglefloating,",                       # Toggle floating
     "$mainMod, L, exec, hyprlock",                       # Lock screen
     "$mainMod, P, layoutmsg, promote",                    # Promote to new column (Scroll layout)
-    "$mainMod, J, togglesplit,",                          # Toggle split (Dwindle)
+    "$mainMod, J, layoutmsg, consume_or_expel",                          # Toggle split (Dwindle)
     
     # Focus movement
     "$mainMod, left, movefocus, l",
@@ -428,19 +428,19 @@ list = [
     "$mainMod ALT, down, movewindow, d",
     
     # Scroll Layout Control
-    "$mainMod, comma, layoutmsg, togglesplit",
-    "$mainMod, period, layoutmsg, togglesplit",
+    "$mainMod, comma, layoutmsg, consume_or_expel",
+    "$mainMod, period, layoutmsg, consume_or_expel",
     "$mainMod SHIFT, period, layoutmsg, promote",
     "$mainMod SHIFT, comma, layoutmsg, movewindowto l",
-    "$mainMod CTRL, comma, layoutmsg, togglegroup",
-    "$mainMod CTRL, period, layoutmsg, exitgroup",
+    "$mainMod CTRL, comma, layoutmsg, consume",
+    "$mainMod CTRL, period, layoutmsg, expel",
     "$mainMod, R, layoutmsg, colresize +conf",
     "$mainMod, F, layoutmsg, togglefit",
     
     # Layout control (Universal/Other)
-    "$mainMod, K, layoutmsg, swaptomaster",
-    "$mainMod, A, layoutmsg, addmaster",
-    "$mainMod, D, layoutmsg, removemaster",
+    "$mainMod, K, layoutmsg, promote",
+    "$mainMod, A, layoutmsg, consume",
+    "$mainMod, D, layoutmsg, expel",
     
     # (SUPER+G freed - hyprexpo plugin not enabled)
     
