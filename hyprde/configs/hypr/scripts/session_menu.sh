@@ -36,4 +36,13 @@ case $choice in
     "Shutdown")
         systemctl poweroff
         ;;
+    "Power Balanced")
+        "$HOME/.config/hypr/scripts/power-mode.sh" balanced
+        ;;
+    "Power High")
+        "$HOME/.config/hypr/scripts/power-mode.sh" high
+        ;;
+    "Power Auto")
+        "$HOME/.config/hypr/scripts/power-mode.sh" auto
+        ;;
 esac
