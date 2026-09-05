@@ -342,6 +342,9 @@ sudo cp -f ./configs/polkit/org.hyprde.recording.policy /usr/share/polkit-1/acti
 # Create unique symlinks to distinguish between different auth requests in PolicyKit
 sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-mic-auth
 sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-screen-auth
+echo '#!/bin/sh' | sudo tee /usr/local/bin/hyprde-camera-auth > /dev/null
+echo '/usr/sbin/modprobe uvcvideo' | sudo tee -a /usr/local/bin/hyprde-camera-auth > /dev/null
+sudo chmod +x /usr/local/bin/hyprde-camera-auth
 
 echo "Creating dedicated session menu directory..."
 mkdir -p $USER_HOME/.local/share/hyprocket-session/applications
@@ -391,23 +394,26 @@ else
 fi
 
 echo "Configuring passwordless TLP and privacy-preserving camera/mic toggle..."
-TLP_PATH=$(which tlp 2>/dev/null || echo "/usr/bin/tlp")
-MODPROBE_PATH=$(which modprobe 2>/dev/null || echo "/usr/bin/modprobe")
-RMMOD_PATH=$(which rmmod 2>/dev/null || echo "/usr/bin/rmmod")
+if command -v tlp >/dev/null 2>&1; then
+    TLP_PATH=$(which tlp 2>/dev/null || echo "/usr/bin/tlp")
+fi
+
+# Determine paths for modprobe and pactl safely
+MODPROBE_PATH=$(which modprobe 2>/dev/null || echo "/usr/sbin/modprobe")
+RMMOD_PATH=$(which rmmod 2>/dev/null || echo "/usr/sbin/rmmod")
 PACTL_PATH=$(which pactl 2>/dev/null || echo "/usr/bin/pactl")
+
 SUDOERS_FILE="/etc/sudoers.d/hyprde-nopasswd"
-# ALLOW (NOPASSWD): tlp (all), modprobe -r (removing camera), rmmod -f (force removing camera), pactl set-source-mute (muting mic)
-# DENY (NOPASSWD): modprobe (adding camera), pactl set-source-mute (unmuting mic)
-TEECMD="tee"
 if command -v sudo >/dev/null 2>&1; then
     TEECMD="sudo tee"
-fi
+    echo "Configuring passwordless sudo for hardware toggles in $SUDOERS_FILE..."
 if [ -n "$SUDO_USER" ]; then
-    printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
 else
-    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
+fi
 fi
 
 echo "Creating wallpaper directories."
