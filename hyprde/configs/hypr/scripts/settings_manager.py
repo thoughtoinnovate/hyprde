@@ -638,7 +638,7 @@ class SettingsManager(Gtk.Window):
             self.widgets[k] = Gtk.SpinButton.new_with_range(0, 500, 1); self.widgets[k].set_value(self.doc[t].get(k, 0)); f.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
         v.pack_start(f, False, False, 0)
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
-        for k, l in [('active_opacity','Active Window'),('inactive_opacity','Inactive Window'),('waybar_opacity','Waybar Opacity'),('wofi_opacity','Launcher Opacity')]:
+        for k, l in [('active_opacity','Active Window'),('inactive_opacity','Inactive Window'),('waybar_opacity','Waybar Opacity'),('launcher_opacity','Launcher Opacity')]:
             self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_draw_value(True); self.widgets[k].set_value_pos(Gtk.PositionType.RIGHT); self.widgets[k].set_size_request(220,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
         v.pack_start(f2, False, False, 0)
         f3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f3.get_style_context().add_class("group-frame")
@@ -891,10 +891,6 @@ class SettingsManager(Gtk.Window):
         self.widgets['nl_temp_day'].set_value(self._tg('nightlight','temp_day',6500)); self.widgets['nl_temp_day'].set_draw_value(True); self.widgets['nl_temp_day'].set_size_request(220,-1); f.pack_start(self.create_row("Day Temp (K)", self.widgets['nl_temp_day']), False, False, 0)
         self.widgets['nl_temp_night'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1000, 10000, 100)
         self.widgets['nl_temp_night'].set_value(self._tg('nightlight','temp_night',3400)); self.widgets['nl_temp_night'].set_draw_value(True); self.widgets['nl_temp_night'].set_size_request(220,-1); f.pack_start(self.create_row("Night Temp (K)", self.widgets['nl_temp_night']), False, False, 0)
-        self.widgets['nl_blue_intensity'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, 0.05)
-        self.widgets['nl_blue_intensity'].set_value(self._tg('nightlight','blue_intensity',0.6)); self.widgets['nl_blue_intensity'].set_draw_value(True); self.widgets['nl_blue_intensity'].set_size_request(220,-1); f.pack_start(self.create_row("Blue Cut", self.widgets['nl_blue_intensity']), False, False, 0)
-        self.widgets['nl_green_intensity'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, 0.05)
-        self.widgets['nl_green_intensity'].set_value(self._tg('nightlight','green_intensity',0.85)); self.widgets['nl_green_intensity'].set_draw_value(True); self.widgets['nl_green_intensity'].set_size_request(220,-1); f.pack_start(self.create_row("Green Cut", self.widgets['nl_green_intensity']), False, False, 0)
         v.pack_start(f, False, False, 0); return v
 
     def build_autostart(self):
@@ -1219,7 +1215,7 @@ class SettingsManager(Gtk.Window):
 
         # General / Decoration
         for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
-        for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','wofi_opacity']:
+        for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','launcher_opacity']:
             self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
         self.doc['general']['layout'] = self.widgets['layout'].get_active_id()
         self.doc['general']['resize_on_border'] = self.widgets['resize_on_border'].get_active()
@@ -1279,8 +1275,6 @@ class SettingsManager(Gtk.Window):
         self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
         self.doc['nightlight']['temp_day'] = int(self.widgets['nl_temp_day'].get_value())
         self.doc['nightlight']['temp_night'] = int(self.widgets['nl_temp_night'].get_value())
-        self.doc['nightlight']['blue_intensity'] = self.widgets['nl_blue_intensity'].get_value()
-        self.doc['nightlight']['green_intensity'] = self.widgets['nl_green_intensity'].get_value()
 
         # Wallpapers
         self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image_path'].get_text()

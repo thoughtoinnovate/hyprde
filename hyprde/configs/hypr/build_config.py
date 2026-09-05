@@ -763,20 +763,19 @@ WantedBy=timers.target
 
 def generate_css_overrides(data: Dict[str, Any]) -> None:
     decoration = data.get("decoration", {})
-    waybar_op = decoration.get("waybar_opacity", 0.5)
-    wofi_op = decoration.get("wofi_opacity", 0.95)
+    waybar_op = decoration.get("waybar_opacity", 0.95)
+    launcher_op = decoration.get("launcher_opacity", 0.95)
 
     tag_map = {
         "SETTINGS_BAR_OPACITY": str(waybar_op),
-        "SETTINGS_WOFI_OPACITY": str(wofi_op)
+        "SETTINGS_WOFI_OPACITY": str(launcher_op)
     }
 
     css_files = [
         os.path.expanduser("~/.config/waybar/style.css"),
         os.path.expanduser("~/.config/waybar/control-center/style.css"),
         os.path.expanduser("~/.config/waybar/system-metrics/style.css"),
-        os.path.expanduser("~/.config/waybar/bluetooth-center/style.css"),
-        os.path.expanduser("~/.config/wofi/style.css")
+        os.path.expanduser("~/.config/waybar/bluetooth-center/style.css")
     ]
 
     for css_path in css_files:

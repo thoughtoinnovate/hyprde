@@ -307,7 +307,7 @@ rounding = 10                             # Window corner radius (px)
 active_opacity = 1.0                      # Active window opacity (0.0-1.0)
 inactive_opacity = 1.0                    # Inactive window opacity (0.0-1.0)
 waybar_opacity = 0.5                      # Status bar opacity (0.0-1.0)
-wofi_opacity = 0.95                       # Launcher opacity (0.0-1.0)
+launcher_opacity = 0.95                       # Launcher opacity (0.0-1.0)
 
 # Blur effect subsection
 [decoration.blur]
