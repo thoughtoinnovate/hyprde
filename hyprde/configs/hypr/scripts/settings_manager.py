@@ -2,31 +2,95 @@
 import sys
 import os
 import time
-import gi
+import logging
+import atexit
+import fcntl
 import subprocess
-import tomlkit
 import re
-gi.require_version('Gtk', '3.0')
-gi.require_version('GtkLayerShell', '0.1')
-import signal
+import threading
+import traceback
+
 LOCK_FILE = "/tmp/hyprde-settings.pid"
+LOG_FILE = os.path.expanduser("~/.config/hypr/settings.log")
+_LOCK_FD = None
+
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s settings_manager %(levelname)s %(message)s',
+)
+logger = logging.getLogger(__name__)
+
+
+def _notify_error(summary, body=""):
+    try:
+        subprocess.run(["notify-send", "-t", "5000", summary, body],
+                       capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
+def _missing_dep_exit(dep, hint):
+    msg = f"Missing dependency '{dep}': {hint}. See {LOG_FILE}"
+    logger.error(msg)
+    _notify_error("HyprDE Settings", msg)
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+try:
+    import tomlkit
+except ImportError:
+    _missing_dep_exit("tomlkit", "install python-tomlkit (Arch) / python3-tomlkit (Debian)")
+
+try:
+    import gi
+except ImportError:
+    _missing_dep_exit("pygobject", "install python-gobject (Arch) / python3-gi (Debian)")
+
+try:
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('GtkLayerShell', '0.1')
+except (ValueError, ImportError) as e:
+    _missing_dep_exit("Gtk/GtkLayerShell", f"{e}; install gtk3 + gtk-layer-shell")
+
+import signal
 
 def check_single_instance():
-    if os.path.exists(LOCK_FILE):
-        try:
-            with open(LOCK_FILE, 'r') as f:
-                pid = int(f.read().strip())
-            os.kill(pid, 0)
-            sys.exit(0)
-        except OSError:
+    global _LOCK_FD
+    try:
+        _LOCK_FD = open(LOCK_FILE, 'w')
+        fcntl.flock(_LOCK_FD.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _LOCK_FD.write(str(os.getpid()))
+        _LOCK_FD.flush()
+        atexit.register(cleanup_lock)
+    except (OSError, IOError) as e:
+        # Another live instance holds the lock (flock is released on crash,
+        # unlike stale pidfiles). Notify instead of exiting silently so
+        # SUPER+C appears to "do nothing".
+        logger.info(f"Another settings instance is running, exiting: {e}")
+        _notify_error("HyprDE Settings", "Settings is already open.")
+        sys.exit(0)
+
+def cleanup_lock():
+    global _LOCK_FD
+    try:
+        if _LOCK_FD is not None:
+            try:
+                fcntl.flock(_LOCK_FD.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                _LOCK_FD.close()
+            except Exception:
+                pass
+            _LOCK_FD = None
+        if os.path.exists(LOCK_FILE):
             try:
                 os.remove(LOCK_FILE)
-            except:
+            except OSError:
                 pass
-    try:
-        with open(LOCK_FILE, 'w') as f:
-            f.write(str(os.getpid()))
-    except:
+    except Exception:
         pass
 from gi.repository import Gtk, Gdk, GtkLayerShell, Gio, GLib, Pango
 
@@ -72,6 +136,13 @@ class SettingsManager(Gtk.Window):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.config_path = os.path.expanduser("~/.config/hypr/hyprde.toml")
         self.load_config()
+        # Older/preserved TOMLs may lack sections added later; every page
+        # builder and the save handler index self.doc directly, so a missing
+        # section used to crash startup with a bare KeyError. Fill tables
+        # in-memory (persisted only when the user hits Done with changes).
+        self.ensure_defaults()
+        self.initial_config_str = tomlkit.dumps(self.doc)
+        self._initial_sections = self._snapshot_sections()
 
         self.set_app_paintable(True)
         screen = self.get_screen()
@@ -79,12 +150,17 @@ class SettingsManager(Gtk.Window):
         if visual:
             self.set_visual(visual)
 
-        GtkLayerShell.init_for_window(self)
-        GtkLayerShell.set_namespace(self, "hyprde-settings")
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
-        for edge in [GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT]:
-            GtkLayerShell.set_anchor(self, edge, True)
+        try:
+            GtkLayerShell.init_for_window(self)
+            GtkLayerShell.set_namespace(self, "hyprde-settings")
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+            for edge in [GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT]:
+                GtkLayerShell.set_anchor(self, edge, True)
+        except Exception as e:
+            logger.error(f"GtkLayerShell init failed (continuing as normal window): {e}")
+            _notify_error("HyprDE Settings",
+                          "Layer-shell unavailable, falling back to normal window.")
 
         self.init_time = time.time()
         self.connect("destroy", lambda w: (self.cleanup_lock(), Gtk.main_quit()))
@@ -107,14 +183,23 @@ class SettingsManager(Gtk.Window):
         self.main_box.set_name("main-window")
         self.click_catcher.add(self.main_box)
 
-        display = Gdk.Display.get_default()
-        monitor = display.get_primary_monitor() or display.get_monitor(0)
-        if monitor:
-            geo = monitor.get_geometry()
-            self.win_w = min(860, int(geo.width * 0.85))
-            self.win_h = min(580, int(geo.height * 0.85))
-            self.main_box.set_size_request(self.win_w, self.win_h)
-        else:
+        try:
+            display = Gdk.Display.get_default()
+            monitor = None
+            if display is not None:
+                try:
+                    monitor = display.get_primary_monitor() or display.get_monitor(0)
+                except Exception as e:
+                    logger.warning(f"Monitor lookup failed: {e}")
+            if monitor:
+                geo = monitor.get_geometry()
+                self.win_w = min(860, int(geo.width * 0.85))
+                self.win_h = min(580, int(geo.height * 0.85))
+                self.main_box.set_size_request(self.win_w, self.win_h)
+            else:
+                self.main_box.set_size_request(860, 580)
+        except Exception as e:
+            logger.warning(f"Display sizing failed, using defaults: {e}")
             self.main_box.set_size_request(860, 580)
 
         titlebar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
@@ -141,7 +226,7 @@ class SettingsManager(Gtk.Window):
         right_box.set_valign(Gtk.Align.CENTER)
         self.status_label = Gtk.Label(label=""); self.status_label.set_name("status-label")
         right_box.pack_start(self.status_label, False, False, 0)
-        self.save_btn = Gtk.Button(label="Done"); self.save_btn.set_name("save-button")
+        self.save_btn = Gtk.Button(label="Apply"); self.save_btn.set_name("save-button")
         self.save_btn.connect("clicked", self.on_save_clicked)
         right_box.pack_start(self.save_btn, False, False, 0)
         titlebar.pack_end(right_box, False, False, 0)
@@ -180,16 +265,23 @@ class SettingsManager(Gtk.Window):
         GLib.timeout_add(300, lambda: self.main_box.get_style_context().remove_class("opening"))
 
     def load_config(self):
-        with open(self.config_path, 'r') as f:
-            self.doc = tomlkit.load(f)
-        self.initial_config_str = tomlkit.dumps(self.doc)
+        try:
+            with open(self.config_path, 'r') as f:
+                self.doc = tomlkit.load(f)
+            self.initial_config_str = tomlkit.dumps(self.doc)
+        except FileNotFoundError as e:
+            logger.error(f"Config not found: {self.config_path}: {e}")
+            _notify_error("HyprDE Settings",
+                          f"Config not found: {self.config_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to parse {self.config_path}: {e}\n{traceback.format_exc()}")
+            _notify_error("HyprDE Settings",
+                          f"Invalid TOML: {e}. See {LOG_FILE}")
+            raise
 
     def cleanup_lock(self):
-        try:
-            if os.path.exists(LOCK_FILE):
-                os.remove(LOCK_FILE)
-        except:
-            pass
+        cleanup_lock()
 
     def close_window(self):
         self.cleanup_lock()
@@ -371,6 +463,19 @@ class SettingsManager(Gtk.Window):
             return d[key]
         return default
 
+    def _snapshot_sections(self):
+        """Per-top-level-section dumps for change detection.
+
+        Used to run only the side effects (reload, wallpaper/theme/dock
+        scripts) relevant to what actually changed, so Apply doesn't stomp
+        unrelated live state (e.g. restarting the wallpaper engine when
+        only keybinds changed).
+        """
+        try:
+            return {k: tomlkit.dumps(v) for k, v in self.doc.items()}
+        except Exception:
+            return {}
+
     def _st(self, section, key, value):
         """Set a value in the TOML doc, creating sections as needed."""
         d = self.doc
@@ -379,6 +484,49 @@ class SettingsManager(Gtk.Window):
                 d[part] = tomlkit.table()
             d = d[part]
         d[key] = value
+
+    def _ensure_table(self, dotted):
+        """Create nested TOML tables along a dotted path if missing."""
+        d = self.doc
+        for part in dotted.split('.'):
+            if part not in d or not isinstance(d[part], dict):
+                d[part] = tomlkit.table()
+            d = d[part]
+        return d
+
+    def ensure_defaults(self):
+        """Create every section the UI indexes directly.
+
+        Preserved TOMLs from older installs may lack newer sections;
+        without this, page builders crash startup with KeyError.
+        In-memory only — written out solely via the normal Apply flow.
+        """
+        for section in (
+            "general", "decoration", "decoration.blur", "input",
+            "input.touchpad", "monitors", "wallpapers", "wallpapers.fixed",
+            "animations", "binds", "binds.normal", "binds.release",
+            "binds.mouse", "binds.repeat", "binds.locked", "idle",
+            "lockscreen", "nightlight", "launcher", "launcher.dock",
+            "launcher.drun", "launcher.power_menu", "launcher.dmenu",
+            "programs", "plugins", "scrolling", "rules", "misc", "dwindle",
+            "master", "gesture", "autostart", "env", "custom", "theme",
+            "hyprrocket", "hyprrocket.events",
+        ):
+            self._ensure_table(section)
+
+    def _accent_to_hex(self, color):
+        """Normalize a CSS color (#hex, rgb(), rgba()) to RRGGBB hex."""
+        import re as _re
+        s = (color or "").strip()
+        m = _re.match(r'#([0-9a-fA-F]{6})', s)
+        if m:
+            return m.group(1).lower()
+        m = _re.match(
+            r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)', s)
+        if m:
+            r, g, b = (max(0, min(255, int(m.group(i)))) for i in (1, 2, 3))
+            return f"{r:02x}{g:02x}{b:02x}"
+        return "007aff"
 
     def _color_button(self, rgba_str, callback):
         """Create a color swatch button that opens color chooser."""
@@ -420,6 +568,7 @@ class SettingsManager(Gtk.Window):
                 ("lockscreen","Lock & Power","system-lock-screen",self.build_lock),
                 ("nightlight","Nightlight","weather-clear-night",self.build_nightlight),
                 ("autostart","Autostart","system-run",self.build_autostart),
+                ("hyprrocket","Event Bus","alarm",self.build_hyprrocket),
                 ("environment","Environment","preferences-system",self.build_environment),
             ]),
             ("APPS", [
@@ -722,6 +871,50 @@ class SettingsManager(Gtk.Window):
         v.pack_start(f, False, False, 0)
         return v
 
+    def build_hyprrocket(self):
+        v = self.build_page_vbox("Event Bus (Hyprrocket)")
+        f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
+        self.widgets['rocket_enabled'] = Gtk.Switch()
+        self.widgets['rocket_enabled'].set_active(self._tg('hyprrocket', 'enabled', True))
+        f.pack_start(self.create_row("Enable Event Bus", self.widgets['rocket_enabled']), False, False, 0)
+        v.pack_start(f, False, False, 0)
+
+        events = {}
+        try:
+            rocket = self.doc.get('hyprrocket', {})
+            if isinstance(rocket, dict):
+                raw = rocket.get('events', {})
+                if isinstance(raw, dict):
+                    events = raw
+        except Exception:
+            events = {}
+        self.widgets['rocket_event_names'] = list(events.keys())
+        if events:
+            for name, ev in events.items():
+                ef = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); ef.get_style_context().add_class("group-frame")
+                title = Gtk.Label(label=f"Event: {name}"); title.set_xalign(0); title.set_margin_bottom(6)
+                ef.pack_start(title, False, False, 0)
+                trig = Gtk.Entry(); trig.set_text(str(ev.get('trigger', '')) if isinstance(ev, dict) else "")
+                trig.set_placeholder_text("HH:MM (24h)")
+                self.widgets[f'rocket_trigger_{name}'] = trig
+                ef.pack_start(self.create_row("Trigger", trig), False, False, 0)
+                days = Gtk.Entry(); days.set_text(str(ev.get('days', '')) if isinstance(ev, dict) else "")
+                days.set_placeholder_text("Optional: Mon..Fri")
+                self.widgets[f'rocket_days_{name}'] = days
+                ef.pack_start(self.create_row("Days", days), False, False, 0)
+                on = Gtk.Switch(); on.set_active(bool(ev.get('enabled', True)) if isinstance(ev, dict) else True)
+                self.widgets[f'rocket_on_{name}'] = on
+                ef.pack_start(self.create_row("Enabled", on), False, False, 0)
+                v.pack_start(ef, False, False, 0)
+        else:
+            hint = Gtk.Label(label="No events defined. Add [hyprrocket.events.<name>] tables in hyprde.toml with trigger + actions[].")
+            hint.set_xalign(0); hint.set_line_wrap(True); hint.set_opacity(0.6)
+            v.pack_start(hint, False, False, 0)
+        note = Gtk.Label(label="Actions[] are edited in hyprde.toml. Apply rebuilds systemd timers (hyprrocket@<name>.timer).")
+        note.set_xalign(0); note.set_line_wrap(True); note.set_opacity(0.6); note.set_margin_top(8)
+        v.pack_start(note, False, False, 0)
+        return v
+
     def build_environment(self):
         v = self.build_page_vbox("Environment Variables")
         f, self.widgets['env_list'] = self.build_dynamic_list(self._tg('env','vars',[]), "KEY,VALUE pairs")
@@ -914,219 +1107,362 @@ class SettingsManager(Gtk.Window):
             self.stack.set_visible_child_name(row.row_name)
 
     def on_save_clicked(self, btn):
-        self.save_btn.set_label("Applying...")
+        """Apply settings without freezing the UI or closing the window.
+
+        Widget reads + TOML assembly run on the main thread (fast), then a
+        daemon worker thread runs the slow part (file writes, build_config,
+        wallpaper/theme scripts, dock restart). Status is reported inline
+        and via notify-send; the window stays open for further tweaks.
+        """
+        if getattr(self, '_applying', False):
+            return
+        self.status_label.get_style_context().remove_class("error")
         try:
-            def get_items(container):
-                return [c.get_children()[0].get_text() for c in container.get_children() if c.get_children()[0].get_text().strip()]
-
-            # General / Decoration
-            for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
-            for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','wofi_opacity']:
-                self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
-            self.doc['general']['layout'] = self.widgets['layout'].get_active_id()
-            self.doc['general']['resize_on_border'] = self.widgets['resize_on_border'].get_active()
-            self.doc['general']['allow_tearing'] = self.widgets['allow_tearing'].get_active()
-
-            # Blur
-            if 'decoration.blur' not in self.doc and 'decoration' in self.doc:
-                self.doc['decoration']['blur'] = tomlkit.table()
-            self.doc['decoration']['blur']['enabled'] = self.widgets['blur_enabled'].get_active()
-            self.doc['decoration']['blur']['size'] = int(self.widgets['blur_size'].get_value())
-            self.doc['decoration']['blur']['passes'] = int(self.widgets['blur_passes'].get_value())
-
-            # Border colors
-            self.doc['general']['col_active_border'] = self.widgets['col_active_border'].get_text()
-            self.doc['general']['col_inactive_border'] = self.widgets['col_inactive_border'].get_text()
-
-            # Theme
-            if 'theme' not in self.doc: self.doc['theme'] = tomlkit.table()
-            new_mode = self.widgets['theme_mode'].get_active_id()
-            self.doc['theme']['mode'] = new_mode
-            self.doc['theme']['accent'] = self._tg('theme', 'accent', '#007aff')
-
-            # Lockscreen
-            self.doc['lockscreen']['profile_image'] = self.widgets['profile_path'].get_text()
-            self.doc['lockscreen']['background'] = self.widgets['lock_wp_path'].get_text()
-            self.doc['lockscreen']['blur_passes'] = int(self.widgets['lock_blur_passes'].get_value())
-            self.doc['lockscreen']['blur_size'] = int(self.widgets['lock_blur_size'].get_value())
-            self.doc['lockscreen']['fail_text'] = self.widgets['lock_fail_text'].get_text()
-            self.doc['lockscreen']['placeholder_text'] = self.widgets['lock_placeholder_text'].get_text()
-
-            # Idle
-            for k in ['lock_timeout','screen_off_timeout','suspend_timeout']:
-                self.doc['idle'][k] = int(self.widgets[f'idle_{k}'].get_value())
-
-            # Nightlight
-            self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
-            self.doc['nightlight']['temp_day'] = int(self.widgets['nl_temp_day'].get_value())
-            self.doc['nightlight']['temp_night'] = int(self.widgets['nl_temp_night'].get_value())
-            self.doc['nightlight']['blue_intensity'] = self.widgets['nl_blue_intensity'].get_value()
-            self.doc['nightlight']['green_intensity'] = self.widgets['nl_green_intensity'].get_value()
-
-            # Wallpapers
-            self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image_path'].get_text()
-            self.doc['wallpapers']['path'] = self.widgets['wp_dir_path'].get_text()
-            self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id()
-
-            # Monitors, binds, plugins
-            self.doc['monitors']['rules'] = get_items(self.widgets['monitor_list'])
-            self.doc['binds']['normal']['list'] = get_items(self.widgets['bind_list'])
-            self.doc['binds']['mainMod'] = self.widgets['mainMod'].get_active_id()
-            # Ensure all bind subsections exist
-            for sub in ['release','mouse','repeat','locked']:
-                lblist = get_items(self.widgets[f'bind_{sub}_list'])
-                if sub not in self.doc['binds']: self.doc['binds'][sub] = tomlkit.table()
-                self.doc['binds'][sub]['list'] = lblist
-            self.doc['plugins']['enabled'] = get_items(self.widgets['plugin_list'])
-
-            # Gestures
-            gl = get_items(self.widgets['gesture_list'])
-            if 'gesture' not in self.doc: self.doc['gesture'] = tomlkit.table()
-            self.doc['gesture']['list'] = gl
-
-            # Autostart
-            al = get_items(self.widgets['autostart_list'])
-            if 'autostart' not in self.doc: self.doc['autostart'] = tomlkit.table()
-            self.doc['autostart']['exec_once'] = al
-
-            # Environment
-            el = get_items(self.widgets['env_list'])
-            if 'env' not in self.doc: self.doc['env'] = tomlkit.table()
-            self.doc['env']['vars'] = el
-
-            # Animations
-            for k in ['windows','windowsOut','border','fade','workspaces']:
-                self.doc['animations'][k] = self.widgets[f'anim_{k}'].get_text()
-            self.doc['animations']['enabled'] = self.widgets['anim_enabled'].get_active()
-
-            # Input / Keyboard
-            for k in ['kb_layout','kb_variant','kb_model','kb_options','kb_rules']:
-                self.doc['input'][k] = self.widgets[k].get_text()
-            if 'input' not in self.doc: self.doc['input'] = tomlkit.table()
-            if 'touchpad' not in self.doc['input']: self.doc['input']['touchpad'] = tomlkit.table()
-            self.doc['input']['touchpad']['natural_scroll'] = self.widgets['natural_scroll'].get_active()
-
-            # Mouse
-            self.doc['input']['follow_mouse'] = int(self.widgets['follow_mouse'].get_active_id())
-            self.doc['input']['sensitivity'] = self.widgets['sensitivity'].get_value()
-
-            # Launcher
-            self.doc['launcher']['position'] = self.widgets['l_pos'].get_active_id()
-            self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value())
-            self.doc['launcher']['margin_top'] = int(self.widgets['l_margin'].get_value())
-            self.doc['launcher']['font_size'] = int(self.widgets['l_font'].get_value())
-            self.doc['launcher']['icon_size'] = int(self.widgets['l_icon'].get_value())
-            self.doc['launcher']['row_spacing'] = int(self.widgets['l_spacing'].get_value())
-
-            # Launcher sub-modes
-            for mode_key in ["drun", "power_menu", "dmenu"]:
-                if mode_key not in self.doc['launcher']: self.doc['launcher'][mode_key] = tomlkit.table()
-                self.doc['launcher'][mode_key]['width_percent'] = int(self.widgets[f'l_{mode_key}_width'].get_value())
-                self.doc['launcher'][mode_key]['position'] = self.widgets[f'l_{mode_key}_pos'].get_active_id()
-                self.doc['launcher'][mode_key]['margin_top'] = int(self.widgets[f'l_{mode_key}_margin'].get_value())
-
-            # Dock
-            self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active()
-            self.doc['launcher']['dock']['position'] = self.widgets['dock_pos'].get_active_id()
-            self.doc['launcher']['dock']['autohide'] = self.widgets['dock_autohide'].get_active()
-            self.doc['launcher']['dock']['icon_size'] = int(self.widgets['dock_icon_size'].get_value())
-            self.doc['launcher']['dock']['padding'] = int(self.widgets['dock_padding'].get_value())
-            self.doc['launcher']['dock']['rounding'] = int(self.widgets['dock_rounding'].get_value())
-            self.doc['launcher']['dock']['margin'] = int(self.widgets['dock_margin'].get_value())
-            self.doc['launcher']['dock']['apps'] = get_items(self.widgets['dock_apps_list'])
-
-            # Programs
-            for k in ["terminal", "fileManager", "status_bar", "launcher", "notification_service"]:
-                self.doc['programs'][k] = self.widgets[k].get_text()
-            self.doc['programs']['autohide_bar'] = self.widgets['autohide_bar'].get_active()
-
-            # Scrolling
-            if 'scrolling' not in self.doc: self.doc['scrolling'] = tomlkit.table()
-            self.doc['scrolling']['column_width'] = self.widgets['scroll_column_width'].get_value()
-            self.doc['scrolling']['fullscreen_on_one_column'] = self.widgets['scroll_fullscreen'].get_active()
-            self.doc['scrolling']['focus_fit_method'] = int(self.widgets['scroll_focus_fit'].get_active_id())
-            self.doc['scrolling']['explicit_column_widths'] = self.widgets['scroll_explicit_widths'].get_text()
-
-            # Window rules
-            wr = get_items(self.widgets['window_rules_list'])
-            if 'rules' not in self.doc: self.doc['rules'] = tomlkit.table()
-            self.doc['rules']['window'] = wr
-
-            # Display flags
-            if 'misc' not in self.doc: self.doc['misc'] = tomlkit.table()
-            self.doc['misc']['force_default_wallpaper'] = int(self.widgets['force_default_wallpaper'].get_active_id())
-            self.doc['misc']['disable_hyprland_logo'] = self.widgets['disable_logo'].get_active()
-            self.doc['misc']['disable_splash_rendering'] = self.widgets['disable_splash'].get_active()
-
-            # Layouts
-            if 'dwindle' not in self.doc: self.doc['dwindle'] = tomlkit.table()
-            self.doc['dwindle']['preserve_split'] = self.widgets['dwindle_preserve_split'].get_active()
-            if 'master' not in self.doc: self.doc['master'] = tomlkit.table()
-            self.doc['master']['new_status'] = self.widgets['master_new_status'].get_active_id()
-
-            # Custom Lua
-            buffer = self.widgets['custom_lua_buffer']
-            lua_text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), True)
-            lua_lines = [l for l in lua_text.split("\n") if l.strip()]
-            if 'custom' not in self.doc: self.doc['custom'] = tomlkit.table()
-            self.doc['custom']['lua_lines'] = lua_lines
-
-            # Change validation
-            new_config_str = tomlkit.dumps(self.doc)
-            if new_config_str == self.initial_config_str:
-                self.close_window()
-                return
-
-            with open(self.config_path, 'w') as f:
-                f.write(new_config_str)
-
-            # Apply accent color to theme CSS files
-            accent_hex = self._tg('theme', 'accent', '#007aff')
-            themes_dir = os.path.expanduser("~/.config/hypr/themes")
-            for css_file in ["dark.css", "light.css"]:
-                css_path = os.path.join(themes_dir, css_file)
-                if os.path.exists(css_path):
-                    with open(css_path, 'r') as f:
-                        css_content = f.read()
-                    import re
-                    css_content = re.sub(r'@define-color theme_accent [^;]+;', f'@define-color theme_accent {accent_hex};', css_content)
-                    with open(css_path, 'w') as f:
-                        f.write(css_content)
-
-            # Update current.css symlink to match mode
-            current_link = os.path.join(themes_dir, "current.css")
-            if new_mode == "light":
-                os.symlink("light.css", current_link + ".tmp")
-                os.replace(current_link + ".tmp", current_link)
-            else:
-                os.symlink("dark.css", current_link + ".tmp")
-                os.replace(current_link + ".tmp", current_link)
-
-            subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")])
-
-            # Apply wallpaper changes
-            subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")])
-
-            # Apply theme if changed
-            subprocess.run([
-                "sh", os.path.expanduser("~/.config/hypr/scripts/theme-ctrl.sh"),
-                new_mode
-            ])
-
-            subprocess.run(["pkill", "-f", "hyprsearch --dock"])
-            subprocess.run(["pkill", "-USR2", "waybar"])
-            time.sleep(0.5)
-            if self.widgets['dock_enabled'].get_active():
-                subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"],
-                               start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(["notify-send", "Settings Applied", "System updated."])
-            self.save_btn.set_label("Done!")
-            time.sleep(0.3)
-            self.close_window()
+            snapshot = self._collect_widget_state()
         except Exception as e:
-            self.save_btn.set_label("Apply Changes")
+            logger.error(f"Settings collect failed: {e}\n{traceback.format_exc()}")
             self.status_label.set_text(f"⚠ Error: {str(e)}")
             self.status_label.get_style_context().add_class("error")
+            return
+
+        if snapshot["config_str"] == self.initial_config_str:
+            self.status_label.set_text("No changes to apply")
+            return
+
+        self._applying = True
+        self.save_btn.set_label("Applying…")
+        self.save_btn.set_sensitive(False)
+        self.status_label.set_text("Applying settings…")
+        threading.Thread(target=self._apply_worker, args=(snapshot,),
+                         daemon=True).start()
+
+    def _collect_widget_state(self):
+        """Read all widgets into self.doc (main thread) and snapshot what's
+        needed for the background apply. Returns a plain-data dict."""
+        def get_items(container):
+            return [c.get_children()[0].get_text() for c in container.get_children() if c.get_children()[0].get_text().strip()]
+
+        # General / Decoration
+        for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
+        for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','wofi_opacity']:
+            self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
+        self.doc['general']['layout'] = self.widgets['layout'].get_active_id()
+        self.doc['general']['resize_on_border'] = self.widgets['resize_on_border'].get_active()
+        self.doc['general']['allow_tearing'] = self.widgets['allow_tearing'].get_active()
+
+        # Blur
+        if 'decoration.blur' not in self.doc and 'decoration' in self.doc:
+            self.doc['decoration']['blur'] = tomlkit.table()
+        self.doc['decoration']['blur']['enabled'] = self.widgets['blur_enabled'].get_active()
+        self.doc['decoration']['blur']['size'] = int(self.widgets['blur_size'].get_value())
+        self.doc['decoration']['blur']['passes'] = int(self.widgets['blur_passes'].get_value())
+
+        # Border colors
+        self.doc['general']['col_active_border'] = self.widgets['col_active_border'].get_text()
+        self.doc['general']['col_inactive_border'] = self.widgets['col_inactive_border'].get_text()
+
+        # Theme
+        if 'theme' not in self.doc: self.doc['theme'] = tomlkit.table()
+        new_mode = self.widgets['theme_mode'].get_active_id()
+        self.doc['theme']['mode'] = new_mode
+        self.doc['theme']['accent'] = self._tg('theme', 'accent', '#007aff')
+
+        # Accent-follow for the active window border: when the accent changed
+        # in this Apply and the user did not hand-edit the border field,
+        # re-derive the gradient's first stop from the accent (alpha ee),
+        # preserving the rest of a custom gradient. Hyprland chrome then
+        # stays in the same family as every other component.
+        old_acc_m = re.search(r'accent\s*=\s*"([^"]+)"',
+                              self._initial_sections.get('theme', ''))
+        old_acc = old_acc_m.group(1) if old_acc_m else None
+        new_acc = self.doc['theme'].get('accent')
+        base_m = re.search(r'col_active_border\s*=\s*"([^"]+)"',
+                           self._initial_sections.get('general', ''))
+        base_border = base_m.group(1) if base_m else None
+        cur_border = self.widgets['col_active_border'].get_text()
+        if (new_acc and old_acc and new_acc != old_acc
+                and base_border and cur_border == base_border):
+            first, _, rest = base_border.partition(' ')
+            new_first = 'rgba(%see)' % self._accent_to_hex(new_acc)
+            new_border = (new_first + ' ' + rest).strip()
+            self.doc['general']['col_active_border'] = new_border
+            self.widgets['col_active_border'].set_text(new_border)
+
+        # Lockscreen
+        self.doc['lockscreen']['profile_image'] = self.widgets['profile_path'].get_text()
+        self.doc['lockscreen']['background'] = self.widgets['lock_wp_path'].get_text()
+        self.doc['lockscreen']['blur_passes'] = int(self.widgets['lock_blur_passes'].get_value())
+        self.doc['lockscreen']['blur_size'] = int(self.widgets['lock_blur_size'].get_value())
+        self.doc['lockscreen']['fail_text'] = self.widgets['lock_fail_text'].get_text()
+        self.doc['lockscreen']['placeholder_text'] = self.widgets['lock_placeholder_text'].get_text()
+
+        # Idle
+        for k in ['lock_timeout','screen_off_timeout','suspend_timeout']:
+            self.doc['idle'][k] = int(self.widgets[f'idle_{k}'].get_value())
+
+        # Nightlight
+        self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
+        self.doc['nightlight']['temp_day'] = int(self.widgets['nl_temp_day'].get_value())
+        self.doc['nightlight']['temp_night'] = int(self.widgets['nl_temp_night'].get_value())
+        self.doc['nightlight']['blue_intensity'] = self.widgets['nl_blue_intensity'].get_value()
+        self.doc['nightlight']['green_intensity'] = self.widgets['nl_green_intensity'].get_value()
+
+        # Wallpapers
+        self.doc['wallpapers']['fixed']['image'] = self.widgets['wp_image_path'].get_text()
+        self.doc['wallpapers']['path'] = self.widgets['wp_dir_path'].get_text()
+        self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id()
+
+        # Monitors, binds, plugins
+        self.doc['monitors']['rules'] = get_items(self.widgets['monitor_list'])
+        self.doc['binds']['normal']['list'] = get_items(self.widgets['bind_list'])
+        self.doc['binds']['mainMod'] = self.widgets['mainMod'].get_active_id()
+        # Ensure all bind subsections exist
+        for sub in ['release','mouse','repeat','locked']:
+            lblist = get_items(self.widgets[f'bind_{sub}_list'])
+            if sub not in self.doc['binds']: self.doc['binds'][sub] = tomlkit.table()
+            self.doc['binds'][sub]['list'] = lblist
+        self.doc['plugins']['enabled'] = get_items(self.widgets['plugin_list'])
+
+        # Gestures
+        gl = get_items(self.widgets['gesture_list'])
+        if 'gesture' not in self.doc: self.doc['gesture'] = tomlkit.table()
+        self.doc['gesture']['list'] = gl
+
+        # Autostart
+        al = get_items(self.widgets['autostart_list'])
+        if 'autostart' not in self.doc: self.doc['autostart'] = tomlkit.table()
+        self.doc['autostart']['exec_once'] = al
+
+        # Hyprrocket event bus
+        if 'hyprrocket' not in self.doc: self.doc['hyprrocket'] = tomlkit.table()
+        self.doc['hyprrocket']['enabled'] = self.widgets['rocket_enabled'].get_active()
+        for name in self.widgets.get('rocket_event_names', []):
+            if 'events' not in self.doc['hyprrocket']:
+                self.doc['hyprrocket']['events'] = tomlkit.table()
+            if name not in self.doc['hyprrocket']['events']:
+                self.doc['hyprrocket']['events'][name] = tomlkit.table()
+            trig_widget = self.widgets.get(f'rocket_trigger_{name}')
+            days_widget = self.widgets.get(f'rocket_days_{name}')
+            on_widget = self.widgets.get(f'rocket_on_{name}')
+            if trig_widget is not None:
+                self.doc['hyprrocket']['events'][name]['trigger'] = trig_widget.get_text().strip()
+            if days_widget is not None:
+                days_val = days_widget.get_text().strip()
+                if days_val:
+                    self.doc['hyprrocket']['events'][name]['days'] = days_val
+                elif 'days' in self.doc['hyprrocket']['events'][name]:
+                    del self.doc['hyprrocket']['events'][name]['days']
+            if on_widget is not None:
+                self.doc['hyprrocket']['events'][name]['enabled'] = on_widget.get_active()
+
+        # Environment
+        el = get_items(self.widgets['env_list'])
+        if 'env' not in self.doc: self.doc['env'] = tomlkit.table()
+        self.doc['env']['vars'] = el
+
+        # Animations
+        for k in ['windows','windowsOut','border','fade','workspaces']:
+            self.doc['animations'][k] = self.widgets[f'anim_{k}'].get_text()
+        self.doc['animations']['enabled'] = self.widgets['anim_enabled'].get_active()
+
+        # Input / Keyboard
+        for k in ['kb_layout','kb_variant','kb_model','kb_options','kb_rules']:
+            self.doc['input'][k] = self.widgets[k].get_text()
+        if 'input' not in self.doc: self.doc['input'] = tomlkit.table()
+        if 'touchpad' not in self.doc['input']: self.doc['input']['touchpad'] = tomlkit.table()
+        self.doc['input']['touchpad']['natural_scroll'] = self.widgets['natural_scroll'].get_active()
+
+        # Mouse
+        self.doc['input']['follow_mouse'] = int(self.widgets['follow_mouse'].get_active_id())
+        self.doc['input']['sensitivity'] = self.widgets['sensitivity'].get_value()
+
+        # Launcher
+        self.doc['launcher']['position'] = self.widgets['l_pos'].get_active_id()
+        self.doc['launcher']['width_percent'] = int(self.widgets['l_width'].get_value())
+        self.doc['launcher']['margin_top'] = int(self.widgets['l_margin'].get_value())
+        self.doc['launcher']['font_size'] = int(self.widgets['l_font'].get_value())
+        self.doc['launcher']['icon_size'] = int(self.widgets['l_icon'].get_value())
+        self.doc['launcher']['row_spacing'] = int(self.widgets['l_spacing'].get_value())
+
+        # Launcher sub-modes
+        for mode_key in ["drun", "power_menu", "dmenu"]:
+            if mode_key not in self.doc['launcher']: self.doc['launcher'][mode_key] = tomlkit.table()
+            self.doc['launcher'][mode_key]['width_percent'] = int(self.widgets[f'l_{mode_key}_width'].get_value())
+            self.doc['launcher'][mode_key]['position'] = self.widgets[f'l_{mode_key}_pos'].get_active_id()
+            self.doc['launcher'][mode_key]['margin_top'] = int(self.widgets[f'l_{mode_key}_margin'].get_value())
+
+        # Dock
+        self.doc['launcher']['dock']['enabled'] = self.widgets['dock_enabled'].get_active()
+        self.doc['launcher']['dock']['position'] = self.widgets['dock_pos'].get_active_id()
+        self.doc['launcher']['dock']['autohide'] = self.widgets['dock_autohide'].get_active()
+        self.doc['launcher']['dock']['icon_size'] = int(self.widgets['dock_icon_size'].get_value())
+        self.doc['launcher']['dock']['padding'] = int(self.widgets['dock_padding'].get_value())
+        self.doc['launcher']['dock']['rounding'] = int(self.widgets['dock_rounding'].get_value())
+        self.doc['launcher']['dock']['margin'] = int(self.widgets['dock_margin'].get_value())
+        self.doc['launcher']['dock']['apps'] = get_items(self.widgets['dock_apps_list'])
+
+        # Programs
+        for k in ["terminal", "fileManager", "status_bar", "launcher", "notification_service"]:
+            self.doc['programs'][k] = self.widgets[k].get_text()
+        self.doc['programs']['autohide_bar'] = self.widgets['autohide_bar'].get_active()
+
+        # Scrolling
+        if 'scrolling' not in self.doc: self.doc['scrolling'] = tomlkit.table()
+        self.doc['scrolling']['column_width'] = self.widgets['scroll_column_width'].get_value()
+        self.doc['scrolling']['fullscreen_on_one_column'] = self.widgets['scroll_fullscreen'].get_active()
+        self.doc['scrolling']['focus_fit_method'] = int(self.widgets['scroll_focus_fit'].get_active_id())
+        self.doc['scrolling']['explicit_column_widths'] = self.widgets['scroll_explicit_widths'].get_text()
+
+        # Window rules
+        wr = get_items(self.widgets['window_rules_list'])
+        if 'rules' not in self.doc: self.doc['rules'] = tomlkit.table()
+        self.doc['rules']['window'] = wr
+
+        # Display flags
+        if 'misc' not in self.doc: self.doc['misc'] = tomlkit.table()
+        self.doc['misc']['force_default_wallpaper'] = int(self.widgets['force_default_wallpaper'].get_active_id())
+        self.doc['misc']['disable_hyprland_logo'] = self.widgets['disable_logo'].get_active()
+        self.doc['misc']['disable_splash_rendering'] = self.widgets['disable_splash'].get_active()
+
+        # Layouts
+        if 'dwindle' not in self.doc: self.doc['dwindle'] = tomlkit.table()
+        self.doc['dwindle']['preserve_split'] = self.widgets['dwindle_preserve_split'].get_active()
+        if 'master' not in self.doc: self.doc['master'] = tomlkit.table()
+        self.doc['master']['new_status'] = self.widgets['master_new_status'].get_active_id()
+
+        # Custom Lua
+        buffer = self.widgets['custom_lua_buffer']
+        lua_text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), True)
+        lua_lines = [l for l in lua_text.split("\n") if l.strip()]
+        if 'custom' not in self.doc: self.doc['custom'] = tomlkit.table()
+        self.doc['custom']['lua_lines'] = lua_lines
+
+        # Snapshot everything the background worker needs (plain data only —
+        # the worker thread must never touch Gtk widgets).
+        changed = sorted(
+            k for k, v in self.doc.items()
+            if tomlkit.dumps(v) != self._initial_sections.get(k)
+        )
+        return {
+            "config_str": tomlkit.dumps(self.doc),
+            "sections": {k: tomlkit.dumps(v) for k, v in self.doc.items()},
+            "changed": changed,
+            "new_mode": self.widgets['theme_mode'].get_active_id(),
+            "dock_enabled": self.widgets['dock_enabled'].get_active(),
+            "accent_hex": self._tg('theme', 'accent', '#007aff'),
+        }
+
+    def _apply_worker(self, snapshot):
+        """Slow apply step: file writes, rebuild, scripts (background thread).
+
+        Only the side effects relevant to `snapshot["changed"]` run, so
+        Apply never stomps unrelated live state (wallpaper engine, theme,
+        dock) when e.g. only keybinds changed.
+        """
+        # Sections emitted into hyprland.lua (need build + reload when changed).
+        LUA_SECTIONS = {
+            "monitors", "programs", "autostart", "nightlight", "plugins",
+            "plugin", "scrolling", "gesture", "submaps", "env", "input",
+            "general", "decoration", "animations", "dwindle", "master",
+            "misc", "binds", "binds_config", "rules", "custom", "color",
+            "group", "cursor", "render", "ecosystem", "debug", "devices",
+            "permission", "permissions",
+        }
+        changed = set(snapshot.get("changed", []))
+        # Be conservative: if change detection failed, run everything.
+        if not changed:
+            changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle",
+                                      "theme", "launcher", "programs"}
+        try:
+            with open(self.config_path, 'w') as f:
+                f.write(snapshot["config_str"])
+
+            # Fan out the accent color to every component (theme CSS vars,
+            # wofi selection, notif borders, Mako). Non-fatal on failure.
+            accent_rc = subprocess.run(
+                ["sh", os.path.expanduser("~/.config/hypr/scripts/apply-accent.sh"),
+                 snapshot["accent_hex"]],
+                capture_output=True, timeout=30)
+            if accent_rc.returncode != 0:
+                logger.warning(
+                    "apply-accent.sh failed: %s",
+                    accent_rc.stderr.decode(errors="replace")[:300])
+
+            # Update current.css symlink to match mode
+            themes_dir = os.path.expanduser("~/.config/hypr/themes")
+            current_link = os.path.join(themes_dir, "current.css")
+            want = "light.css" if snapshot["new_mode"] == "light" else "dark.css"
+            try:
+                if os.path.islink(current_link) and os.readlink(current_link) != want:
+                    os.symlink(want, current_link + ".tmp")
+                    os.replace(current_link + ".tmp", current_link)
+                elif not os.path.islink(current_link):
+                    if os.path.lexists(current_link):
+                        os.remove(current_link)
+                    os.symlink(want, current_link)
+            except OSError as e:
+                logger.warning(f"Theme symlink update failed: {e}")
+
+            subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
+                           capture_output=True, timeout=120)
+
+            # Reload Hyprland so the rebuilt hyprland.lua takes effect live,
+            # but only when a Lua-emitted section actually changed. Without
+            # this, Apply updates files but the running session keeps old
+            # values (e.g. gaps, borders, opacity, layout).
+            if changed & LUA_SECTIONS:
+                subprocess.run(["hyprctl", "reload"], capture_output=True, timeout=30)
+
+            # Wallpaper engine only when [wallpapers] changed — restarting it
+            # otherwise snaps a manually-picked wallpaper back to the TOML one.
+            if "wallpapers" in changed:
+                subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")],
+                               capture_output=True, timeout=120)
+
+            # Theme stack only when theme/appearance-affecting sections changed.
+            if changed & {"theme", "appearance", "general", "decoration"}:
+                subprocess.run([
+                    "sh", os.path.expanduser("~/.config/hypr/scripts/theme-ctrl.sh"),
+                    snapshot["new_mode"]
+                ], capture_output=True, timeout=120)
+
+            # Dock + bar only when launcher/programs/theme/decoration changed.
+            if changed & {"launcher", "programs", "theme", "decoration"}:
+                subprocess.run(["pkill", "-f", "hyprsearch --dock"], capture_output=True)
+                subprocess.run(["pkill", "-USR2", "waybar"], capture_output=True)
+                time.sleep(0.5)
+                if snapshot["dock_enabled"]:
+                    subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"],
+                                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["notify-send", "Settings Applied", "System updated."],
+                           capture_output=True, timeout=5)
+            logger.info("Settings applied successfully (sections: %s)",
+                        ",".join(sorted(changed)))
+            GLib.idle_add(self._on_apply_done, snapshot["config_str"],
+                          snapshot["sections"])
+        except Exception as e:
+            logger.error(f"Settings apply failed: {e}\n{traceback.format_exc()}")
+            GLib.idle_add(self._on_apply_error, str(e))
+
+    def _on_apply_done(self, config_str, sections):
+        """Main-thread callback: report success, stay open for more tweaks."""
+        self.initial_config_str = config_str
+        self._initial_sections = dict(sections)
+        self._applying = False
+        self.save_btn.set_label("Apply")
+        self.save_btn.set_sensitive(True)
+        self.status_label.set_text("✓ Settings applied")
+        return False
+
+    def _on_apply_error(self, message):
+        """Main-thread callback: report failure inline, stay open."""
+        self._applying = False
+        self.save_btn.set_label("Apply")
+        self.save_btn.set_sensitive(True)
+        self.status_label.set_text(f"⚠ Error: {message}")
+        self.status_label.get_style_context().add_class("error")
+        _notify_error("HyprDE Settings", f"Apply failed: {message}")
+        return False
 
     def on_key_press(self, widget, event):
         if event.keyval == Gdk.KEY_Escape:
@@ -1149,6 +1485,26 @@ class SettingsManager(Gtk.Window):
         return False
 
 if __name__ == "__main__":
-    check_single_instance()
-    win = SettingsManager()
-    Gtk.main()
+    logger.info(f"SettingsManager starting (pid={os.getpid()})")
+    try:
+        check_single_instance()
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.error(f"Single-instance check failed: {e}")
+        _notify_error("HyprDE Settings", f"Startup failed: {e}")
+        sys.exit(1)
+    try:
+        win = SettingsManager()
+    except Exception as e:
+        logger.error(f"Settings startup failed: {e}\n{traceback.format_exc()}")
+        _notify_error("HyprDE Settings",
+                      f"Failed to open: {e}. See {LOG_FILE}")
+        cleanup_lock()
+        sys.exit(1)
+    try:
+        Gtk.main()
+    except Exception as e:
+        logger.error(f"Gtk.main failed: {e}\n{traceback.format_exc()}")
+    finally:
+        cleanup_lock()

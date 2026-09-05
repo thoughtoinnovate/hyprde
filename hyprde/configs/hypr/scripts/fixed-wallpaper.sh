@@ -1,4 +1,5 @@
 #!/bin/bash
+[ -n "${_HYPRDE_PYTHON_BIN:-}" ] || source "${0%/*}/hyprde-python.sh" 2>/dev/null || source "$HOME/.config/hypr/scripts/hyprde-python.sh" 2>/dev/null || true
 # Fixed wallpaper mode - simple static display
 # No rotation, no time-based changes - just a single static wallpaper
 
@@ -11,6 +12,11 @@ log() {
 }
 
 wait_for_hyprpaper_ipc() {
+    # Newer hyprpaper builds (Hyprland 0.55+) dropped listloaded/preload;
+    # don't burn 10 attempts when the command doesn't exist.
+    if hyprctl hyprpaper listloaded 2>&1 | grep -qi "invalid hyprpaper request"; then
+        return 0
+    fi
     local max_attempts=10
     local attempt=0
     while [ $attempt -lt $max_attempts ]; do
@@ -64,8 +70,13 @@ apply_wallpaper() {
     
     log "Applying wallpaper: $wp"
     
-    # Preload the wallpaper first to ensure it's available in hyprpaper
-    hyprctl hyprpaper preload "$wp" >> "$LOG_FILE" 2>&1
+    # Preload the wallpaper first to ensure it's available in hyprpaper.
+    # Skipped on builds where preload was removed (hyprpaper.conf already
+    # carries preload entries, and `wallpaper` works without it).
+    preload_out=$(hyprctl hyprpaper preload "$wp" 2>&1)
+    if ! printf '%s' "$preload_out" | grep -qi "invalid hyprpaper request"; then
+        [ -n "$preload_out" ] && log "preload: $preload_out"
+    fi
     
     # Try to get monitors
     local monitors=$(hyprctl monitors -j | python3 -c "import sys, json; print(' '.join([m['name'] for m in json.load(sys.stdin)]))" 2>/dev/null)

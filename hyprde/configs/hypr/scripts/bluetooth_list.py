@@ -2,6 +2,35 @@
 import json
 import subprocess
 import os
+import re
+
+
+def theme_color(name, fallback):
+    """Read an accent-tracking color from the active theme CSS.
+
+    Keeps small status tints in the same family as the system accent
+    without depending on tomlkit/gi (this script must stay stdlib-only).
+    """
+    for css in (
+        os.path.expanduser("~/.config/hypr/themes/current.css"),
+        os.path.expanduser("~/.config/hypr/themes/dark.css"),
+    ):
+        try:
+            with open(css) as f:
+                content = f.read()
+        except OSError:
+            continue
+        m = re.search(r"@define-color\s+" + re.escape(name) + r"\s+([^;]+);",
+                      content)
+        if m:
+            val = m.group(1).strip()
+            mh = re.match(r'#([0-9a-fA-F]{6})', val)
+            if mh:
+                return "#" + mh.group(1).lower()
+    return fallback
+
+
+ACCENT = theme_color("theme_active_bg", "#33ccff")
 
 def main():
     script_path = os.path.expanduser("~/.config/hypr/scripts/bluetooth_info.py")
@@ -28,12 +57,12 @@ def main():
         paired = [d for d in devices if not d['connected']]
         
         if connected:
-            output_lines.append("<span size='small' color='#33ccff'><b>CONNECTED</b></span>")
+            output_lines.append(f"<span size='small' color='{ACCENT}'><b>CONNECTED</b></span>")
             for d in connected:
                 name = d['name'][:16]
                 icon = d['icon']
-                signal = f"<span color='#33ccff'>{d['signal_icon']}</span>"
-                battery = f"<span color='#33ccff'>{d['battery_icon']}</span> {d['battery']}%" if d['battery'] else ""
+                signal = f"<span color='{ACCENT}'>{d['signal_icon']}</span>"
+                battery = f"<span color='{ACCENT}'>{d['battery_icon']}</span> {d['battery']}%" if d['battery'] else ""
                 # White and Bold for connected
                 output_lines.append(f"{icon}  <b><span color='#ffffff'>{name:18}</span></b>  {signal:2}  {battery:8}  <span color='#00ff99'>󰄬</span>")
         

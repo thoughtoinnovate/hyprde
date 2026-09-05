@@ -1,4 +1,5 @@
 #!/bin/bash
+[ -n "${_HYPRDE_PYTHON_BIN:-}" ] || source "${0%/*}/hyprde-python.sh" 2>/dev/null || source "$HOME/.config/hypr/scripts/hyprde-python.sh" 2>/dev/null || true
 # init_wallpaper.sh
 
 STATE_FILE="$HOME/.config/hypr/wallpaper_mode"

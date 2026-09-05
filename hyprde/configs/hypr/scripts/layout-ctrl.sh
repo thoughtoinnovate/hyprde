@@ -1,4 +1,5 @@
 #!/bin/bash
+[ -n "${_HYPRDE_PYTHON_BIN:-}" ] || source "${0%/*}/hyprde-python.sh" 2>/dev/null || source "$HOME/.config/hypr/scripts/hyprde-python.sh" 2>/dev/null || true
 
 CURRENT_LAYOUT=$(hyprctl getoption general:layout -j | jq -r '.str')
 

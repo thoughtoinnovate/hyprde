@@ -220,12 +220,12 @@ apps = [                                  # Persistent apps
 enabled = true
 
 [hyprrocket.events.morning]
-trigger = "06:00"                          # 6:00 AM
-action = "theme-ctrl.sh --mode auto"       # Automatic theme transition
+trigger = "06:00"                                    # 6:00 AM
+actions = ["theme-ctrl.sh --mode auto"]              # Automatic theme transition
 
 [hyprrocket.events.evening]
-trigger = "18:00"                          # 6:00 PM
-action = "theme-ctrl.sh --mode auto"       # Automatic theme transition
+trigger = "18:00"                                    # 6:00 PM
+actions = ["theme-ctrl.sh --mode auto"]              # Automatic theme transition
 
 # =============================================================================
 # GESTURES
@@ -378,7 +378,7 @@ list = [
     "$mainMod, V, togglefloating,",                       # Toggle floating
     "$mainMod, L, exec, hyprlock",                       # Lock screen
     "$mainMod, P, layoutmsg, promote",                    # Promote to new column (Scroll layout)
-    "$mainMod, J, layoutmsg, consume_or_expel",                          # Toggle split (Dwindle)
+    "$mainMod, J, layoutmsg, consume_or_expel prev",                          # Toggle split (Dwindle)
     
     # Focus movement
     "$mainMod, left, movefocus, l",
@@ -428,8 +428,8 @@ list = [
     "$mainMod ALT, down, movewindow, d",
     
     # Scroll Layout Control
-    "$mainMod, comma, layoutmsg, consume_or_expel",
-    "$mainMod, period, layoutmsg, consume_or_expel",
+    "$mainMod, comma, layoutmsg, consume_or_expel prev",
+    "$mainMod, period, layoutmsg, consume_or_expel prev",
     "$mainMod SHIFT, period, layoutmsg, promote",
     "$mainMod SHIFT, comma, layoutmsg, swapcol l",
     "$mainMod CTRL, comma, layoutmsg, consume",
@@ -440,7 +440,6 @@ list = [
     # Layout control (Universal/Other)
     "$mainMod, K, layoutmsg, promote",
     "$mainMod, A, layoutmsg, consume",
-    "$mainMod, D, layoutmsg, expel",
     
     # (SUPER+G freed - hyprexpo plugin not enabled)
     
@@ -458,7 +457,7 @@ list = [
     ", Print, exec, ~/.config/hypr/scripts/screenshot.sh",
     ", escape, exec, $HOME/.config/hypr/scripts/waybars.sh close-all",
     "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh",
-    "$mainMod, C, exec, $HOME/.config/hypr/scripts/settings_manager.py",
+    "$mainMod, C, exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py",
     "$mainMod, D, exec, $HOME/.config/hypr/scripts/dock-toggle.sh"
 ]
 
