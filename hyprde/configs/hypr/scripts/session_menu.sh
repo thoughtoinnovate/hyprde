@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Check if hyprsearch is already running
-if pgrep -x "hyprsearch" > /dev/null; then
-    pkill -x "hyprsearch"
+# Toggle: only an existing power-menu instance closes here.
+# (Never match the dock or other hyprsearch instances by bare process name.)
+if pgrep -f "hyprsearch --power-menu" > /dev/null; then
+    pkill -f "hyprsearch --power-menu"
     exit 0
 fi
 

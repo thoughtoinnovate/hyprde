@@ -156,7 +156,7 @@ enabled = []                              # Enable plugins here (e.g. ["hyprexpo
 [scrolling]
 column_width = 0.5                        # Column width multiplier
 fullscreen_on_one_column = true           # Auto-fullscreen single column
-focus_fit_method = 0                      # 0 = center focused, 1 = fit to screen
+focus_fit_method = 1                      # 0 = center focused, 1 = fit to screen
 explicit_column_widths = "0.333, 0.5, 0.667, 1.0" # Widths to cycle through
 
 # =============================================================================
