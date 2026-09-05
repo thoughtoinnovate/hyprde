@@ -95,4 +95,24 @@ for GTK_DIR in "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"; do
     fi
 done
 
+# Force GTK apps to live-reload CSS by briefly toggling theme states
+CURRENT_THEME=$(gsettings get org.gnome.desktop.interface gtk-theme 2>/dev/null || echo "'Adwaita-dark'")
+CURRENT_SCHEME=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo "'prefer-dark'")
+
+if [[ "$CURRENT_THEME" == *"'Adwaita-dark'"* ]]; then
+    gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita'
+else
+    gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark'
+fi
+
+if [[ "$CURRENT_SCHEME" == *"'prefer-dark'"* ]]; then
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
+else
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+fi
+
+# Restore settings immediately
+gsettings set org.gnome.desktop.interface gtk-theme "$CURRENT_THEME"
+gsettings set org.gnome.desktop.interface color-scheme "$CURRENT_SCHEME"
+
 exit $FAILED
