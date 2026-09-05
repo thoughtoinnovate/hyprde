@@ -491,7 +491,7 @@ def _merge_decoration(config: dict, data: dict):
     for k, v in deco.items():
         if isinstance(v, dict):
             continue
-        if k in ("waybar_opacity", "wofi_opacity"):
+        if k in ("waybar_opacity", "wofi_opacity", "launcher_opacity"):
             continue
         clean_key = k.replace("col_", "")
         section[clean_key] = v
