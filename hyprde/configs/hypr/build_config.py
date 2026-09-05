@@ -261,7 +261,7 @@ EXTERNAL_MANAGERS = {
     "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
     "lockscreen": "hyprlock.conf",
     "idle": "hypridle.conf",
-    "nightlight": "gammastep/gamma.sh via screen_shader",
+    "nightlight": "hyprsunset/gamma.sh via screen_shader",
 }
 
 

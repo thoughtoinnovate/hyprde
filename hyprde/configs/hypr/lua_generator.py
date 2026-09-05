@@ -54,7 +54,7 @@ EXTERNAL_SECTIONS = {
     "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
     "lockscreen": "hyprlock.conf",
     "idle": "hypridle.conf",
-    "nightlight": "gammastep/gamma.sh via screen_shader",
+    "nightlight": "hyprsunset/gamma.sh via screen_shader",
 }
 
 # Dispatchers whose argument must be a Lua table instead of a quoted string.
@@ -335,7 +335,7 @@ def _write_nightlight(start_cmds: list, data: dict):
     if nl.get("enabled", False):
         t_day = nl.get("temp_day", 6500)
         t_night = nl.get("temp_night", 3400)
-        cmd = f"gammastep -t {t_day}:{t_night}"
+        cmd = f"hyprsunset -t {t_day}:{t_night}"
         start_cmds.append("-- Nightlight")
         start_cmds.append(f'hl.dispatch(hl.dsp.exec_cmd("{cmd}"))')
 
