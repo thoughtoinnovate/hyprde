@@ -59,7 +59,7 @@
     },
     "hyprland/workspaces": {
         "format": "{name}",
-        "on-click": "activate"
+        "on-click": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"{name}\" })'"
     },
     "group/leftActions": {
         "orientation": "horizontal",
