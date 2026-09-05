@@ -514,6 +514,7 @@ input-field {{
     inner_color = rgb(200, 200, 200)
     font_color = rgb(10, 10, 10)
     fade_on_empty = true
+    ignore_empty_input = true
     fade_timeout = 1000
     placeholder_text = {placeholder_text}
     hide_input = false

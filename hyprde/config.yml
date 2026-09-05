@@ -1,6 +1,6 @@
 configs:
   - type: prerequisites
-    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk","fish","ripgrep","chafa","cmake","cpio","gpu-screen-recorder","gst-libav","gst-plugins-ugly","gst-plugins-good","gst-plugins-bad","zig","gtk3","gtk-layer-shell","libqalculate"]
+    packages: ["hyprland","hypridle","hyprlock","hyprpaper","xdg-desktop-portal-hyprland","waybar","ttf-font-awesome","bc","gawk","fish","ripgrep","chafa","cmake","cpio","gpu-screen-recorder","gst-libav","gst-plugins-ugly","gst-plugins-good","gst-plugins-bad","zig","gtk3","gtk-layer-shell","libqalculate","python-tomlkit","python-gobject"]
   - type: notification
     packages: ["mako"]
   - type: terminal

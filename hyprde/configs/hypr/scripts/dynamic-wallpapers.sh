@@ -1,4 +1,5 @@
 #!/bin/bash
+[ -n "${_HYPRDE_PYTHON_BIN:-}" ] || source "${0%/*}/hyprde-python.sh" 2>/dev/null || source "$HOME/.config/hypr/scripts/hyprde-python.sh" 2>/dev/null || true
 
 script_dir=$(dirname "$0")
 WALLPAPER_DIR=${1:-"$HOME/Pictures/wallpapers/"}

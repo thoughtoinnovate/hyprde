@@ -551,7 +551,7 @@ list = [
 
 ### rules
 
-Window rules for specific applications.
+Window and layer rules for specific applications.
 
 ```toml
 [rules]
@@ -563,31 +563,135 @@ window = [
     "center, class:(com.fzf.launcher)",
     "opacity 0.95 0.95, class:(com.fzf.launcher)"
 ]
-```
-
-**Fields:**
-- `window` (array of strings): Window rules in "action, selector" format
-
-**Rule Format:**
-- Action: Window property to set (float, pin, center, size, opacity, etc.)
-- Selector: `class:REGEX` or `title:REGEX` to match windows
-
-**Note:** Rules are automatically converted to Hyprland 0.53+ syntax.
-
-### custom
-
-Raw configuration lines not covered by the schema.
-
-```toml
-[custom]
-lines = [
-    "# Custom configuration lines",
-    "# These are passed through directly to the config"
+layer = [
+    "blur, class:^(waybar)$",
 ]
 ```
 
 **Fields:**
-- `lines` (array of strings): Raw configuration lines
+- `window` (array of strings): Window rules in "action, selector" format → `hl.window_rule()`
+- `layer` (array of strings): Layer rules in "action, selector" format → `hl.layerrule()`
+
+**Rule Format:**
+- Action: Window property to set (float, pin, center, fullscreen, maximize, size, opacity, workspace, etc.)
+- Selector: `class:REGEX` or `title:REGEX` to match windows
+
+**Note:** Rules are automatically converted to Hyprland 0.55+ Lua syntax.
+
+### hyprrocket
+
+OS automation event bus (systemd timers + dispatcher script).
+
+```toml
+[hyprrocket]
+enabled = true
+notify = true
+
+[hyprrocket.events.morning]
+trigger = "06:00"
+actions = ["theme-ctrl.sh --mode auto"]
+# condition = "not_fullscreen"  # optional: skip when fullscreen app focused
+```
+
+**Fields:**
+- `enabled` (boolean): Set false to skip systemd unit generation
+- `notify` (boolean): notify-send on event execution (default true)
+- `[hyprrocket.events.<name>]` (table): `trigger` (HH:MM, OnCalendar), `actions[]` (shell commands), optional `condition`, optional `enabled` (false skips + disables stale timer), optional `days` (e.g. `"Mon..Fri"`, systemd OnCalendar prefix), optional `description`
+
+**Note:** Breaking schema — `actions[]` list only (singular `action` removed). Timers are `hyprrocket@<name>.timer` with `ExecStart=hyprrocket.sh --trigger <name>`.
+
+### color
+
+ICC profile support (new in Hyprland 0.55).
+
+```toml
+[color]
+icc_profiles = [
+    "DP-1,/home/user/profiles/srgb.icc",
+]
+```
+
+**Fields:**
+- passthrough to `hl.config({ color = { ... } })`
+
+### passthrough config groups (Hyprland 0.55+)
+
+These TOML tables are emitted verbatim into `hl.config({...})`:
+
+```toml
+[group]
+groupbar = { enabled = true }
+
+[cursor]
+no_hardware_cursors = true
+
+[binds.options]   # hl.config({ binds = {...} }); [binds_config] is a legacy alias
+allow_workspace_cycles = true
+```
+
+`render`, `ecosystem`, and `debug` work the same way.
+
+### devices
+
+Per-device input overrides → `hl.device({...})` calls:
+
+```toml
+[devices.my-keyboard]
+sensitivity = 0.5
+natural_scroll = true
+```
+
+### permission
+
+Screen-copy / plugin permission grants → `hl.permission(...)` calls:
+
+```toml
+[[permission]]
+binary = "firefox"
+type = "screencopy"
+mode = "allow"
+```
+
+### rules.workspace
+
+Workspace rules → `hl.workspace_rule({...})` calls:
+
+```toml
+[rules]
+workspace = [
+    "name:code, monitor = DP-1, persistent = true",
+]
+```
+
+### exec binds with shell syntax
+
+`hl.dsp.exec_cmd` does not run through a shell, so binds containing
+`>>`, `|`, `;`, `&&` etc. are automatically wrapped as
+`hl.dsp.exec_cmd("sh -c '...'")` at build time (with a warning).
+Prefer plain commands in `[binds.*].list` regardless.
+
+### external sections (TOML-only, not emitted to Lua)
+
+By design these are managed by scripts/sidecars, with a validation note at build time:
+- `[theme]`, `[appearance]` → `theme-ctrl.sh` + `themes/current.css`
+- `[launcher]` → `hyprsearch` binary reads TOML live
+- `[wallpapers]`, `[lockscreen]`, `[idle]`, `[nightlight]` → `hyprpaper.conf` / `hyprlock.conf` / `hypridle.conf` / `gamma.sh`
+- `[hyprrocket]` → systemd units (above)
+
+### custom
+
+Raw Lua lines not covered by the schema.
+
+```toml
+[custom]
+lua_lines = [
+    "hl.config({ misc = { disable_hyprland_logo = false } })",
+]
+```
+
+**Fields:**
+- `lua_lines` (array of strings): Verbatim Lua emitted to `hyprland.lua`
+- `lines` (deprecated): hyprlang lines are ignored in Lua mode with a warning. Use `lua_lines`.
 
 ## Value Types
 

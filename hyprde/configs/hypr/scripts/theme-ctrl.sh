@@ -1,4 +1,5 @@
 #!/bin/bash
+[ -n "${_HYPRDE_PYTHON_BIN:-}" ] || source "${0%/*}/hyprde-python.sh" 2>/dev/null || source "$HOME/.config/hypr/scripts/hyprde-python.sh" 2>/dev/null || true
 
 # Configuration directories
 THEMES_DIR="$HOME/.config/hypr/themes"
@@ -44,14 +45,21 @@ set_theme() {
     local clean_mode=$(echo "$mode" | sed 's/\.css//')
     
     local theme_name="Dark Mode"
-    local active_border="rgba(33ccffee) rgba(00ff99ee) 45deg"
+    # Active border follows the accent: first gradient stop re-derived,
+    # remainder of the user's gradient preserved (custom second stops and
+    # angles survive theme toggles).
+    local accent_rgb=$(python3 -c "import tomlkit, os, re; path=os.path.expanduser('~/.config/hypr/hyprde.toml'); d=tomlkit.load(open(path)) if os.path.exists(path) else {}; a=d.get('theme', {}).get('accent', '#007aff'); m=re.match(r'#([0-9a-fA-F]{6})', a); print(m.group(1).lower() if m else ''.join('%02x' % max(0, min(255, int(x))) for x in re.match(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)', a).groups()) if re.match(r'rgba?\(', a) else '007aff')" 2>/dev/null || echo "007aff")
+    local cur_border=$(python3 -c "import tomlkit, os; path=os.path.expanduser('~/.config/hypr/hyprde.toml'); d=tomlkit.load(open(path)) if os.path.exists(path) else {}; print(d.get('general', {}).get('col_active_border', ''))" 2>/dev/null || echo "")
+    local border_rest="${cur_border#* }"
+    [ "$border_rest" = "$cur_border" ] && border_rest=""
+    local active_border="rgba(${accent_rgb}ee)${border_rest:+ $border_rest}"
     local inactive_border="rgba(595959aa)"
 
     if [[ "$new_theme" == *"light"* ]]; then
         theme_name="Light Mode"
         gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
         gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita'
-        active_border="rgba(0066ccee) rgba(003366ee) 45deg"
+        active_border="rgba(${accent_rgb}ee) rgba(003366ee) 45deg"
         inactive_border="rgba(00000044)"
     else
         gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
@@ -61,13 +69,9 @@ set_theme() {
     # Update symlink
     ln -sf "$new_theme" "$CURRENT_SYMLINK"
 
-    # Apply accent color to both theme CSS files
+    # Fan out the accent color to all components (theme vars, wofi, Mako).
     local accent_hex=$(python3 -c "import tomlkit, os; path=os.path.expanduser('~/.config/hypr/hyprde.toml'); d=tomlkit.load(open(path)) if os.path.exists(path) else {}; print(d.get('theme', {}).get('accent', '#007aff'))" 2>/dev/null || echo "#007aff")
-    for css_file in "$THEMES_DIR/dark.css" "$THEMES_DIR/light.css"; do
-        if [ -f "$css_file" ]; then
-            sed -i "s/@define-color theme_accent [^;]*;/@define-color theme_accent ${accent_hex};/" "$css_file"
-        fi
-    done
+    sh "$HOME/.config/hypr/scripts/apply-accent.sh" "$accent_hex" 2>/dev/null || true
 
     # 1. Update Mako config IMMEDIATELY for responsiveness
     local MAKO_DIR="$HOME/.config/mako"
@@ -92,9 +96,10 @@ set_theme() {
         notify-send -t 2000 "System Theme" "Switched to $theme_name"
     fi
 
-    # 2. Apply Hyprland colors immediately, then reload to persist
-    hyprctl keyword general:col.active_border "$active_border"
-    hyprctl keyword general:col.inactive_border "$inactive_border"
+    # 2. Hyprland colors apply via the Lua rebuild + reload below.
+    # NOTE: `hyprctl keyword general:col.*` is a silent no-op on Hyprland
+    # 0.55+ ("keyword can't work with non-legacy parsers"), and gradients
+    # via `hyprctl eval` are rejected in 0.55.4 — so no fast path here.
 
     # 3. Persist choices in hyprde.toml
     python3 - <<EOF

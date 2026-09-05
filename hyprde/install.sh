@@ -18,6 +18,9 @@ install_packages() {
     if [ "$os" == "debian" ]; then
         # Map Arch-style packages to Debian names
         packages=$(echo "$packages" | sed 's/gst-libav/gstreamer1.0-libav/g')
+        packages=$(echo "$packages" | sed 's/gdk-pixbuf2/libgdk-pixbuf-2.0-dev/g')
+        packages=$(echo "$packages" | sed 's/python-tomlkit/python3-tomlkit/g')
+        packages=$(echo "$packages" | sed 's/python-gobject/python3-gi/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-ugly/gstreamer1.0-plugins-ugly/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-good/gstreamer1.0-plugins-good/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-bad/gstreamer1.0-plugins-bad/g')
@@ -35,10 +38,17 @@ install_packages() {
 
     case "$os" in
         arch)
-           sudo pacman -S --noconfirm --needed base-devel $packages || true
+            for pkg in $packages; do
+                sudo pacman -S --noconfirm --needed base-devel "$pkg" || \
+                    echo "⚠️  WARNING: failed to install '$pkg' (continuing)"
+            done
             ;;
         debian)
-            sudo apt install -y --no-install-recommends build-essential $packages || true
+            sudo apt update || echo "⚠️  WARNING: apt update failed (continuing)"
+            for pkg in $packages; do
+                sudo apt install -y --no-install-recommends build-essential "$pkg" || \
+                    echo "⚠️  WARNING: failed to install '$pkg' (continuing)"
+            done
             ;;
         *)
             echo "Unsupported distribution: $os"
@@ -184,7 +194,7 @@ if ! JSON_CONTENT=$(yq < "$CONFIG_FILE" 2>/dev/null); then
 fi
 
 # Parse JSON content using jq (which is part of yq)
-PKGS="gdk-pixbuf2 python-tomlkit polkit-gnome $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
+PKGS="gdk-pixbuf2 python-tomlkit python-gobject polkit-gnome $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
 echo "Now installing $PKGS"
 install_packages $PKGS
 
@@ -246,6 +256,19 @@ if [ -f "$USER_HOME/.config/hypr/hyprde.toml" ]; then
         echo "🔄 Updating system scripts..."
         mkdir -p "$USER_HOME/.config/hypr/scripts"
         cp -rfp ./configs/hypr/scripts/* "$USER_HOME/.config/hypr/scripts/"
+        # Always copy the config builder + generator (they evolve with the schema)
+        cp -fp ./configs/hypr/build_config.py ./configs/hypr/lua_generator.py "$USER_HOME/.config/hypr/"
+        # Migrate known-broken lines in the preserved TOML (idempotent, backup first).
+        # 1. SUPER+C bind: shell redirection (>> ... 2>&1) silently breaks
+        #    hl.dsp.exec_cmd spawns since exec_cmd is not a shell.
+        # 2. Pin the interpreter to /usr/bin/python3: a Nix/home-weave
+        #    python3 first on PATH usually lacks tomlkit/pygobject.
+        if grep -q 'settings_manager.py' "$USER_HOME/.config/hypr/hyprde.toml" 2>/dev/null; then
+            echo "🔧 Migrating SUPER+C bind (redirection + interpreter)..."
+            cp -fp "$USER_HOME/.config/hypr/hyprde.toml" "$USER_HOME/.config/hypr/hyprde.toml.pre-migration.bak"
+            sed -i 's|settings_manager.py >>[^"]*|settings_manager.py|' "$USER_HOME/.config/hypr/hyprde.toml"
+            sed -i 's|exec, python3 \$HOME/.config/hypr/scripts/settings_manager.py|exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py|; s|exec, \$HOME/.config/hypr/scripts/settings_manager.py|exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py|' "$USER_HOME/.config/hypr/hyprde.toml"
+        fi
     else
         echo "📄 No user modifications detected - copying fresh config"
         cp -rfp ./configs/hypr $USER_HOME/.config
