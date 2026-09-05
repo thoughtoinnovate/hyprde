@@ -50,9 +50,7 @@ except ImportError:
 
 try:
     gi.require_version('Gtk', '3.0')
-    gi.require_version('GtkLayerShell', '0.1')
 except (ValueError, ImportError) as e:
-    _missing_dep_exit("Gtk/GtkLayerShell", f"{e}; install gtk3 + gtk-layer-shell")
 
 import signal
 
@@ -95,7 +93,6 @@ def cleanup_lock():
                 pass
     except Exception:
         pass
-from gi.repository import Gtk, Gdk, GtkLayerShell, Gio, GLib, Pango
 
 def get_theme_colors():
     theme_path = os.path.expanduser("~/.config/hypr/themes/current.css")
@@ -154,17 +151,9 @@ class SettingsManager(Gtk.Window):
         if visual:
             self.set_visual(visual)
 
-        try:
-            GtkLayerShell.init_for_window(self)
-            GtkLayerShell.set_namespace(self, "hyprde-settings")
-            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
-            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
-            for edge in [GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT]:
-                GtkLayerShell.set_anchor(self, edge, True)
-        except Exception as e:
-            logger.error(f"GtkLayerShell init failed (continuing as normal window): {e}")
-            _notify_error("HyprDE Settings",
-                          "Layer-shell unavailable, falling back to normal window.")
+        self.set_title("HyprDE Settings")
+        self.set_wmclass("hyprde-settings", "hyprde-settings")
+        self.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
 
         self.init_time = time.time()
         self.connect("destroy", lambda w: (self.cleanup_lock(), Gtk.main_quit()))
@@ -422,16 +411,12 @@ class SettingsManager(Gtk.Window):
         p = Gtk.CssProvider(); p.load_from_data(css); Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def open_picker(self, title, folder=False):
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         action = Gtk.FileChooserAction.SELECT_FOLDER if folder else Gtk.FileChooserAction.OPEN
         dialog = Gtk.FileChooserNative.new(title, self, action, "_Select", "_Cancel"); res = dialog.run()
         path = dialog.get_filename() if res == Gtk.ResponseType.ACCEPT else None; dialog.destroy()
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY); GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
         return path
 
     def open_color_picker(self, title, initial_color=None):
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
-        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         dialog = Gtk.ColorChooserDialog.new(title, None)
         dialog.set_modal(True)
         if initial_color:
@@ -442,8 +427,6 @@ class SettingsManager(Gtk.Window):
         res = dialog.run()
         color = dialog.get_rgba() if res == Gtk.ResponseType.OK else None
         dialog.destroy()
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
         if color:
             return f"rgba({int(color.red*255)}, {int(color.green*255)}, {int(color.blue*255)}, {color.alpha:.2f})"
         return None

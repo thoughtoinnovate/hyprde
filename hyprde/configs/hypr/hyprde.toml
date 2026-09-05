@@ -503,6 +503,8 @@ list = [
 # =============================================================================
 [rules]
 window = [
+    "float, class:^(hyprde-settings)$",
+    "center, class:^(hyprde-settings)$",
     # Picture-in-Picture windows
     "float, class:^(Picture-in-Picture)$",
     "pin, class:^(Picture-in-Picture)$",
