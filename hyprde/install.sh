@@ -306,11 +306,7 @@ ln -sf "$USER_HOME/.config/mako/config.dark" "$USER_HOME/.config/mako/config"
 backup_if_exists "$USER_HOME/.config/waybar" "$BACKUP_DIR" "$USER_HOME"
 cp -rfp ./configs/waybar $USER_HOME/.config
 
-backup_if_exists "$USER_HOME/.config/hyprlauncher" "$BACKUP_DIR" "$USER_HOME"
-cp -rfp ./configs/hyprlauncher $USER_HOME/.config
-
-# Fix Wofi's relative CSS import by forcing the absolute user path
-sed -i "s|@import \"../hypr/themes/current.css\";|@import \"$USER_HOME/.config/hypr/themes/current.css\";|g" "$USER_HOME/.config/hyprlauncher/style.css"
+# Wofi config copy removed as we migrated to hyprlauncher/hyprsearch
 
 backup_if_exists "$USER_HOME/.config/mimeapps.list" "$BACKUP_DIR" "$USER_HOME"
 cp ./configs/mimeapps.list $USER_HOME/.config/
