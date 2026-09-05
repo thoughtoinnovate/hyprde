@@ -45,4 +45,7 @@ case $choice in
     "Power Auto")
         "$HOME/.config/hypr/scripts/power-mode.sh" auto
         ;;
+    "Power Saver")
+        "$HOME/.config/hypr/scripts/power-mode.sh" saver
+        ;;
 esac

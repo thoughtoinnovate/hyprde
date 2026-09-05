@@ -1,6 +1,7 @@
 #!/bin/bash
-# Power Mode switcher: balanced / high / auto (CPU speed only, no kills)
-# auto = AC -> high, battery -> balanced. Boot default: balanced.
+# Power Mode switcher: balanced / high / saver / auto (CPU speed only, no kills)
+# saver  = super power saving: hardware at minimum (cap 30, turbo off, EPP power)
+# auto   = AC -> high, battery -> balanced. Boot default: balanced.
 # State lives in tmpfs so it never persists across reboot (by design).
 
 # Load Icons (best-effort: keep script functional without them)
@@ -11,6 +12,7 @@ fi
 : "${POWER_MODE_BALANCED:=󰾅}"
 : "${POWER_MODE_HIGH:=󰐧}"
 : "${POWER_MODE_AUTO:=󰑮}"
+: "${POWER_ICON_SAVER:=󰈐}"
 
 STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/hyprde"
 STATE_FILE="$STATE_DIR/power-mode"
@@ -29,7 +31,7 @@ get_mode() {
         local m
         m=$(cat "$STATE_FILE" 2>/dev/null | tr -d '[:space:]')
         case "$m" in
-            balanced|high|auto) printf '%s' "$m"; return ;;
+            balanced|high|auto|saver) printf '%s' "$m"; return ;;
         esac
     fi
     printf 'balanced'
@@ -82,6 +84,8 @@ apply_profile() {
     local profile="$1" cap turbo epp
     if [ "$profile" = "high" ]; then
         cap=100; turbo=0; epp="performance"
+    elif [ "$profile" = "saver" ]; then
+        cap=30; turbo=1; epp="power"
     else
         cap=70; turbo=1; epp="balance_power"
     fi
@@ -138,6 +142,10 @@ get_status() {
             icon="$POWER_MODE_HIGH"; class="high"; pct=100
             tooltip="High Performance · cap $cap · $epp · $src"
             ;;
+        saver)
+            icon="$POWER_ICON_SAVER"; class="saver"; pct=20
+            tooltip="Power Saver · cap $cap · $epp · $src"
+            ;;
         auto)
             icon="$POWER_MODE_AUTO"; class="auto"; pct=70
             [ "$profile" = "high" ] && pct=100
@@ -158,9 +166,10 @@ set_mode() {
     [ "$mode" = "auto" ] && profile=$(resolve_auto)
     apply_profile "$profile"
     case "$mode" in
-        high) label="High Performance 🔥 — turbo on, caps off" ;;
-        auto) label="Automatic 🤖 — following power source ($profile)" ;;
-        *)    label="Balanced ⚖️ — cap 70, turbo off" ;;
+        high)  label="High Performance $POWER_MODE_HIGH — turbo on, caps off" ;;
+        saver) label="Power Saver $POWER_ICON_SAVER — hardware at minimum (cap 30)" ;;
+        auto)  label="Automatic $POWER_MODE_AUTO — following power source ($profile)" ;;
+        *)     label="Balanced $POWER_MODE_BALANCED — cap 70, turbo off" ;;
     esac
     notify "Power Mode" "$label"
     get_status
@@ -170,13 +179,14 @@ case "$1" in
     status)
         get_status
         ;;
-    balanced|high|auto)
+    balanced|high|auto|saver)
         set_mode "$1"
         ;;
     cycle)
         case "$(get_mode)" in
             balanced) set_mode "high" ;;
             high)     set_mode "auto" ;;
+            auto)     set_mode "saver" ;;
             *)        set_mode "balanced" ;;
         esac
         ;;
@@ -186,7 +196,7 @@ case "$1" in
         get_status
         ;;
     *)
-        echo "{\"text\": \"Usage: $0 {status|balanced|high|auto|cycle}\", \"class\": \"balanced\"}"
+        echo "{\"text\": \"Usage: $0 {status|balanced|high|auto|saver|cycle}\", \"class\": \"balanced\"}"
         exit 1
         ;;
 esac

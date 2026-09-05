@@ -71,11 +71,11 @@ toggle_tlp() {
   if is_saver_mode "$tlp_out"; then
     # Currently in battery/saver mode -> Switch to AC mode
     sudo tlp ac > /dev/null 2>&1
-    notify-send -t 1500 "Power Mode" "High Performance (AC)"
+    notify-send -t 1500 "Power Mode $POWER_ICON_HIGH" "High Performance (AC)"
   else
     # Currently in AC/Performance mode -> Switch to BAT mode
     sudo tlp bat > /dev/null 2>&1
-    notify-send -t 1500 "Power Mode" "Power Saver (Battery)"
+    notify-send -t 1500 "Power Mode $POWER_ICON_SAVER" "Power Saver (Battery)"
   fi
   get_tlp_status
 }
