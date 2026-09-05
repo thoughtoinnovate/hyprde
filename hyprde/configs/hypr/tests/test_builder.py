@@ -250,12 +250,7 @@ class TestLuaGeneratorCustom(unittest.TestCase):
         lua = lua_generator.generate_user_lua(data)
         self.assertIn("hl.config({ misc = { disable_logo = false } })", lua)
 
-    def test_hyprlang_lines_warned_and_skipped(self):
-        """Test hyprlang lines are commented out in Lua mode."""
-        data = {"custom": {"lines": ["bind = SUPER, Q, exec, kitty"]}}
-        lua = lua_generator.generate_user_lua(data)
-        self.assertIn("IGNORED", lua)
-        self.assertNotIn('hl.bind("SUPER, Q"', lua)
+
 
     def test_empty_custom_skipped(self):
         """Test empty custom section is harmless."""
@@ -530,9 +525,7 @@ class TestBuildConfigValidation(unittest.TestCase):
         warnings = build_config.validate_config({"typo_section": {}})
         self.assertTrue(any("Unknown section" in w for w in warnings))
 
-    def test_deprecated_custom_lines(self):
-        warnings = build_config.validate_config({"custom": {"lines": ["bind = ..."]}})
-        self.assertTrue(any("deprecated" in w for w in warnings))
+
 
     def test_bad_main_mod_warning(self):
         warnings = build_config.validate_config({"binds": {"mainMod": "super"}})

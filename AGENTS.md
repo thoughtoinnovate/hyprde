@@ -48,7 +48,6 @@
   [binds.normal]
   shortcuts = { "SUPER, T" = "exec, kitty", "SUPER, Q" = "killactive" }
   ```
-- `[custom].lines` is **deprecated** in Lua mode. Use `[custom].lua_lines` instead.
 - `mainMod` in `[binds]` must be uppercase (`SUPER`, `ALT`, `CTRL`).
 - If `[monitors]` is omitted, monitors are auto-detected at build time.
 

@@ -831,17 +831,9 @@ def _write_custom(lines: list, data: dict):
     if not custom:
         return
     lua_lines = custom.get("lua_lines", [])
-    hyprlang_lines = custom.get("lines", [])
+
     if lua_lines:
         lines.append("-- [[ Custom Lua Lines ]]")
         lines.extend(lua_lines)
         lines.append("")
-    if hyprlang_lines:
-        logger.warning(
-            "[custom].lines contains hyprlang content which is not valid in Lua mode. "
-            "Use [custom].lua_lines instead."
-        )
-        lines.append("-- [[ WARNING: [custom].lines is ignored in Lua mode ]]")
-        for l in hyprlang_lines:
-            lines.append(f"-- [[ IGNORED: {l} ]]")
-        lines.append("")
+

@@ -274,13 +274,8 @@ def validate_config(data: Dict[str, Any]) -> List[str]:
         if key not in VALID_TOP_LEVEL_SECTIONS:
             warnings.append(f"Unknown section '[{key}]' — check for typos")
 
-    # Warn about deprecated [custom].lines
     custom = data.get("custom", {})
-    if custom.get("lines"):
-        warnings.append(
-            "[custom].lines is deprecated in Lua mode. "
-            "Use [custom].lua_lines instead."
-        )
+
 
     # Check binds section
     binds = data.get("binds", {})
