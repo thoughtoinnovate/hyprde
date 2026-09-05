@@ -38,7 +38,7 @@
             "󰢮"
         ],
         "return-type": "text",
-        "interval": 2,
+        "interval": 15,
         "tooltip-format": "GPU Usage: {text}"
     },
     "memory": {
@@ -55,7 +55,7 @@
         "interval": 5
     },
     "cpu": {
-        "interval": 2,
+        "interval": 15,
         "format": "{icon} {usage}%",
         "format-icons": [
             "󰻠"

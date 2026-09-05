@@ -218,6 +218,7 @@ case "$1" in
         ;;
     balanced|high|auto|saver)
         set_mode "$1"
+    pkill -RTMIN+7 waybar || true
         ;;
     cycle)
         case "$(get_mode)" in

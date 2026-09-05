@@ -26,8 +26,10 @@ toggle() {
   local powered=$(bluetoothctl show 2>/dev/null | grep -i "Powered:" | awk '{print $2}')
   if [ "$powered" = "yes" ]; then
       turn_off
+    pkill -RTMIN+4 waybar || true
   else
       turn_on
+    pkill -RTMIN+4 waybar || true
   fi
 }
 
@@ -51,12 +53,15 @@ case "$1" in
     ;;   
   on)
     turn_on
+    pkill -RTMIN+4 waybar || true
     ;;
   off)
     turn_off
+    pkill -RTMIN+4 waybar || true
     ;;
   toggle)
     toggle
+    pkill -RTMIN+4 waybar || true
     ;;   
   *)
     echo "{\"text\": \"Usage: $0 {status|on|off|toggle}\", \"class\": \"normal\"}"

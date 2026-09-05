@@ -238,10 +238,12 @@ toggle() {
     local mode=$(get_mode)
     if [ "$mode" == "off" ]; then
         turn_on
+    pkill -RTMIN+6 waybar || true
     elif [ "$mode" == "on" ]; then
         turn_auto
     else
         turn_off
+    pkill -RTMIN+6 waybar || true
     fi
 }
 
@@ -252,14 +254,17 @@ case "$1" in
     ;;
   toggle)
     toggle
+    pkill -RTMIN+6 waybar || true
     get_gamma_status
     ;;
   on)
     turn_on
+    pkill -RTMIN+6 waybar || true
     get_gamma_status
     ;;
   off)
     turn_off
+    pkill -RTMIN+6 waybar || true
     get_gamma_status
     ;;
   auto)

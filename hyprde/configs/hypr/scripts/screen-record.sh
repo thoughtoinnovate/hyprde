@@ -121,6 +121,7 @@ case "$1" in
     ;;
   toggle)
     toggle
+    pkill -RTMIN+8 waybar || true
     ;;
   stop)
     stop_recording

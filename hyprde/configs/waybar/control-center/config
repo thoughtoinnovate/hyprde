@@ -54,8 +54,9 @@
 
     "custom/record": {
         "return-type": "json",
-        "interval": 1,
+        "interval": 15,
         "exec": "~/.config/hypr/scripts/screen-record.sh status",
+        "signal": 8,
         "tooltip": true,
         "on-click": "~/.config/hypr/scripts/screen-record.sh toggle",
         "format": "{}"
@@ -63,7 +64,8 @@
     "custom/theme": {
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/theme-ctrl.sh status",
-        "interval": 1,
+        "signal": 5,
+        "interval": 15,
         "on-click": "~/.config/hypr/scripts/theme-ctrl.sh toggle",
         "format": "{}",
         "tooltip": true
@@ -106,13 +108,14 @@
     "custom/wifi": {
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/wifi.sh status",
+        "signal": 3,
         "interval": 3,
         "on-click": "~/.config/hypr/scripts/wifi.sh toggle",
         "format": "{}",
         "tooltip": true
     },
     "battery": {
-        "interval": 1,
+        "interval": 15,
         "states": {
             "warning": 50,
             "critical": 20
@@ -146,6 +149,7 @@
     "custom/bluetooth": {
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/bluetooth.sh status",
+        "signal": 4,
         "interval": 3,
         "on-click": "~/.config/hypr/scripts/bluetooth.sh toggle",
         "on-click-right": "~/.config/hypr/scripts/waybars.sh bluetooth",
@@ -169,7 +173,7 @@
             "󰢮"
         ],
         "return-type": "text",
-        "interval": 1,
+        "interval": 15,
         "tooltip-format": "GPU Usage: {text}"
     },
     "memory": {
@@ -186,7 +190,7 @@
         "interval": 5
     },
     "cpu": {
-        "interval": 1,
+        "interval": 15,
         "format": "{icon} {usage}%",
         "format-icons": [
             "󰻠"
@@ -200,14 +204,15 @@
     },
     "custom/gammastep": {
         "exec": "~/.config/hypr/scripts/gammastep/gamma.sh status",
+        "signal": 6,
         "return-type": "json",
         "on-click": "~/.config/hypr/scripts/gammastep/gamma.sh toggle",
         "format": "{}",
-        "interval": 1,
+        "interval": 15,
         "tooltip": true
     },
     "custom/screenshot": {
-        "interval": 1,
+        "interval": 15,
         "tooltip": true,
         "tooltip-format": "screenshot",
         "on-click": "~/.config/hypr/scripts/screenshot.sh",
@@ -216,8 +221,9 @@
     },
     "custom/mic": {
         "return-type": "json",
-        "interval": 1,
+        "interval": 15,
         "exec": "~/.config/hypr/scripts/mic.sh status cc",
+        "signal": 1,
         "tooltip": true,
         "on-click": "~/.config/hypr/scripts/mic.sh toggle cc",
         "format": "{}"
@@ -237,8 +243,9 @@
     },
     "custom/camera": {
         "return-type": "json",
-        "interval": 1,
+        "interval": 15,
         "exec": "~/.config/hypr/scripts/camera.sh status",
+        "signal": 2,
         "tooltip": true,
         "on-click": "~/.config/hypr/scripts/camera.sh toggle",
         "format": "{}"
