@@ -245,6 +245,11 @@ tooltip label {
     color: @theme_active_fg;
 }
 
+#statusbar .saver, #custom-ps_toggle.saver {
+    background-color: @theme_success_bg;
+    color: @theme_success_fg;
+}
+
 /* Compact pill for power-profile toggle so the bg hugs the icon */
 #statusbar #custom-ps_toggle {
     padding: 0px 4px;

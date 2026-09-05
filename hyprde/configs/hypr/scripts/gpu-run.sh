@@ -3,6 +3,13 @@
 # Usage: gpu-run.sh [command...]   (no args -> app picker via hyprsearch dmenu)
 # Env: DRI_PRIME=1 + AMD_VULKAN_ICD=RADV (Mesa GL + Vulkan radv).
 
+# Load Icons (best-effort: keep script functional without them)
+if [ -f "$HOME/.config/hypr/scripts/hyprrocket.icons" ]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.config/hypr/scripts/hyprrocket.icons"
+fi
+: "${POWER_MODE_HIGH:=󰐧}"
+
 notify() {
     if command -v notify-send >/dev/null 2>&1; then
         notify-send -t 2000 "$1" "$2"
@@ -17,7 +24,7 @@ launch_gpu() {
     disown 2>/dev/null || true
     local renderer
     renderer=$(DRI_PRIME=1 glxinfo -B 2>/dev/null | grep -m1 "renderer string" | cut -d: -f2 | xargs)
-    notify "AMD GPU" "$* ${renderer:+($renderer)}"
+    notify "AMD GPU $POWER_MODE_HIGH" "$* ${renderer:+($renderer)}"
 }
 
 # Direct mode: bypass picker
