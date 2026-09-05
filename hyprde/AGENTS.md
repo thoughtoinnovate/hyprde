@@ -32,5 +32,4 @@
 ### TOML
 - Follow the schema used by `build_config.py`.
 - New sections in TOML must be supported in `build_config.py`.
-- `[custom].lines` is deprecated in Lua mode. Use `[custom].lua_lines` instead.
 - `[binds.normal]` supports shorthand `shortcuts = {}` dict format.

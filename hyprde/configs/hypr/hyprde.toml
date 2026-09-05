@@ -507,9 +507,13 @@ list = [
 window = [
     "float, class:^(hyprde-settings)$",
     "center, class:^(hyprde-settings)$",
-    # Picture-in-Picture windows
-    "float, class:^(Picture-in-Picture)$",
-    "pin, class:^(Picture-in-Picture)$",
+    # Picture-in-Picture windows (class is the browser; match the PiP title).
+    # Static rules match the initial title: Firefox reuses the PiP window, so
+    # a Lua fallback in [custom].lua_lines re-floats retitled windows.
+    "float, title:^(Picture-in-Picture)$",
+    "pin, title:^(Picture-in-Picture)$",
+    "size 25% 25%, title:^(Picture-in-Picture)$",
+    "move 72% 7%, title:^(Picture-in-Picture)$",
     
     # FZF launcher window styling
     "float, class:(com.fzf.launcher)",
@@ -518,4 +522,36 @@ window = [
     "opacity 0.95 0.95, class:(com.fzf.launcher)",
     "animation slide, class:(com.fzf.launcher)",
     "rounding 10, class:(com.fzf.launcher)"
+]
+
+# Per-workspace layouts (Hyprland 0.54+: workspaces keep their own layout,
+# so the global default alone cannot migrate them). Kept in sync with
+# general.layout by layout-ctrl.sh on every toggle.
+workspace = [
+    "1, layout = \"scroll\"",
+    "2, layout = \"scroll\"",
+    "3, layout = \"scroll\"",
+    "4, layout = \"scroll\"",
+    "5, layout = \"scroll\"",
+    "6, layout = \"scroll\"",
+    "7, layout = \"scroll\"",
+    "8, layout = \"scroll\"",
+    "9, layout = \"scroll\"",
+    "10, layout = \"scroll\""
+]
+
+# =============================================================================
+# CUSTOM
+# Verbatim Lua emitted into hyprland.lua
+# =============================================================================
+[custom]
+lua_lines = [
+    "-- PiP fallback: Firefox reuses its PiP window, so static title rules",
+    "-- can miss retitled windows. Re-float + pin anything retitled to PiP.",
+    "hl.on(\"window.title\", function(w)",
+    "    if w and w.title == \"Picture-in-Picture\" then",
+    "        hl.dispatch(hl.dsp.window.float({ action = \"set\", window = w }))",
+    "        hl.dispatch(hl.dsp.window.pin({ window = w }))",
+    "    end",
+    "end)"
 ]
