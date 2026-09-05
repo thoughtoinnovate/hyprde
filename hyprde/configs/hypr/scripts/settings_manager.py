@@ -801,8 +801,29 @@ class SettingsManager(Gtk.Window):
     def build_keyboard(self):
         v = self.build_page_vbox("Keyboard & Touchpad")
         f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
-        for k, l in [('kb_layout','Layout'),('kb_variant','Variant'),('kb_model','Model'),('kb_options','Options'),('kb_rules','Rules')]:
+        for k, l in [('kb_layout','Layout'),('kb_variant','Variant'),('kb_model','Model'),('kb_rules','Rules')]:
             self.widgets[k] = Gtk.Entry(); self.widgets[k].set_text(self.doc['input'].get(k, "")); f.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
+        
+        # Caps Lock Behavior Dropdown (mapped to kb_options)
+        self.widgets['caps_behavior'] = Gtk.ComboBoxText()
+        for opt_id, opt_name in [("", "Default"), ("ctrl:nocaps", "Map to Control"), ("caps:escape", "Map to Escape"), ("caps:swapescape", "Swap Esc and CapsLock")]:
+            self.widgets['caps_behavior'].append(opt_id, opt_name)
+        
+        current_opts = self.doc['input'].get('kb_options', "")
+        # Try to match the current options to our dropdown, otherwise fallback to Default
+        matched = False
+        for opt_id in ["ctrl:nocaps", "caps:escape", "caps:swapescape"]:
+            if opt_id in current_opts:
+                self.widgets['caps_behavior'].set_active_id(opt_id)
+                matched = True
+                break
+        if not matched: self.widgets['caps_behavior'].set_active_id("")
+        
+        f.pack_start(self.create_row("Caps Lock Behavior", self.widgets['caps_behavior']), False, False, 0)
+        
+        # Keep kb_options entry for advanced users
+        self.widgets['kb_options'] = Gtk.Entry(); self.widgets['kb_options'].set_text(current_opts); f.pack_start(self.create_row("Advanced Options String", self.widgets['kb_options']), False, False, 0)
+        
         v.pack_start(f, False, False, 0)
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         self.widgets['natural_scroll'] = Gtk.Switch(); self.widgets['natural_scroll'].set_active(self._tg('input.touchpad','natural_scroll',False)); f2.pack_start(self.create_row("Natural Scrolling (Touchpad)", self.widgets['natural_scroll']), False, False, 0)
@@ -890,7 +911,7 @@ class SettingsManager(Gtk.Window):
         self.widgets['nl_temp_day'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1000, 10000, 100)
         self.widgets['nl_temp_day'].set_value(self._tg('nightlight','temp_day',6500)); self.widgets['nl_temp_day'].set_draw_value(True); self.widgets['nl_temp_day'].set_size_request(220,-1); f.pack_start(self.create_row("Day Temp (K)", self.widgets['nl_temp_day']), False, False, 0)
         self.widgets['nl_temp_night'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1000, 10000, 100)
-        self.widgets['nl_temp_night'].set_value(self._tg('nightlight','temp_night',3400)); self.widgets['nl_temp_night'].set_draw_value(True); self.widgets['nl_temp_night'].set_size_request(220,-1); f.pack_start(self.create_row("Night Temp (K)", self.widgets['nl_temp_night']), False, False, 0)
+        self.widgets['nl_temp_night'].set_value(self._tg('nightlight','temp_night',3400)); self.widgets['nl_temp_night'].set_draw_value(True); self.widgets['nl_temp_night'].set_size_request(220,-1); f.pack_start(self.create_row("Night Strength / Temp (K)", self.widgets['nl_temp_night']), False, False, 0)
         v.pack_start(f, False, False, 0); return v
 
     def build_autostart(self):
@@ -1339,9 +1360,21 @@ class SettingsManager(Gtk.Window):
             self.doc['animations'][k] = self.widgets[f'anim_{k}'].get_text()
         self.doc['animations']['enabled'] = self.widgets['anim_enabled'].get_active()
 
-        # Input / Keyboard
-        for k in ['kb_layout','kb_variant','kb_model','kb_options','kb_rules']:
+        # Input
+        for k in ['kb_layout','kb_variant','kb_model','kb_rules']:
             self.doc['input'][k] = self.widgets[k].get_text()
+            
+        adv_opts = self.widgets['kb_options'].get_text()
+        caps_opt = self.widgets['caps_behavior'].get_active_id() or ""
+        
+        # Remove existing caps options from adv_opts string
+        import re
+        adv_opts = re.sub(r'ctrl:nocaps|caps:escape|caps:swapescape', '', adv_opts)
+        adv_opts = ','.join(filter(bool, [x.strip() for x in adv_opts.split(',')]))
+        
+        final_opts = f"{caps_opt},{adv_opts}" if caps_opt and adv_opts else (caps_opt or adv_opts)
+        self.doc['input']['kb_options'] = final_opts
+        
         if 'input' not in self.doc: self.doc['input'] = tomlkit.table()
         if 'touchpad' not in self.doc['input']: self.doc['input']['touchpad'] = tomlkit.table()
         self.doc['input']['touchpad']['natural_scroll'] = self.widgets['natural_scroll'].get_active()
