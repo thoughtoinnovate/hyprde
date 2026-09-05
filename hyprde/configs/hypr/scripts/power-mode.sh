@@ -233,8 +233,43 @@ case "$1" in
         [ "$(get_mode)" = "auto" ] && { apply_profile "$(resolve_auto)"; }
         get_status
         ;;
+    install-auto)
+        # systemd user timer: re-evaluate auto mode every 60s (AC plug/unplug,
+        # resume from suspend). Cheap: two sysfs reads + one upower call.
+        unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+        mkdir -p "$unit_dir"
+        cat > "$unit_dir/hyprde-power-auto.service" <<'EOF'
+[Unit]
+Description=HyprDE power-mode auto re-evaluation
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/hypr/scripts/power-mode.sh --event
+EOF
+        cat > "$unit_dir/hyprde-power-auto.timer" <<'EOF'
+[Unit]
+Description=HyprDE power-mode auto re-evaluation timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+EOF
+        systemctl --user daemon-reload
+        systemctl --user enable --now hyprde-power-auto.timer
+        notify "Power Mode" "Automatic switching installed (60s poll)"
+        ;;
+    uninstall-auto)
+        systemctl --user disable --now hyprde-power-auto.timer 2>/dev/null || true
+        rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/hyprde-power-auto.service" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/hyprde-power-auto.timer"
+        systemctl --user daemon-reload
+        notify "Power Mode" "Automatic switching removed"
+        ;;
     *)
-        echo "{\"text\": \"Usage: $0 {status|balanced|high|auto|saver|cycle}\", \"class\": \"balanced\"}"
+        echo "{\"text\": \"Usage: $0 {status|balanced|high|auto|saver|cycle|install-auto|uninstall-auto}\", \"class\": \"balanced\"}"
         exit 1
         ;;
 esac
