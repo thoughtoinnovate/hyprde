@@ -377,7 +377,7 @@ list = [
     "$mainMod, E, exec, $fileManager",                   # Open file manager
     "$mainMod, V, togglefloating,",                       # Toggle floating
     "$mainMod, L, exec, hyprlock",                       # Lock screen
-    "$mainMod, P, layoutmsg, promote",                    # Promote to new column (Scroll layout)
+    "$mainMod, P, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh promote",                    # Promote to new column (Scroll layout)
     "$mainMod, J, exec, $HOME/.config/hypr/scripts/toggle-split.sh",                          # Toggle split (Dwindle/Scroll safe)
     
     # Focus movement
@@ -428,18 +428,18 @@ list = [
     "$mainMod ALT, down, movewindow, d",
     
     # Scroll Layout Control
-    "$mainMod, comma, layoutmsg, consume_or_expel prev",
-    "$mainMod, period, layoutmsg, consume_or_expel prev",
-    "$mainMod SHIFT, period, layoutmsg, promote",
-    "$mainMod SHIFT, comma, layoutmsg, swapcol l",
-    "$mainMod CTRL, comma, layoutmsg, consume",
-    "$mainMod CTRL, period, layoutmsg, expel",
-    "$mainMod, R, layoutmsg, colresize +conf",
-    "$mainMod, F, layoutmsg, togglefit",
+    "$mainMod, comma, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh consume_or_expel prev",
+    "$mainMod, period, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh consume_or_expel prev",
+    "$mainMod SHIFT, period, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh promote",
+    "$mainMod SHIFT, comma, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh swapcol l",
+    "$mainMod CTRL, comma, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh consume",
+    "$mainMod CTRL, period, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh expel",
+    "$mainMod, R, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh colresize +conf",
+    "$mainMod, F, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh togglefit",
     
     # Layout control (Universal/Other)
-    "$mainMod, K, layoutmsg, promote",
-    "$mainMod, A, layoutmsg, consume",
+    "$mainMod, K, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh promote",
+    "$mainMod, A, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh consume",
     
     # (SUPER+G freed - hyprexpo plugin not enabled)
     
