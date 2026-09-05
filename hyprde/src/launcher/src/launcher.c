@@ -21,7 +21,7 @@ typedef struct {
 } DockConfig;
 
 typedef struct {
-    char *name; char *name_lower; char *icon; char *exec; GAppInfo *info; GtkWidget *label;
+    char *name; char *name_lower; char *icon; char *exec; GAppInfo *info; GtkWidget *label; int is_running;
 } App;
 
 /* Globals */
@@ -81,12 +81,30 @@ void launch_app(App *app) {
     if (is_pin_mode) { pin_app(app); return; }
     if (strcmp(current_mode, "dmenu") == 0 || strcmp(current_mode, "power-menu") == 0) {
         printf("%s\n", app->name); fflush(stdout);
-    } else if (app->exec) {
-        system(app->exec);
-    } else if (app->info) {
-        GdkAppLaunchContext *context = gdk_display_get_app_launch_context(gdk_display_get_default());
-        g_app_info_launch(app->info, NULL, G_APP_LAUNCH_CONTEXT(context), NULL);
-        g_object_unref(context);
+    } else {
+        if (strcmp(current_mode, "dock") == 0) {
+            char *desktop_id = app->info ? g_strdup(g_app_info_get_id(app->info)) : g_strdup(app->name);
+            char *dot = strstr(desktop_id, ".desktop");
+            if (dot) *dot = '\0';
+            
+            char *cmd = g_strdup_printf("~/.config/hypr/scripts/dock-focus.sh \"%s\" \"%s\"", app->name, desktop_id);
+            int ret = system(cmd);
+            g_free(desktop_id);
+            g_free(cmd);
+            
+            if (ret == 0) {
+                quit_launcher();
+                return;
+            }
+        }
+        
+        if (app->exec) {
+            system(app->exec);
+        } else if (app->info) {
+            GdkAppLaunchContext *context = gdk_display_get_app_launch_context(gdk_display_get_default());
+            g_app_info_launch(app->info, NULL, G_APP_LAUNCH_CONTEXT(context), NULL);
+            g_object_unref(context);
+        }
     }
     if (strcmp(current_mode, "dock") != 0) quit_launcher();
 }
