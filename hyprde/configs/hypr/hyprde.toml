@@ -378,7 +378,7 @@ list = [
     "$mainMod, V, togglefloating,",                       # Toggle floating
     "$mainMod, L, exec, hyprlock",                       # Lock screen
     "$mainMod, P, layoutmsg, promote",                    # Promote to new column (Scroll layout)
-    "$mainMod, J, layoutmsg, consume_or_expel prev",                          # Toggle split (Dwindle)
+    "$mainMod, J, exec, $HOME/.config/hypr/scripts/toggle-split.sh",                          # Toggle split (Dwindle/Scroll safe)
     
     # Focus movement
     "$mainMod, left, movefocus, l",
