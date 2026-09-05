@@ -246,8 +246,22 @@ VALID_TOP_LEVEL_SECTIONS = {
     "monitors", "programs", "autostart", "wallpapers", "lockscreen", "idle",
     "nightlight", "plugins", "plugin", "scrolling", "launcher", "hyprrocket",
     "gesture", "submaps", "env", "input", "general", "decoration", "animations",
-    "dwindle", "master", "misc", "binds", "rules", "custom",
-    "theme", "appearance",
+    "dwindle", "master", "misc", "binds", "binds_config", "rules", "custom", "color",
+    "theme", "appearance", "group", "cursor", "render", "ecosystem", "debug",
+    "devices", "permission", "permissions",
+}
+
+# Sections intentionally kept TOML-only (handled by scripts/sidecars, not hl.config).
+# See lua_generator.EXTERNAL_SECTIONS for manager mapping.
+EXTERNAL_MANAGERS = {
+    "theme": "theme-ctrl.sh + ~/.config/hypr/themes/current.css",
+    "appearance": "theme-ctrl.sh + Waybar/Wofi CSS",
+    "launcher": "hyprsearch binary reads [launcher] live from TOML",
+    "hyprrocket": "systemd timers via generate_hyrocket_systemd_units()",
+    "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
+    "lockscreen": "hyprlock.conf",
+    "idle": "hypridle.conf",
+    "nightlight": "gammastep/gamma.sh via screen_shader",
 }
 
 
@@ -281,6 +295,14 @@ def validate_config(data: Dict[str, Any]) -> List[str]:
         for rule in monitors.get("rules", []):
             if rule.count(",") < 1:
                 warnings.append(f"Monitor rule seems malformed (needs at least 2 comma-separated fields): {rule}")
+
+    # Info: external (TOML-only) sections are not emitted to hyprland.lua by design.
+    for key in data:
+        if key in EXTERNAL_MANAGERS:
+            warnings.append(
+                f"Section '[{key}]' is managed externally ({EXTERNAL_MANAGERS[key]}), "
+                f"not emitted to hyprland.lua — intentional."
+            )
 
     return warnings
 
@@ -563,7 +585,7 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
     idle = data["idle"]
 
     lock_cmd = "pidof hyprlock || hyprlock"
-    before_sleep = "loginctl lock-session"
+    before_sleep = "loginctl lock-session && sleep 1"
     after_sleep = "hyprctl dispatch 'hl.dsp.dpms(\"on\")'"
 
     lock_timeout = idle.get("lock_timeout", 300)
@@ -611,7 +633,12 @@ def generate_hyrocket_systemd_units(data: Dict[str, Any]) -> None:
     if "hyprrocket" not in data:
         return
 
-    events = data["hyprrocket"].get("events", {})
+    rocket = data["hyprrocket"]
+    if rocket.get("enabled", True) is False:
+        logger.info("HyprRocket disabled — skipping systemd units.")
+        return
+
+    events = rocket.get("events", {})
     if not events:
         return
 
@@ -619,13 +646,39 @@ def generate_hyrocket_systemd_units(data: Dict[str, Any]) -> None:
     systemd_dir = os.path.expanduser("~/.config/systemd/user")
     os.makedirs(systemd_dir, exist_ok=True)
 
+    enabled_timers = []
+    disabled_timers = []
     for name, ev in events.items():
+        if not isinstance(ev, dict):
+            logger.warning(f"HyprRocket event '{name}' is not a table — skipped.")
+            continue
+        if ev.get("enabled", True) is False:
+            logger.info(f"HyprRocket event '{name}' disabled — skipping timer.")
+            disabled_timers.append(f"hyprrocket@{name}.timer")
+            continue
         trigger = ev.get("trigger", "")
         if not trigger:
+            logger.warning(f"HyprRocket event '{name}' missing trigger — skipped.")
             continue
+        # Optional: days="Mon..Fri" or "Mon,Wed,Fri"; description free text.
+        days = str(ev.get("days", "") or "").strip()
+        description = str(ev.get("description", "") or "").strip()
+        if days:
+            on_calendar = f"{days} *-*-* {trigger}:00"
+        else:
+            on_calendar = f"*-*-* {trigger}:00"
+        # Breaking schema: actions[] list only (no singular action string).
+        actions = ev.get("actions", [])
+        if not actions:
+            logger.warning(
+                f"HyprRocket event '{name}' has no actions[] — timer still created but will no-op."
+            )
 
+        unit_desc = f"HyprRocket {name} - Event Bus Handler"
+        if description:
+            unit_desc += f" ({description})"
         service_content = f"""[Unit]
-Description=HyprRocket {name} - Event Bus Handler
+Description={unit_desc}
 After=graphical-session.target
 
 [Service]
@@ -639,7 +692,7 @@ ExecStart=%h/.config/hypr/scripts/hyprrocket.sh --trigger {name}
 Description=HyprRocket {name} - Event Bus Timer
 
 [Timer]
-OnCalendar=*-*-* {trigger}:00
+OnCalendar={on_calendar}
 Persistent=true
 
 [Install]
@@ -647,8 +700,42 @@ WantedBy=timers.target
 """
         timer_path = os.path.join(systemd_dir, f"hyprrocket@{name}.timer")
         atomic_write(timer_path, timer_content)
+        enabled_timers.append(f"hyprrocket@{name}.timer")
 
     logger.info(f"Generated HyprRocket systemd units in {systemd_dir}")
+
+    # Disable timers for events with enabled=false (stale units from
+    # previous runs must not keep firing).
+    for timer in disabled_timers:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "disable", "--now", timer],
+                capture_output=True, timeout=15,
+            )
+            logger.info(f"Disabled HyprRocket timer: {timer}")
+        except Exception as e:
+            logger.warning(f"Could not disable {timer}: {e}")
+
+    # Reload + enable timers when systemd user instance is available.
+    for timer in enabled_timers:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "daemon-reload"],
+                capture_output=True, timeout=10,
+            )
+            break
+        except Exception as e:
+            logger.warning(f"systemctl daemon-reload failed: {e}")
+            return
+    for timer in enabled_timers:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "enable", "--now", timer],
+                capture_output=True, timeout=15,
+            )
+            logger.info(f"Enabled HyprRocket timer: {timer}")
+        except Exception as e:
+            logger.warning(f"Could not enable {timer}: {e}")
 
 def generate_css_overrides(data: Dict[str, Any]) -> None:
     decoration = data.get("decoration", {})

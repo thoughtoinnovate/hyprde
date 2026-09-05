@@ -11,6 +11,45 @@ import build_config
 import lua_generator
 
 
+_TEST_TMPDIR = None
+_TEST_PATCHES = []
+
+
+def setUpModule():
+    """Redirect all build_config output paths into a temp dir.
+
+    Safety net: any test that forgets to mock atomic_write or patch a
+    path constant must never touch the user's live ~/.config/hypr.
+    Per-test patches applied later still take precedence.
+    """
+    global _TEST_TMPDIR
+    _TEST_TMPDIR = tempfile.mkdtemp(prefix="hyprde-test-config-")
+    targets = {
+        "LUA_CONF": os.path.join(_TEST_TMPDIR, "hyprland.lua"),
+        "HYPRIDLE_CONF": os.path.join(_TEST_TMPDIR, "hypridle.conf"),
+        "HYPRLOCK_CONF": os.path.join(_TEST_TMPDIR, "hyprlock.conf"),
+        "HYPRPAPER_CONF": os.path.join(_TEST_TMPDIR, "hyprpaper.conf"),
+        "OLD_CONFIGS": [
+            os.path.join(_TEST_TMPDIR, "hyprland.conf"),
+            os.path.join(_TEST_TMPDIR, "hyprland.base.conf"),
+            os.path.join(_TEST_TMPDIR, "hyprde.generated.conf"),
+        ],
+    }
+    for name, value in targets.items():
+        p = patch.object(build_config, name, value)
+        p.start()
+        _TEST_PATCHES.append(p)
+
+
+def tearDownModule():
+    for p in _TEST_PATCHES:
+        p.stop()
+    _TEST_PATCHES.clear()
+    if _TEST_TMPDIR and os.path.isdir(_TEST_TMPDIR):
+        import shutil
+        shutil.rmtree(_TEST_TMPDIR, ignore_errors=True)
+
+
 class TestLuaGeneratorBasic(unittest.TestCase):
     """Tests for the Lua generator core."""
 
@@ -231,8 +270,9 @@ class TestLuaGeneratorAutostart(unittest.TestCase):
         """Test exec_once items become hl.on handlers using exec_cmd."""
         data = {"autostart": {"exec_once": ["waybar", "mako"]}}
         lua = lua_generator.generate_user_lua(data)
-        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_cmd("waybar") end)', lua)
-        self.assertIn('hl.on("hyprland.start", function() hl.dsp.exec_cmd("mako") end)', lua)
+        self.assertIn('hl.on("hyprland.start", function()', lua)
+        self.assertIn('hl.dispatch(hl.dsp.exec_cmd("waybar"))', lua)
+        self.assertIn('hl.dispatch(hl.dsp.exec_cmd("mako"))', lua)
 
     def test_autostart_resolves_program_vars(self):
         """Test $notification_service is resolved in autostart."""
@@ -634,7 +674,13 @@ class TestGeneratedLuaEndToEnd(unittest.TestCase):
 
     @patch("lua_generator._is_plugin_installed", return_value=False)
     def test_togglesplit_has_default_arg(self, mock_plugin):
-        lua = lua_generator.generate_user_lua(self.data)
+        data = {
+            "binds": {
+                "mainMod": "SUPER",
+                "normal": {"list": ["$mainMod, J, togglesplit,"]},
+            }
+        }
+        lua = lua_generator.generate_user_lua(data)
         self.assertIn('hl.dsp.layout("togglesplit")', lua)
 
     @patch("lua_generator._is_plugin_installed", return_value=False)
@@ -646,6 +692,114 @@ class TestGeneratedLuaEndToEnd(unittest.TestCase):
     def test_togglefloating_uses_action_toggle(self, mock_plugin):
         lua = lua_generator.generate_user_lua(self.data)
         self.assertIn('hl.dsp.window.float({ action = "toggle" })', lua)
+
+
+class TestLuaGeneratorExecShellWrap(unittest.TestCase):
+    """exec binds with shell metachars must be wrapped in sh -c."""
+
+    def test_redirection_wrapped(self):
+        data = {"binds": {"mainMod": "SUPER", "normal": {"list": [
+            "$mainMod, C, exec, python3 $HOME/.config/hypr/scripts/settings_manager.py >>$HOME/.config/hypr/settings.log 2>&1",
+        ]}}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn("sh -c 'python3", lua)
+        self.assertNotIn('hl.dsp.exec_cmd("python3 /', lua.split("sh -c")[0][-200:])
+
+    def test_plain_exec_not_wrapped(self):
+        data = {"binds": {"mainMod": "SUPER", "normal": {"list": [
+            "$mainMod, T, exec, kitty",
+        ]}}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn('hl.dsp.exec_cmd("kitty")', lua)
+        self.assertNotIn("sh -c", lua)
+
+
+class TestLuaGeneratorPassthrough(unittest.TestCase):
+    """New hl.config groups + device/permission/workspace-rule emitters."""
+
+    def test_group_cursor_render_debug_ecosystem(self):
+        data = {
+            "group": {"groupbar": {"enabled": True}},
+            "cursor": {"no_hardware_cursors": True},
+            "render": {"explicit_sync": 1},
+            "ecosystem": {"enforce_permissions": True},
+            "debug": {"damage_tracking": 1},
+        }
+        lua = lua_generator.generate_user_lua(data)
+        for key in ("groupbar", "no_hardware_cursors", "explicit_sync",
+                    "enforce_permissions", "damage_tracking"):
+            self.assertIn(key, lua)
+
+    def test_binds_options(self):
+        data = {"binds": {"mainMod": "SUPER",
+                          "options": {"allow_workspace_cycles": True},
+                          "normal": {"list": []}}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn("allow_workspace_cycles = true", lua)
+
+    def test_devices(self):
+        data = {"devices": {"my-kb": {"sensitivity": 0.5, "natural_scroll": True}}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn("hl.device(", lua)
+        self.assertIn('name = "my-kb"', lua)
+
+    def test_permissions(self):
+        data = {"permission": [{"binary": "firefox", "type": "screencopy", "mode": "allow"}]}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn('hl.permission("firefox", "screencopy", "allow")', lua)
+
+    def test_workspace_rules(self):
+        data = {"rules": {"workspace": ["name:code, monitor = DP-1, persistent = true"]}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn("hl.workspace_rule({ workspace =", lua)
+        self.assertIn("persistent = true", lua)
+
+
+class TestBuildConfigHyprrocketOptions(unittest.TestCase):
+    """Per-event enabled/days/description generate correct systemd units."""
+
+    def test_disabled_event_skips_timer(self):
+        data = {"hyprrocket": {"enabled": True, "events": {
+            "night": {"trigger": "22:00", "actions": ["true"], "enabled": False},
+        }}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("os.path.expanduser", return_value=tmp):
+                with patch("subprocess.run"):
+                    build_config.generate_hyrocket_systemd_units(data)
+                    self.assertFalse(os.path.exists(os.path.join(tmp, "hyprrocket@night.timer")))
+
+    def test_days_in_oncalendar(self):
+        data = {"hyprrocket": {"enabled": True, "events": {
+            "work": {"trigger": "09:00", "actions": ["true"], "days": "Mon..Fri"},
+        }}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("os.path.expanduser", return_value=tmp):
+                with patch("subprocess.run"):
+                    build_config.generate_hyrocket_systemd_units(data)
+                    with open(os.path.join(tmp, "hyprrocket@work.timer")) as f:
+                        content = f.read()
+                    self.assertIn("OnCalendar=Mon..Fri *-*-* 09:00:00", content)
+
+    def test_new_sections_validate_clean(self):
+        warnings = build_config.validate_config(
+            {"devices": {}, "permission": [], "group": {}, "ecosystem": {}})
+        self.assertFalse(any("Unknown section" in w for w in warnings))
+
+
+class TestSuiteIsolation(unittest.TestCase):
+    """Guard: the suite must never write to the live ~/.config/hypr."""
+
+    def test_output_paths_redirected_to_tmp(self):
+        home = os.path.expanduser("~/.config/hypr")
+        for path in (build_config.LUA_CONF, build_config.HYPRIDLE_CONF,
+                     build_config.HYPRLOCK_CONF, build_config.HYPRPAPER_CONF):
+            self.assertNotEqual(os.path.dirname(path), home.rstrip("/"),
+                                f"{path} points at the live config dir")
+            self.assertTrue(path.startswith(tempfile.gettempdir()),
+                            f"{path} is not inside the system temp dir")
+        for path in build_config.OLD_CONFIGS:
+            self.assertTrue(path.startswith(tempfile.gettempdir()),
+                            f"{path} is not inside the system temp dir")
 
 
 if __name__ == '__main__':
