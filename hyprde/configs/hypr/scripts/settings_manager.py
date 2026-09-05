@@ -134,6 +134,7 @@ def get_theme_colors():
 class SettingsManager(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.connect("key-press-event", self.on_key_press)
         self.config_path = os.path.expanduser("~/.config/hypr/hyprde.toml")
         self.load_config()
         # Older/preserved TOMLs may lack sections added later; every page
@@ -283,6 +284,13 @@ class SettingsManager(Gtk.Window):
     def cleanup_lock(self):
         cleanup_lock()
 
+    def on_key_press(self, widget, event):
+        from gi.repository import Gdk
+        if event.keyval == Gdk.KEY_Escape:
+            self.close_window()
+            return True
+        return False
+
     def close_window(self):
         self.cleanup_lock()
         self.main_box.get_style_context().add_class("closing")
@@ -291,6 +299,8 @@ class SettingsManager(Gtk.Window):
     def apply_css(self):
         c = get_theme_colors()
         css = f"""
+        @define-color accent_color {c['accent']};
+        @define-color accent_bg_color {c['accent']};
         window {{ background-color: transparent; }}
         #bg-overlay {{ background-color: rgba(0,0,0,0.5); animation: backdrop-in 240ms ease-out; }}
         @keyframes backdrop-in {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
