@@ -904,48 +904,91 @@ class SettingsManager(Gtk.Window):
         return v
 
     def build_hyprrocket(self):
-        v = self.build_page_vbox("Event Bus (Hyprrocket)")
+        v = self.build_page_vbox("Scheduled Routines")
         f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
         self.widgets['rocket_enabled'] = Gtk.Switch()
         self.widgets['rocket_enabled'].set_active(self._tg('hyprrocket', 'enabled', True))
-        f.pack_start(self.create_row("Enable Event Bus", self.widgets['rocket_enabled']), False, False, 0)
+        f.pack_start(self.create_row("Enable Scheduler", self.widgets['rocket_enabled']), False, False, 0)
         v.pack_start(f, False, False, 0)
+
+        self.widgets['rocket_routines_box'] = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        v.pack_start(self.widgets['rocket_routines_box'], False, False, 0)
+
+        add_btn = Gtk.Button(label="+ Add Routine")
+        add_btn.get_style_context().add_class("picker")
+        add_btn.connect("clicked", self.on_add_rocket_routine)
+        v.pack_start(add_btn, False, False, 0)
 
         events = {}
         try:
             rocket = self.doc.get('hyprrocket', {})
             if isinstance(rocket, dict):
-                raw = rocket.get('events', {})
-                if isinstance(raw, dict):
-                    events = raw
+                events = rocket.get('events', {})
+                if not isinstance(events, dict): events = {}
         except Exception:
             events = {}
-        self.widgets['rocket_event_names'] = list(events.keys())
-        if events:
-            for name, ev in events.items():
-                ef = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); ef.get_style_context().add_class("group-frame")
-                title = Gtk.Label(label=f"Event: {name}"); title.set_xalign(0); title.set_margin_bottom(6)
-                ef.pack_start(title, False, False, 0)
-                trig = Gtk.Entry(); trig.set_text(str(ev.get('trigger', '')) if isinstance(ev, dict) else "")
-                trig.set_placeholder_text("HH:MM (24h)")
-                self.widgets[f'rocket_trigger_{name}'] = trig
-                ef.pack_start(self.create_row("Trigger", trig), False, False, 0)
-                days = Gtk.Entry(); days.set_text(str(ev.get('days', '')) if isinstance(ev, dict) else "")
-                days.set_placeholder_text("Optional: Mon..Fri")
-                self.widgets[f'rocket_days_{name}'] = days
-                ef.pack_start(self.create_row("Days", days), False, False, 0)
-                on = Gtk.Switch(); on.set_active(bool(ev.get('enabled', True)) if isinstance(ev, dict) else True)
-                self.widgets[f'rocket_on_{name}'] = on
-                ef.pack_start(self.create_row("Enabled", on), False, False, 0)
-                v.pack_start(ef, False, False, 0)
-        else:
-            hint = Gtk.Label(label="No events defined. Add [hyprrocket.events.<name>] tables in hyprde.toml with trigger + actions[].")
-            hint.set_xalign(0); hint.set_line_wrap(True); hint.set_opacity(0.6)
-            v.pack_start(hint, False, False, 0)
-        note = Gtk.Label(label="Actions[] are edited in hyprde.toml. Apply rebuilds systemd timers (hyprrocket@<name>.timer).")
-        note.set_xalign(0); note.set_line_wrap(True); note.set_opacity(0.6); note.set_margin_top(8)
-        v.pack_start(note, False, False, 0)
+            
+        self.widgets['rocket_events_list'] = []
+        for name, ev in events.items():
+            self.add_rocket_routine_ui(name, ev)
+
         return v
+
+    def on_add_rocket_routine(self, btn):
+        dialog = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL, text="New Routine Name (e.g. morning)")
+        entry = Gtk.Entry(); entry.set_placeholder_text("routine_name"); entry.show()
+        dialog.get_content_area().pack_start(entry, True, True, 0)
+        res = dialog.run()
+        name = entry.get_text().strip()
+        dialog.destroy()
+        if res == Gtk.ResponseType.OK and name:
+            self.add_rocket_routine_ui(name, {})
+
+    def add_rocket_routine_ui(self, name, ev):
+        ef = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); ef.get_style_context().add_class("group-frame")
+        
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        title = Gtk.Label(label=f"Routine: {name}"); title.set_xalign(0); title.set_margin_bottom(6)
+        title.get_style_context().add_class("section-title")
+        del_btn = Gtk.Button.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.BUTTON)
+        del_btn.get_style_context().add_class("destructive-action")
+        header.pack_start(title, True, True, 0)
+        header.pack_end(del_btn, False, False, 0)
+        ef.pack_start(header, False, False, 0)
+        
+        trig = Gtk.Entry(); trig.set_text(str(ev.get('trigger', '')) if isinstance(ev, dict) else "")
+        trig.set_placeholder_text("HH:MM (e.g. 09:00)")
+        ef.pack_start(self.create_row("Time (24h)", trig), False, False, 0)
+        
+        days = Gtk.Entry(); days.set_text(str(ev.get('days', '')) if isinstance(ev, dict) else "")
+        days.set_placeholder_text("Optional: Mon-Fri")
+        ef.pack_start(self.create_row("Days", days), False, False, 0)
+        
+        on = Gtk.Switch(); on.set_active(bool(ev.get('enabled', True)) if isinstance(ev, dict) else True)
+        ef.pack_start(self.create_row("Enabled", on), False, False, 0)
+        
+        act_lbl = Gtk.Label(label="Actions (one shell command per line):"); act_lbl.set_xalign(0); act_lbl.set_margin_top(5)
+        ef.pack_start(act_lbl, False, False, 0)
+        
+        act_view = Gtk.TextView(); act_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        actions_list = ev.get('actions', []) if isinstance(ev, dict) else []
+        if isinstance(actions_list, list):
+            act_view.get_buffer().set_text("\n".join(str(a) for a in actions_list))
+        
+        scroll = Gtk.ScrolledWindow(); scroll.set_min_content_height(80); scroll.add(act_view)
+        ef.pack_start(scroll, True, True, 0)
+        
+        ui_obj = {'name': name, 'box': ef, 'trig': trig, 'days': days, 'on': on, 'actions': act_view}
+        self.widgets['rocket_events_list'].append(ui_obj)
+        
+        del_btn.connect("clicked", lambda x: self.remove_rocket_routine_ui(ui_obj))
+        
+        self.widgets['rocket_routines_box'].pack_start(ef, False, False, 0)
+        self.widgets['rocket_routines_box'].show_all()
+
+    def remove_rocket_routine_ui(self, ui_obj):
+        self.widgets['rocket_events_list'].remove(ui_obj)
+        ui_obj['box'].destroy()
 
     def build_environment(self):
         v = self.build_page_vbox("Environment Variables")
@@ -1268,24 +1311,29 @@ class SettingsManager(Gtk.Window):
         # Hyprrocket event bus
         if 'hyprrocket' not in self.doc: self.doc['hyprrocket'] = tomlkit.table()
         self.doc['hyprrocket']['enabled'] = self.widgets['rocket_enabled'].get_active()
-        for name in self.widgets.get('rocket_event_names', []):
-            if 'events' not in self.doc['hyprrocket']:
-                self.doc['hyprrocket']['events'] = tomlkit.table()
-            if name not in self.doc['hyprrocket']['events']:
-                self.doc['hyprrocket']['events'][name] = tomlkit.table()
-            trig_widget = self.widgets.get(f'rocket_trigger_{name}')
-            days_widget = self.widgets.get(f'rocket_days_{name}')
-            on_widget = self.widgets.get(f'rocket_on_{name}')
-            if trig_widget is not None:
-                self.doc['hyprrocket']['events'][name]['trigger'] = trig_widget.get_text().strip()
-            if days_widget is not None:
-                days_val = days_widget.get_text().strip()
-                if days_val:
-                    self.doc['hyprrocket']['events'][name]['days'] = days_val
-                elif 'days' in self.doc['hyprrocket']['events'][name]:
-                    del self.doc['hyprrocket']['events'][name]['days']
-            if on_widget is not None:
-                self.doc['hyprrocket']['events'][name]['enabled'] = on_widget.get_active()
+        
+        events_table = tomlkit.table()
+        for ui_obj in self.widgets.get('rocket_events_list', []):
+            name = ui_obj['name']
+            ev_table = tomlkit.table()
+            ev_table['trigger'] = ui_obj['trig'].get_text().strip()
+            days_val = ui_obj['days'].get_text().strip()
+            if days_val:
+                ev_table['days'] = days_val
+            ev_table['enabled'] = ui_obj['on'].get_active()
+            
+            buf = ui_obj['actions'].get_buffer()
+            text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True)
+            actions = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            arr = tomlkit.array()
+            for a in actions: arr.append(a)
+            if actions: arr.multiline(True)
+            ev_table['actions'] = arr
+            
+            events_table[name] = ev_table
+            
+        self.doc['hyprrocket']['events'] = events_table
 
         # Environment
         el = get_items(self.widgets['env_list'])
