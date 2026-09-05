@@ -65,11 +65,14 @@ def check_single_instance():
         _LOCK_FD.flush()
         atexit.register(cleanup_lock)
     except (OSError, IOError) as e:
-        # Another live instance holds the lock (flock is released on crash,
-        # unlike stale pidfiles). Notify instead of exiting silently so
-        # SUPER+C appears to "do nothing".
-        logger.info(f"Another settings instance is running, exiting: {e}")
-        _notify_error("HyprDE Settings", "Settings is already open.")
+        logger.info(f"Another settings instance is running, attempting to close it...")
+        try:
+            with open(LOCK_FILE, 'r') as f:
+                old_pid = int(f.read().strip())
+            import signal
+            os.kill(old_pid, signal.SIGTERM)
+        except Exception:
+            pass
         sys.exit(0)
 
 def cleanup_lock():
@@ -289,6 +292,13 @@ class SettingsManager(Gtk.Window):
         if event.keyval == Gdk.KEY_Escape:
             self.close_window()
             return True
+            
+        # Catch SUPER+Q, SUPER+C, CTRL+Q, CTRL+C
+        if event.state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SUPER_MASK):
+            if event.keyval in [Gdk.KEY_q, Gdk.KEY_Q, Gdk.KEY_c, Gdk.KEY_C]:
+                self.close_window()
+                return True
+                
         return False
 
     def close_window(self):
