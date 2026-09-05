@@ -57,7 +57,7 @@ autohide_bar = false                      # Autohide status bar (use SUPER+B to 
 # =============================================================================
 [autostart]
 exec_once = [
-    "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1",
+    "systemctl --user start hyprpolkitagent",
     "$notification_service",
     "$status_bar",
     "hyprpaper -c $HOME/.config/hypr/hyprpaper.conf",
@@ -131,7 +131,7 @@ suspend_timeout = 1800                    # Suspend after 30 minutes (1800s)
 
 # =============================================================================
 # NIGHTLIGHT
-# Blue light filter using gammastep
+# Blue light filter using hyprsunset
 # Color temperature in Kelvin (1000-6500, lower = warmer/redder)
 # =============================================================================
 [nightlight]

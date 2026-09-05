@@ -12,9 +12,9 @@ log() {
 }
 
 toggleNightLight(){
-    isOn=$($HOME/.config/hypr/scripts/gammastep/gamma.sh status|jq '.text' 2>/dev/null)
+    isOn=$($HOME/.config/hypr/scripts/hyprsunset/gamma.sh status|jq '.text' 2>/dev/null)
     if [ "$isOn" = "\"disabled\"" ]; then
-        sh $HOME/.config/hypr/scripts/gammastep/gamma_toggle.sh
+        sh $HOME/.config/hypr/scripts/hyprsunset/gamma_toggle.sh
     fi
 }
 

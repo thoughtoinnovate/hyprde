@@ -50,7 +50,7 @@ def get_desc(action):
     if "playerctl" in action: return "󰎆 Media Playback"
     if "settings_manager" in action: return "󰒓 Settings Manager"
     if "dock-toggle" in action: return "󰏝 Toggle Dock"
-    if "hyprsearch" in action or "wofi" in action: return "󰀻 Application Launcher"
+    if "hyprsearch" in action or "hyprsearch" in action: return "󰀻 Application Launcher"
     if "screenshot" in action: return "󰄀 Screenshot"
     if "shortcuts-help" in action: return "󰋙 Show Shortcuts Help"
     if "file_search" in action: return "󰈞 File Search"
@@ -95,5 +95,5 @@ text = "\n".join(out)
 if "--text" in sys.argv:
     print(text)
 else:
-    process = subprocess.Popen(["wofi", "--dmenu", "--prompt", "Hyprocket Shortcuts (ESC to close)", "--width", "800", "--height", "600", "--location", "center", "--insensitive", "--cache-file", "/dev/null"], stdin=subprocess.PIPE)
+    process = subprocess.Popen(["hyprsearch", "--dmenu", "--prompt", "Hyprocket Shortcuts (ESC to close)", "--width", "800", "--height", "600", "--location", "center", "--insensitive", "--cache-file", "/dev/null"], stdin=subprocess.PIPE)
     process.communicate(input=text.encode())

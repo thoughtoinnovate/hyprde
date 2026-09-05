@@ -46,7 +46,7 @@
     "group/row4": {
         "orientation": "horizontal",
         "modules": [
-            "custom/gammastep",
+            "custom/hyprsunset",
             "custom/wallpaper",
             "custom/session"
         ]
@@ -202,11 +202,11 @@
         "tooltip": true,
         "on-click": "gnome-system-monitor"
     },
-    "custom/gammastep": {
-        "exec": "~/.config/hypr/scripts/gammastep/gamma.sh status",
+    "custom/hyprsunset": {
+        "exec": "~/.config/hypr/scripts/hyprsunset/gamma.sh status",
         "signal": 6,
         "return-type": "json",
-        "on-click": "~/.config/hypr/scripts/gammastep/gamma.sh toggle",
+        "on-click": "~/.config/hypr/scripts/hyprsunset/gamma.sh toggle",
         "format": "{}",
         "interval": 15,
         "tooltip": true

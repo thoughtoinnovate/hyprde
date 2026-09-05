@@ -18,9 +18,6 @@ install_packages() {
     if [ "$os" == "debian" ]; then
         # Map Arch-style packages to Debian names
         packages=$(echo "$packages" | sed 's/gst-libav/gstreamer1.0-libav/g')
-        packages=$(echo "$packages" | sed 's/gdk-pixbuf2/libgdk-pixbuf-2.0-dev/g')
-        packages=$(echo "$packages" | sed 's/python-tomlkit/python3-tomlkit/g')
-        packages=$(echo "$packages" | sed 's/python-gobject/python3-gi/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-ugly/gstreamer1.0-plugins-ugly/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-good/gstreamer1.0-plugins-good/g')
         packages=$(echo "$packages" | sed 's/gst-plugins-bad/gstreamer1.0-plugins-bad/g')
@@ -38,17 +35,10 @@ install_packages() {
 
     case "$os" in
         arch)
-            for pkg in $packages; do
-                sudo pacman -S --noconfirm --needed base-devel "$pkg" || \
-                    echo "⚠️  WARNING: failed to install '$pkg' (continuing)"
-            done
+           sudo pacman -S --noconfirm --needed base-devel $packages || true
             ;;
         debian)
-            sudo apt update || echo "⚠️  WARNING: apt update failed (continuing)"
-            for pkg in $packages; do
-                sudo apt install -y --no-install-recommends build-essential "$pkg" || \
-                    echo "⚠️  WARNING: failed to install '$pkg' (continuing)"
-            done
+            sudo apt install -y --no-install-recommends build-essential $packages || true
             ;;
         *)
             echo "Unsupported distribution: $os"
@@ -194,7 +184,7 @@ if ! JSON_CONTENT=$(yq < "$CONFIG_FILE" 2>/dev/null); then
 fi
 
 # Parse JSON content using jq (which is part of yq)
-PKGS="gdk-pixbuf2 python-tomlkit python-gobject hyprpolkitagent hyprsunset hyprlauncher $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
+PKGS="gdk-pixbuf2 python-tomlkit polkit-gnome $(echo "$JSON_CONTENT" |jq -r '.configs[].packages[]')"
 echo "Now installing $PKGS"
 install_packages $PKGS
 
@@ -261,13 +251,10 @@ if [ -f "$USER_HOME/.config/hypr/hyprde.toml" ]; then
         # Migrate known-broken lines in the preserved TOML (idempotent, backup first).
         # 1. SUPER+C bind: shell redirection (>> ... 2>&1) silently breaks
         #    hl.dsp.exec_cmd spawns since exec_cmd is not a shell.
-        # 2. Pin the interpreter to /usr/bin/python3: a Nix/home-weave
-        #    python3 first on PATH usually lacks tomlkit/pygobject.
-        if grep -q 'settings_manager.py' "$USER_HOME/.config/hypr/hyprde.toml" 2>/dev/null; then
-            echo "🔧 Migrating SUPER+C bind (redirection + interpreter)..."
+        if grep -q 'settings_manager.py >>' "$USER_HOME/.config/hypr/hyprde.toml" 2>/dev/null; then
+            echo "🔧 Migrating SUPER+C bind (removing shell redirection)..."
             cp -fp "$USER_HOME/.config/hypr/hyprde.toml" "$USER_HOME/.config/hypr/hyprde.toml.pre-migration.bak"
             sed -i 's|settings_manager.py >>[^"]*|settings_manager.py|' "$USER_HOME/.config/hypr/hyprde.toml"
-            sed -i 's|exec, python3 \$HOME/.config/hypr/scripts/settings_manager.py|exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py|; s|exec, \$HOME/.config/hypr/scripts/settings_manager.py|exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py|' "$USER_HOME/.config/hypr/hyprde.toml"
         fi
     else
         echo "📄 No user modifications detected - copying fresh config"
@@ -306,11 +293,11 @@ ln -sf "$USER_HOME/.config/mako/config.dark" "$USER_HOME/.config/mako/config"
 backup_if_exists "$USER_HOME/.config/waybar" "$BACKUP_DIR" "$USER_HOME"
 cp -rfp ./configs/waybar $USER_HOME/.config
 
-backup_if_exists "$USER_HOME/.config/hyprlauncher" "$BACKUP_DIR" "$USER_HOME"
-cp -rfp ./configs/hyprlauncher $USER_HOME/.config
+backup_if_exists "$USER_HOME/.config/wofi" "$BACKUP_DIR" "$USER_HOME"
+cp -rfp ./configs/wofi $USER_HOME/.config
 
 # Fix Wofi's relative CSS import by forcing the absolute user path
-sed -i "s|@import \"../hypr/themes/current.css\";|@import \"$USER_HOME/.config/hypr/themes/current.css\";|g" "$USER_HOME/.config/hyprlauncher/style.css"
+sed -i "s|@import \"../hypr/themes/current.css\";|@import \"$USER_HOME/.config/hypr/themes/current.css\";|g" "$USER_HOME/.config/wofi/style.css"
 
 backup_if_exists "$USER_HOME/.config/mimeapps.list" "$BACKUP_DIR" "$USER_HOME"
 cp ./configs/mimeapps.list $USER_HOME/.config/
@@ -342,9 +329,6 @@ sudo cp -f ./configs/polkit/org.hyprde.recording.policy /usr/share/polkit-1/acti
 # Create unique symlinks to distinguish between different auth requests in PolicyKit
 sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-mic-auth
 sudo ln -sf /usr/bin/true /usr/local/bin/hyprde-screen-auth
-echo '#!/bin/sh' | sudo tee /usr/local/bin/hyprde-camera-auth > /dev/null
-echo '/usr/sbin/modprobe uvcvideo' | sudo tee -a /usr/local/bin/hyprde-camera-auth > /dev/null
-sudo chmod +x /usr/local/bin/hyprde-camera-auth
 
 echo "Creating dedicated session menu directory..."
 mkdir -p $USER_HOME/.local/share/hyprocket-session/applications
@@ -361,7 +345,7 @@ cp -rfp ./configs/applications/* $USER_HOME/.local/share/hyprocket-session/appli
 echo "Making scripts executable..."
 chmod +x $USER_HOME/.config/hypr/scripts/*.sh
 chmod +x $USER_HOME/.config/hypr/scripts/*.py
-chmod +x $USER_HOME/.config/hypr/scripts/hyprsunset/*.sh
+chmod +x $USER_HOME/.config/hypr/scripts/gammastep/*.sh
 
 echo "Building native Spotlight launcher (hyprsearch)..."
 if command -v zig >/dev/null 2>&1; then
@@ -394,26 +378,23 @@ else
 fi
 
 echo "Configuring passwordless TLP and privacy-preserving camera/mic toggle..."
-if command -v tlp >/dev/null 2>&1; then
-    TLP_PATH=$(which tlp 2>/dev/null || echo "/usr/bin/tlp")
-fi
-
-# Determine paths for modprobe and pactl safely
-MODPROBE_PATH=$(which modprobe 2>/dev/null || echo "/usr/sbin/modprobe")
-RMMOD_PATH=$(which rmmod 2>/dev/null || echo "/usr/sbin/rmmod")
+TLP_PATH=$(which tlp 2>/dev/null || echo "/usr/bin/tlp")
+MODPROBE_PATH=$(which modprobe 2>/dev/null || echo "/usr/bin/modprobe")
+RMMOD_PATH=$(which rmmod 2>/dev/null || echo "/usr/bin/rmmod")
 PACTL_PATH=$(which pactl 2>/dev/null || echo "/usr/bin/pactl")
-
 SUDOERS_FILE="/etc/sudoers.d/hyprde-nopasswd"
+# ALLOW (NOPASSWD): tlp (all), modprobe -r (removing camera), rmmod -f (force removing camera), pactl set-source-mute (muting mic)
+# DENY (NOPASSWD): modprobe (adding camera), pactl set-source-mute (unmuting mic)
+TEECMD="tee"
 if command -v sudo >/dev/null 2>&1; then
     TEECMD="sudo tee"
-    echo "Configuring passwordless sudo for hardware toggles in $SUDOERS_FILE..."
+fi
 if [ -n "$SUDO_USER" ]; then
-    printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
 else
-    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
-fi
 fi
 
 echo "Creating wallpaper directories."

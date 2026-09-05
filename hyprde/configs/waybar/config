@@ -281,15 +281,15 @@
         "interval": 5,
         "tooltip": true
     },
-    "custom/gammastep": {
+    "custom/hyprsunset": {
         "format": "{icon}",
         "format-icons": {
             "enabled": "",
             "disabled": ""
         },
-        "on-click-right": "bash ~/.config/hypr/scripts/gammastep/gamma_inc.sh",
-        "on-click": "bash ~/.config/hypr/scripts/gammastep/gamma_dec.sh",
-        "on-click-middle": "bash ~/.config/hypr/scripts/gammastep/gamma_toggle.sh",
+        "on-click-right": "bash ~/.config/hypr/scripts/hyprsunset/gamma_inc.sh",
+        "on-click": "bash ~/.config/hypr/scripts/hyprsunset/gamma_dec.sh",
+        "on-click-middle": "bash ~/.config/hypr/scripts/hyprsunset/gamma_toggle.sh",
         "tooltip-format": "NightLight {text}"
     },
     "custom/ps_toggle": {

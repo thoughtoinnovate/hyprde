@@ -55,5 +55,5 @@ PYEOF
 }
 GAMMA_STATE=$(get_nightlight_mode)
 if [ "$GAMMA_STATE" == "on" ] || [ "$GAMMA_STATE" == "auto" ]; then
-    ~/.config/hypr/scripts/gammastep/gamma.sh "$GAMMA_STATE" > /dev/null 2>&1
+    ~/.config/hypr/scripts/hyprsunset/gamma.sh "$GAMMA_STATE" > /dev/null 2>&1
 fi

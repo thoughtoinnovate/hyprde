@@ -42,7 +42,7 @@ def run_command(cmd):
        cmd.startswith("mic.sh") or cmd.startswith("camera.sh") or \
        cmd.startswith("wallpaper-ctrl.sh"):
         cmd = os.path.join(SCRIPTS_DIR, cmd)
-    elif cmd.startswith("gammastep/"):
+    elif cmd.startswith("hyprsunset/"):
         cmd = os.path.join(SCRIPTS_DIR, cmd)
 
     # Handle $HOME / ~ expansion

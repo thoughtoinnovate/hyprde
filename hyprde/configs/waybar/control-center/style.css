@@ -94,7 +94,7 @@
     background-color: alpha(@theme_panel_hover_bg, 0.8);
 }
 
-#custom-wifi, #custom-bluetooth, #custom-mic, #custom-camera, #custom-gammastep, #custom-wallpaper, #custom-screenshot, #custom-session, #custom-theme {
+#custom-wifi, #custom-bluetooth, #custom-mic, #custom-camera, #custom-hyprsunset, #custom-wallpaper, #custom-screenshot, #custom-session, #custom-theme {
     /* Color handled by state class (.enbld / .disbld) */
 }
 
