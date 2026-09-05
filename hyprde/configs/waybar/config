@@ -32,9 +32,10 @@
         ]
     },
     "custom/record-dot": {
-        "interval": 2,
+        "interval": 15,
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/screen-record.sh status main",
+        "signal": 8,
         "on-click": "~/.config/hypr/scripts/screen-record.sh stop",
         "format": "{text}",
         "tooltip": true
@@ -75,16 +76,18 @@
         ]
     },
     "custom/mic-dot": {
-        "interval": 2,
+        "interval": 15,
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/mic.sh status",
+        "signal": 1,
         "format": "●",
         "tooltip": true
     },
     "custom/cam-dot": {
-        "interval": 2,
+        "interval": 15,
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/camera.sh status",
+        "signal": 2,
         "format": "●",
         "tooltip": true
     },
@@ -152,9 +155,10 @@
         "on-click": ""
     },
     "custom/wifi": {
-        "interval": 1,
+        "interval": 15,
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/wifi.sh status",
+        "signal": 3,
         "on-click": "~/.config/hypr/scripts/wifi.sh toggle",
         "format": "{icon}",
         "format-icons": {
@@ -291,9 +295,10 @@
     "custom/ps_toggle": {
         "return-type": "json",
         "exec": "~/.config/hypr/scripts/power-mode.sh status",
+        "signal": 7,
         "on-click": "~/.config/hypr/scripts/power-mode.sh cycle",
         "on-click-right": "~/.config/hypr/scripts/power_usr.sh toggle",
-        "interval": 1,
+        "interval": 15,
         "format": "{}",
         "format-icons": {
             "balanced": "󰾅",
@@ -308,6 +313,7 @@
         "return-type": "json",
         "interval": 5,
         "exec": "~/.config/hypr/scripts/mic.sh status",
+        "signal": 1,
         "tooltip": true,
         "format": "{icon}",
         "format-icons": [
@@ -319,6 +325,7 @@
         "return-type": "json",
         "interval": 5,
         "exec": "~/.config/hypr/scripts/camera.sh status",
+        "signal": 2,
         "tooltip": true,
         "format": "{icon}",
         "format-icons": [

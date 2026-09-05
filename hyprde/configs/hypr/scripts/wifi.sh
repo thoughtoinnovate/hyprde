@@ -17,9 +17,11 @@ toggle() {
   local status=$(nmcli radio wifi)
   if [[ "$status" == "enabled" ]]; then
       turn_off
+    pkill -RTMIN+3 waybar || true
       get_status
   else
     turn_on
+    pkill -RTMIN+3 waybar || true
     get_status
   fi
 }
@@ -41,12 +43,15 @@ case "$1" in
     ;;
   toggle)
     toggle
+    pkill -RTMIN+3 waybar || true
     ;;    
   on)
     turn_on
+    pkill -RTMIN+3 waybar || true
     ;;
   off)
     turn_off
+    pkill -RTMIN+3 waybar || true
     ;;
   *)
     echo "{\"text\": \"Usage: $0 {status|on|off}\", \"class\": \"normal\"}"

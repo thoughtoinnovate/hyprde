@@ -82,12 +82,15 @@ case "$1" in
     ;;
   toggle)
     toggle
+    pkill -RTMIN+2 waybar || true
     ;;    
   on)
     turn_on
+    pkill -RTMIN+2 waybar || true
     ;;
   off)
     turn_off
+    pkill -RTMIN+2 waybar || true
     ;;
   *)
     echo "{\"text\": \"Usage: $0 {status|on|off}\", \"class\": \"normal\"}"

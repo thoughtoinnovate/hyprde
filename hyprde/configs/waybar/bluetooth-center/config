@@ -19,16 +19,18 @@
     },
     "custom/bt-header": {
         "exec": "~/.config/hypr/scripts/bluetooth.sh status",
+        "signal": 4,
         "return-type": "json",
-        "interval": 2,
+        "interval": 15,
         "format": "󰂯 Bluetooth Center",
         "tooltip": false,
         "on-click": "~/.config/hypr/scripts/bluetooth.sh toggle"
     },
     "custom/bt-list": {
         "exec": "~/.config/hypr/scripts/bluetooth_list.py",
+        "signal": 4,
         "return-type": "json",
-        "interval": 2,
+        "interval": 15,
         "format": "{}",
         "tooltip": true
     },

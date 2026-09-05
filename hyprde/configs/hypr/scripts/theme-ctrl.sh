@@ -148,6 +148,7 @@ case "$1" in
         ;;
     toggle)
         toggle
+    pkill -RTMIN+5 waybar || true
         ;;
     dark)
         set_theme "dark.css" "dark"
