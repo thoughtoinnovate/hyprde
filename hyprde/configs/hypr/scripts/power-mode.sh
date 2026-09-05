@@ -18,7 +18,12 @@ STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/hyprde"
 STATE_FILE="$STATE_DIR/power-mode"
 
 PSTATE_BASE="/sys/devices/system/cpu/intel_pstate"
-EPP_GLOB="/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference"
+# Explicit per-CPU list (no wildcards) so every written path matches the
+# hardened sudoers rule 1:1. Adjust range if core count ever changes.
+EPP_CPUS="0 1 2 3 4 5 6 7"
+epp_node() {
+    printf '/sys/devices/system/cpu/cpu%s/cpufreq/energy_performance_preference' "$1"
+}
 
 notify() {
     if command -v notify-send >/dev/null 2>&1; then
@@ -70,13 +75,30 @@ detect_source() {
     printf 'bat'
 }
 
+# Write one sysfs node. Only ever called with fixed power-control paths/values.
+# Returns 0 on success. Respects HYPRDE_POWER_NO_AUTH=1 (state-only mode).
 write_node() {
     local node="$1" value="$2"
+    [ -n "${HYPRDE_POWER_NO_AUTH:-}" ] && return 1
     if [ -w "$node" ]; then
         printf '%s' "$value" > "$node" 2>/dev/null && return 0
     fi
     # Best-effort via passwordless sudo (non-interactive, silent on failure)
     printf '%s' "$value" | sudo -n tee "$node" >/dev/null 2>&1 && return 0
+    return 1
+}
+
+# Single privileged batch for all unwritten nodes -> at most ONE auth popup
+# per mode switch (never one popup per CPU). No-op when NO_AUTH is set.
+privileged_batch() {
+    local batch="$1"
+    [ -n "$batch" ] || return 0
+    [ -n "${HYPRDE_POWER_NO_AUTH:-}" ] && return 1
+    printf '%s' "$batch" | sudo -n sh >/dev/null 2>&1 && return 0
+    # Last resort: polkit auth dialog (desktop sessions only, never headless)
+    if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v pkexec >/dev/null 2>&1; then
+        printf '%s' "$batch" | pkexec sh >/dev/null 2>&1 && return 0
+    fi
     return 1
 }
 
@@ -89,18 +111,27 @@ apply_profile() {
     else
         cap=70; turbo=1; epp="balance_power"
     fi
-    local ok=0 fail=0
+    local ok=0 fail=0 i f pending=""
     if [ -f "$PSTATE_BASE/max_perf_pct" ]; then
-        write_node "$PSTATE_BASE/max_perf_pct" "$cap" && ok=$((ok+1)) || fail=$((fail+1))
+        write_node "$PSTATE_BASE/max_perf_pct" "$cap" && ok=$((ok+1)) || pending="${pending}printf '%s' '$cap' >'$PSTATE_BASE/max_perf_pct';"
     fi
     if [ -f "$PSTATE_BASE/no_turbo" ]; then
-        write_node "$PSTATE_BASE/no_turbo" "$turbo" && ok=$((ok+1)) || fail=$((fail+1))
+        write_node "$PSTATE_BASE/no_turbo" "$turbo" && ok=$((ok+1)) || pending="${pending}printf '%s' '$turbo' >'$PSTATE_BASE/no_turbo';"
     fi
-    local f
-    for f in $EPP_GLOB; do
+    for i in $EPP_CPUS; do
+        f=$(epp_node "$i")
         [ -f "$f" ] || continue
-        write_node "$f" "$epp" && ok=$((ok+1)) || fail=$((fail+1))
+        # shellcheck disable=SC2016
+        write_node "$f" "$epp" && ok=$((ok+1)) || pending="${pending}printf '%s' '$epp' >'$f';"
     done
+    # One privileged batch for everything direct write couldn't handle
+    if [ -n "$pending" ]; then
+        if privileged_batch "$pending"; then
+            ok=$((ok+1))
+        else
+            fail=$((fail+1))
+        fi
+    fi
     if [ "$fail" -gt 0 ] && [ "$ok" -eq 0 ]; then
         notify "Power Mode" "Could not write CPU nodes (need sudo?). Mode saved, values unchanged."
     fi
@@ -118,9 +149,9 @@ current_values() {
     local cap="?" epp="?" turbo="?"
     [ -f "$PSTATE_BASE/max_perf_pct" ] && cap=$(cat "$PSTATE_BASE/max_perf_pct" 2>/dev/null | tr -d '[:space:]')
     [ -f "$PSTATE_BASE/no_turbo" ] && turbo=$(cat "$PSTATE_BASE/no_turbo" 2>/dev/null | tr -d '[:space:]')
-    local first_epp=""
-    for f in $EPP_GLOB; do
-        # shellcheck disable=SC2231
+    local first_epp="" i f
+    for i in $EPP_CPUS; do
+        f=$(epp_node "$i")
         [ -f "$f" ] || continue
         first_epp="$f"
         break
