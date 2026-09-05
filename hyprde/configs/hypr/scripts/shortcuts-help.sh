@@ -95,5 +95,5 @@ text = "\n".join(out)
 if "--text" in sys.argv:
     print(text)
 else:
-    process = subprocess.Popen(["hyprsearch", "--dmenu", "--prompt", "Hyprocket Shortcuts (ESC to close)", "--width", "800", "--height", "600", "--location", "center", "--insensitive", "--cache-file", "/dev/null"], stdin=subprocess.PIPE)
+    process = subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dmenu", "--prompt", "Hyprocket Shortcuts (ESC to close)", "--width", "800", "--height", "600", "--location", "center", "--insensitive", "--cache-file", "/dev/null"], stdin=subprocess.PIPE)
     process.communicate(input=text.encode())
