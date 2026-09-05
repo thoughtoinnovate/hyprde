@@ -8,6 +8,7 @@ import re
 logger = logging.getLogger(__name__)
 
 # Dispatcher name mapping: hyprlang name → hl.dsp.* function
+# Unknown dispatchers fall back to hl.dispatch() in _parse_bind().
 DISPATCHER_MAP = {
     "exec": "hl.dsp.exec_cmd",
     "exec-once": "hl.dsp.exec_cmd",
@@ -17,10 +18,15 @@ DISPATCHER_MAP = {
     "movefocus": "hl.dsp.focus",
     "workspace": "hl.dsp.focus",
     "movetoworkspace": "hl.dsp.window.move",
-    "togglespecialworkspace": "hl.dsp.workspace.toggle_special",
+    "movetoworkspacesilent": "hl.dsp.window.move",
     "fullscreen": "hl.dsp.window.fullscreen",
     "togglefloating": "hl.dsp.window.float",
+    "toggleopaque": "hl.dsp.window.opaque",
+    "togglespecialworkspace": "hl.dsp.workspace.toggle_special",
     "pin": "hl.dsp.window.pin",
+    "centerwindow": "hl.dsp.window.center",
+    "focuswindow": "hl.dsp.window.focus",
+    "tagwindow": "hl.dsp.window.tag",
     "exit": "hl.dsp.exit",
     "closewindow": "hl.dsp.closewindow",
     "dpms": "hl.dsp.dpms",
@@ -28,7 +34,27 @@ DISPATCHER_MAP = {
     "togglesplit": "hl.dsp.layout",
     "layoutmsg": "hl.dsp.layout",
     "resizeactive": "hl.dsp.window.resize",
+    "focusmonitor": "hl.dsp.monitor.focus",
+    "movecurrentworkspacetomonitor": "hl.dsp.monitor.move_workspace",
+    "togglegroup": "hl.dsp.group.toggle",
+    "changegroupactive": "hl.dsp.group.change_active",
+    "lockgroups": "hl.dsp.group.lock",
+    "moveintogroup": "hl.dsp.group.move_in",
+    "moveoutofgroup": "hl.dsp.group.move_out",
     "mouse": "hl.dsp.mouse",
+}
+
+# Sections managed outside hyprland.lua (scripts / sidecar configs).
+# Kept TOML-only by design — validate_config() warns instead of emitting.
+EXTERNAL_SECTIONS = {
+    "theme": "theme-ctrl.sh + ~/.config/hypr/themes/current.css",
+    "appearance": "theme-ctrl.sh + Waybar/Wofi CSS",
+    "launcher": "hyprsearch binary reads [launcher] live from TOML",
+    "hyprrocket": "systemd timers via generate_hyrocket_systemd_units()",
+    "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
+    "lockscreen": "hyprlock.conf",
+    "idle": "hypridle.conf",
+    "nightlight": "gammastep/gamma.sh via screen_shader",
 }
 
 # Dispatchers whose argument must be a Lua table instead of a quoted string.
@@ -127,6 +153,22 @@ def _resolve_var(val: str, programs: dict, main_mod: str) -> str:
     return result
 
 
+def _has_shell_metachars(args: str) -> bool:
+    """Detect shell-only syntax that exec_cmd cannot interpret directly."""
+    markers = (">>", "<<", " 2>", "|", ";", "&&", "`", "$(")
+    return any(m in args for m in markers)
+
+
+def _wrap_sh_c(args: str) -> str:
+    """Wrap a shell command string for execution via sh -c.
+
+    The result is placed inside a Lua double-quoted string, so escape
+    backslashes and double quotes; single quotes pass through safely.
+    """
+    escaped = args.replace("\\", "\\\\").replace('"', '\\"')
+    return f"sh -c '{escaped}'"
+
+
 def _parse_bind(raw: str, programs: dict, main_mod: str, bind_type: str) -> str:
     """Parse a raw bind string and return a Lua hl.bind() call.
 
@@ -160,7 +202,17 @@ def _parse_bind(raw: str, programs: dict, main_mod: str, bind_type: str) -> str:
             arg_str = TABLE_ARG_DISPATCHERS[dispatcher](args)
             dsp_call = f"{dsp_func}({{ {arg_str} }})"
         elif args:
-            dsp_call = f'{dsp_func}("{args}")'
+            # hl.dsp.exec_cmd does not run through a shell: shell metachars
+            # (>>, |, ;, &&, backticks, $()) would silently break the spawn.
+            # Wrap such commands in sh -c so user binds keep working.
+            if dispatcher in ("exec", "exec-once") and _has_shell_metachars(args):
+                logger.warning(
+                    "exec bind contains shell metachars, wrapping in sh -c: %s", raw
+                )
+                wrapped = _wrap_sh_c(args)
+                dsp_call = f'{dsp_func}("{wrapped}")'
+            else:
+                dsp_call = f'{dsp_func}("{args}")'
         elif dispatcher in DEFAULT_DISPATCHER_ARGS:
             dsp_call = f'{dsp_func}("{DEFAULT_DISPATCHER_ARGS[dispatcher]}")'
         else:
@@ -192,10 +244,20 @@ def generate_user_lua(data: dict) -> str:
     _write_programs(lines, programs)
     lines.append(f'local mainMod = "{main_mod}"')
     lines.append("")
-    _write_autostart(lines, data)
-    _write_wallpapers(lines, data)
-    _write_nightlight(lines, data)
-    _write_plugins(lines, data)
+
+    start_cmds = []
+    _write_autostart(start_cmds, data)
+    _write_wallpapers(start_cmds, data)
+    _write_nightlight(start_cmds, data)
+    _write_plugins(start_cmds, data)
+
+    if start_cmds:
+        lines.append("-- [[ Autostart & Hook Executions ]]")
+        lines.append('hl.on("hyprland.start", function()')
+        for cmd in start_cmds:
+            lines.append(f'    {cmd}')
+        lines.append('end)')
+        lines.append("")
     _write_env(lines, data)
     _write_monitors(lines, data)
     _write_gestures(lines, data)
@@ -209,6 +271,10 @@ def generate_user_lua(data: dict) -> str:
     hyprexpo_available = _check_hyprexpo(data)
     _write_binds(lines, data, programs, main_mod, hyprexpo_available)
     _write_window_rules(lines, data)
+    _write_layer_rules(lines, data)
+    _write_workspace_rules(lines, data)
+    _write_devices(lines, data)
+    _write_permissions(lines, data)
     _write_submaps(lines, data, hyprexpo_available)
     _write_custom(lines, data)
 
@@ -241,48 +307,44 @@ def _expand_vars_in_cmd(cmd: str, programs: dict, main_mod: str) -> str:
     return result
 
 
-def _write_autostart(lines: list, data: dict):
+def _write_autostart(start_cmds: list, data: dict):
     cmds = data.get("autostart", {}).get("exec_once", [])
     if not cmds:
         return
     programs = data.get("programs", {})
     main_mod = data.get("binds", {}).get("mainMod", "SUPER")
-    lines.append("-- [[ Autostart ]]")
+    start_cmds.append("-- Autostart")
     for cmd in cmds:
         expanded = _expand_vars_in_cmd(cmd, programs, main_mod)
         escaped = expanded.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{escaped}") end)')
-    lines.append("")
+        start_cmds.append(f'hl.dispatch(hl.dsp.exec_cmd("{escaped}"))')
 
 
-def _write_wallpapers(lines: list, data: dict):
+def _write_wallpapers(start_cmds: list, data: dict):
     wp = data.get("wallpapers", {})
     mode = wp.get("mode", "fixed")
     if mode in ("fixed", "dynamic"):
         home = os.path.expanduser("~")
         cmd = f"sh {home}/.config/hypr/scripts/init_wallpaper.sh"
-        lines.append("-- [[ Wallpapers ]]")
-        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{cmd}") end)')
-        lines.append("")
+        start_cmds.append("-- Wallpapers")
+        start_cmds.append(f'hl.dispatch(hl.dsp.exec_cmd("{cmd}"))')
 
 
-def _write_nightlight(lines: list, data: dict):
+def _write_nightlight(start_cmds: list, data: dict):
     nl = data.get("nightlight", {})
     if nl.get("enabled", False):
         t_day = nl.get("temp_day", 6500)
         t_night = nl.get("temp_night", 3400)
         cmd = f"gammastep -t {t_day}:{t_night}"
-        lines.append("-- [[ Nightlight ]]")
-        lines.append(f'hl.on("hyprland.start", function() hl.exec_cmd("{cmd}") end)')
-        lines.append("")
+        start_cmds.append("-- Nightlight")
+        start_cmds.append(f'hl.dispatch(hl.dsp.exec_cmd("{cmd}"))')
 
 
-def _write_plugins(lines: list, data: dict):
+def _write_plugins(start_cmds: list, data: dict):
     pl = data.get("plugins", {})
     if pl.get("enabled", []):
-        lines.append("-- [[ Hyprpm Plugin Reload ]]")
-        lines.append('hl.on("hyprland.start", function() hl.exec_cmd("hyprpm reload -n") end)')
-        lines.append("")
+        start_cmds.append("-- Hyprpm Plugin Reload")
+        start_cmds.append('hl.dispatch(hl.dsp.exec_cmd("hyprpm reload -n"))')
 
 
 def _write_env(lines: list, data: dict):
@@ -332,9 +394,44 @@ def _collect_hl_config(data: dict) -> dict:
     _merge_master(config, data)
     _merge_scrolling(config, data)
     _merge_misc(config, data)
+    _merge_color(config, data)
+    # Passthrough groups for modern Hyprland (0.55+): emitted verbatim
+    # into hl.config({...}) so new keys work without code changes.
+    for _section in ("group", "cursor", "render", "ecosystem", "debug"):
+        _merge_passthrough(config, data, _section)
+    # [binds.options] is the TOML home for hl.config({binds = {...}});
+    # "binds_config" is the legacy alias.
+    _merge_passthrough(config, data, "binds", "binds")
+    _merge_passthrough(config, data, "binds_config", "binds")
     _merge_plugin_config(config, data)
 
     return config
+
+
+def _merge_passthrough(config: dict, data: dict, toml_key: str, lua_key: str = None):
+    section = data.get(toml_key)
+    if not section:
+        return
+    if not isinstance(section, dict):
+        logger.warning("Ignoring non-table section [%s]", toml_key)
+        return
+    # Skip keybind tables — those are emitted via hl.bind(), not hl.config.
+    if toml_key in ("binds", "binds_config"):
+        if toml_key == "binds":
+            opts = {k: v for k, v in section.items()
+                    if k not in ("mainMod", "normal", "release", "mouse", "repeat", "locked",
+                                 "options")}
+            sub = section.get("options", {})
+            if isinstance(sub, dict):
+                opts.update(sub)
+        else:
+            opts = dict(section)
+        if opts:
+            merged = dict(config.get(lua_key or toml_key, {}))
+            merged.update(opts)
+            config[lua_key or toml_key] = merged
+        return
+    config[lua_key or toml_key] = dict(section)
 
 
 def _merge_input(config: dict, data: dict):
@@ -492,6 +589,13 @@ def _merge_misc(config: dict, data: dict):
         config["misc"] = dict(misc)
 
 
+def _merge_color(config: dict, data: dict):
+    """Merge optional [color] section (ICC profiles, new in Hyprland 0.55)."""
+    color = data.get("color")
+    if color:
+        config["color"] = dict(color)
+
+
 def _write_gestures(lines: list, data: dict):
     gesture_data = data.get("gesture")
     if not gesture_data:
@@ -572,29 +676,105 @@ def _write_binds(lines: list, data: dict, programs: dict, main_mod: str, hyprexp
     lines.append("")
 
 
+def _parse_rule_selector(selector_raw: str) -> str:
+    """Parse class:/title: selector into Lua match table."""
+    selector_raw = selector_raw.strip()
+    if selector_raw.startswith("class:"):
+        return f'{{ match = {{ class = "{selector_raw[6:]}" }} }}'
+    if selector_raw.startswith("title:"):
+        return f'{{ match = {{ title = "{selector_raw[6:]}" }} }}'
+    return f'{{ match = {{ class = "{selector_raw}" }} }}'
+
+
 def _write_window_rules(lines: list, data: dict):
     rules = data.get("rules", {}).get("window", [])
     if not rules:
         return
     lines.append("-- [[ Window Rules ]]")
     for rule in rules:
-        import re
         parts = [p.strip() for p in rule.split(",", 1)]
         if len(parts) != 2:
             lines.append(f"-- [[ SKIPPED invalid rule: {rule} ]]")
             continue
-        action_raw = parts[0]
-        selector_raw = parts[1]
-        if selector_raw.startswith("class:"):
-            selector_val = selector_raw[6:]
-            selector = f'{{ match = {{ class = "{selector_val}" }} }}'
-        elif selector_raw.startswith("title:"):
-            selector_val = selector_raw[6:]
-            selector = f'{{ match = {{ title = "{selector_val}" }} }}'
-        else:
-            selector = f'{{ match = {{ class = "{selector_raw}" }} }}'
-        props = _rule_action_to_props(action_raw)
+        selector = _parse_rule_selector(parts[1])
+        props = _rule_action_to_props(parts[0])
         lines.append(f"hl.window_rule({selector}, {props})")
+    lines.append("")
+
+
+def _write_layer_rules(lines: list, data: dict):
+    """Emit hl.layerrule() calls from [rules].layer list."""
+    rules = data.get("rules", {}).get("layer", [])
+    if not rules:
+        return
+    lines.append("-- [[ Layer Rules ]]")
+    for rule in rules:
+        parts = [p.strip() for p in rule.split(",", 1)]
+        if len(parts) != 2:
+            lines.append(f"-- [[ SKIPPED invalid layer rule: {rule} ]]")
+            continue
+        selector = _parse_rule_selector(parts[1])
+        props = _rule_action_to_props(parts[0])
+        lines.append(f"hl.layerrule({selector}, {props})")
+    lines.append("")
+
+
+def _write_workspace_rules(lines: list, data: dict):
+    """Emit hl.workspace_rule() calls from [rules].workspace list.
+
+    Format per entry: "workspace-selector, key = value, ..." e.g.
+    "name:code, monitor = DP-1, persistent = true".
+    """
+    rules = data.get("rules", {}).get("workspace", [])
+    if not rules:
+        return
+    lines.append("-- [[ Workspace Rules ]]")
+    for rule in rules:
+        parts = [p.strip() for p in rule.split(",", 1)]
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            lines.append(f"-- [[ SKIPPED invalid workspace rule: {rule} ]]")
+            continue
+        selector = _value_to_lua(parts[0])
+        lines.append(f"hl.workspace_rule({{ workspace = {selector}, {parts[1]} }})")
+    lines.append("")
+
+
+def _write_devices(lines: list, data: dict):
+    """Emit hl.device() calls from [devices.<name>] tables."""
+    devices = data.get("devices")
+    if not devices or not isinstance(devices, dict):
+        return
+    lines.append("-- [[ Devices ]]")
+    for name, cfg in devices.items():
+        if not isinstance(cfg, dict):
+            lines.append(f"-- [[ SKIPPED invalid device {name}: not a table ]]")
+            continue
+        table = dict(cfg)
+        table["name"] = name
+        lines.append(f"hl.device({_dict_to_lua_table(table, 0)})")
+    lines.append("")
+
+
+def _write_permissions(lines: list, data: dict):
+    """Emit hl.permission() calls from [permission] list.
+
+    Each entry: { binary = "regex", type = "screencopy|...", mode = "allow|deny|ask" }.
+    """
+    perms = data.get("permission")
+    if perms is None:
+        perms = data.get("permissions")
+    if not perms:
+        return
+    entries = perms if isinstance(perms, list) else [perms]
+    lines.append("-- [[ Permissions ]]")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            lines.append(f"-- [[ SKIPPED invalid permission: {entry} ]]")
+            continue
+        binary = _value_to_lua(entry.get("binary", ""))
+        ptype = _value_to_lua(entry.get("type", ""))
+        mode = _value_to_lua(entry.get("mode", ""))
+        lines.append(f"hl.permission({binary}, {ptype}, {mode})")
     lines.append("")
 
 
@@ -608,10 +788,13 @@ def _rule_action_to_props(action_raw: str) -> str:
         "float": "{ float = true }",
         "pin": "{ pin = true }",
         "center": "{ center = true }",
+        "fullscreen": "{ fullscreen = true }",
+        "maximize": "{ maximize = true }",
+        "stayfocused": "{ stay_focused = true }",
     }
     if cmd in prop_map:
         return prop_map[cmd]
-    if cmd in ("size", "opacity", "animation", "rounding"):
+    if cmd in ("size", "opacity", "animation", "rounding", "workspace", "monitor", "bordercolor"):
         return f'{{ {cmd} = "{arg}" }}'
     if cmd == "suppressevent":
         return f'{{ suppress_event = "{arg}" }}'
