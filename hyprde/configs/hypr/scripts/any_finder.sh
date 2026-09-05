@@ -1,13 +1,27 @@
 #!/bin/bash
 
+# Detect the configured terminal: hyprland.lua (Lua mode) -> hyprde.toml
+# -> $TERMINAL env -> ghostty fallback. Works in Lua and legacy hyprlang setups.
+detect_terminal() {
+    local t=""
+    if [ -f "$HOME/.config/hypr/hyprland.lua" ]; then
+        t=$(grep -m1 'local terminal' "$HOME/.config/hypr/hyprland.lua" 2>/dev/null | cut -d'"' -f2)
+    fi
+    if [ -z "$t" ] && [ -f "$HOME/.config/hypr/hyprde.toml" ]; then
+        t=$(grep -m1 'terminal =' "$HOME/.config/hypr/hyprde.toml" 2>/dev/null | cut -d'"' -f2)
+    fi
+    if [ -z "$t" ] && [ -f "$HOME/.config/hypr/hyprde.generated.conf" ]; then
+        t=$(rg '^\$terminal' "$HOME/.config/hypr/hyprde.generated.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+    fi
+    if [ -z "$t" ]; then
+        t=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+    fi
+    printf '%s' "${t:-${TERMINAL:-ghostty}}"
+}
+
 # Check if running in terminal, if not, launch in terminal
 if ! tty -s; then
-    # Try to get terminal from generated config first, then fall back to main config
-    if [ -f "$HOME/.config/hypr/hyprde.generated.conf" ]; then
-        terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprde.generated.conf" | cut -d'=' -f2 | tr -d ' ')
-    else
-        terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" | cut -d'=' -f2 | tr -d ' ')
-    fi
+    terminal=$(detect_terminal)
 
     case "$terminal" in
         *ghostty*) exec ghostty --class=com.fzf.launcher -e "$0" ;;
@@ -48,9 +62,8 @@ toggle_script="$script_dir/preview-toggle.sh"
 # Always start from HOME
 cd "$HOME" || exit 1
 
-# Get the default terminal from Hyprland config
-terminal=$(rg '^\$terminal' "$HOME/.config/hypr/hyprland.conf" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
-terminal="${terminal:-ghostty}"
+# Get the default terminal (same Lua-aware detection as above)
+terminal=$(detect_terminal)
 
 # Function to get current preview mode
 get_preview_mode() {

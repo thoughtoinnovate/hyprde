@@ -134,9 +134,10 @@
 }
 
 #statusbar .module, #critical .module {
-    margin-right: 1px;
+    margin: 4px 2px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 3px 10px 3px 8px;
+    padding: 0px 6px;
+    border-radius: 10px;
 }
 
 #statusbar .module:hover {
@@ -226,6 +227,30 @@ tooltip label {
 #statusbar .green, #custom-ps_toggle.green {
     background-color: @theme_success_bg;
     color: @theme_success_fg;
+}
+
+/* Power-mode classes (balanced / high / auto) */
+#statusbar .balanced, #custom-ps_toggle.balanced {
+    background-color: transparent;
+    color: @theme_base_fg;
+}
+
+#statusbar .high, #custom-ps_toggle.high {
+    background-color: @theme_warning_bg;
+    color: @theme_success_fg;
+}
+
+#statusbar .auto, #custom-ps_toggle.auto {
+    background-color: @theme_accent;
+    color: @theme_active_fg;
+}
+
+/* Compact pill for power-profile toggle so the bg hugs the icon */
+#statusbar #custom-ps_toggle {
+    padding: 0px 4px;
+    margin: 6px 2px;
+    border-radius: 10px;
+    min-width: 0;
 }
 
 .enbld {

@@ -446,11 +446,13 @@ list = [
     # Scripts and utilities
     "$mainMod SHIFT, f, exec, $HOME/.config/hypr/scripts/file_search.sh",
     "$mainMod SHIFT, slash, exec, $HOME/.config/hypr/scripts/any_finder.sh",
+    "$mainMod SHIFT, G, exec, $HOME/.config/hypr/scripts/gpu-run.sh",
     "$mainMod ALT, M, exec, $HOME/.config/hypr/scripts/mic.sh toggle",
     "$mainMod ALT, V, exec, $HOME/.config/hypr/scripts/camera.sh toggle",
     "$mainMod ALT, W, exec, $HOME/.config/hypr/scripts/wallpaper-ctrl.sh toggle",
     "$mainMod ALT, R, exec, $HOME/.config/hypr/scripts/screen-record.sh toggle",
     "$mainMod ALT, L, exec, $HOME/.config/hypr/scripts/layout-ctrl.sh",
+    "$mainMod ALT, E, exec, $HOME/.config/hypr/scripts/power-mode.sh cycle",
     "$mainMod CTRL, C, exec, $HOME/.config/hypr/scripts/waybars.sh ctrl-cntr",
     "$mainMod CTRL, M, exec, $HOME/.config/hypr/scripts/waybars.sh sys-metrics",
     "$mainMod, Print, exec, ~/.config/hypr/scripts/screenshot.sh area",

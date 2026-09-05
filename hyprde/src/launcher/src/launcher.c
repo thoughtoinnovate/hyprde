@@ -236,9 +236,12 @@ void load_power_menu() {
     struct { char *name; char *icon; char *exec; } items[] = {
         {"Lock", "system-lock-screen", "hyprlock"},         {"Logout", "system-log-out", "hyprctl dispatch 'hl.dsp.exit()'"},
         {"Suspend", "system-suspend", "systemctl suspend"}, {"Hibernate", "system-suspend-hibernate", "systemctl hibernate"},
-        {"Reboot", "system-reboot", "systemctl reboot"}, {"Shutdown", "system-shutdown", "systemctl poweroff"}
+        {"Reboot", "system-reboot", "systemctl reboot"}, {"Shutdown", "system-shutdown", "systemctl poweroff"},
+        {"Power Balanced", "power-profile-balanced", "$HOME/.config/hypr/scripts/power-mode.sh balanced"},
+        {"Power High", "power-profile-performance", "$HOME/.config/hypr/scripts/power-mode.sh high"},
+        {"Power Auto", "preferences-system-power", "$HOME/.config/hypr/scripts/power-mode.sh auto"}
     };
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 9; i++) {
         App *app = g_new0(App, 1); app->name = g_strdup(items[i].name);
         app->name_lower = g_ascii_strdown(app->name, -1); app->icon = g_strdup(items[i].icon);
         app->exec = g_strdup(items[i].exec); apps_list = g_list_append(apps_list, app);

@@ -290,16 +290,19 @@
     },
     "custom/ps_toggle": {
         "return-type": "json",
-        "exec": "~/.config/hypr/scripts/power_usr.sh status",
-        "on-click": "~/.config/hypr/scripts/power_usr.sh toggle",
+        "exec": "~/.config/hypr/scripts/power-mode.sh status",
+        "on-click": "~/.config/hypr/scripts/power-mode.sh cycle",
+        "on-click-right": "~/.config/hypr/scripts/power_usr.sh toggle",
         "interval": 1,
-        "format": "{icon}",
+        "format": "{}",
         "format-icons": {
+            "balanced": "󰾅",
+            "high": "󰐧",
+            "auto": "󰑮",
             "saver": "󰈐",
-            "high": "󰓅"
+            "high-tlp": "󰓅"
         },
-        "tooltip": true,
-        "tooltip-format": "{text}"
+        "tooltip": true
     },
     "custom/mic": {
         "return-type": "json",

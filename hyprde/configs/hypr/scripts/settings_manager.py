@@ -51,7 +51,9 @@ except ImportError:
 try:
     gi.require_version('Gtk', '3.0')
 except (ValueError, ImportError) as e:
+    _missing_dep_exit("Gtk", f"{e}; install gtk3")
 
+from gi.repository import Gtk, Gdk, Gio, GLib, Pango
 import signal
 
 def check_single_instance():
