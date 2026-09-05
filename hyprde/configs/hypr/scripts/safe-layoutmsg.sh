@@ -14,5 +14,8 @@ if [ "$CURRENT_LAYOUT" == "dwindle" ]; then
         *) exit 0 ;; # Suppress error for others
     esac
 else
-    hyprctl dispatch "hl.dsp.layout(\"$*\")"
+    # Translate legacy hyprscrolling names to native scrolling messages.
+    msg="$*"
+    [ "$msg" == "togglefit" ] && msg="fit_into_view"
+    hyprctl dispatch "hl.dsp.layout(\"$msg\")"
 fi

@@ -794,7 +794,7 @@ def _rule_action_to_props(action_raw: str) -> str:
     }
     if cmd in prop_map:
         return prop_map[cmd]
-    if cmd in ("size", "opacity", "animation", "rounding", "workspace", "monitor", "bordercolor"):
+    if cmd in ("size", "move", "opacity", "animation", "rounding", "workspace", "monitor", "bordercolor"):
         return f'{{ {cmd} = "{arg}" }}'
     if cmd == "suppressevent":
         return f'{{ suppress_event = "{arg}" }}'
