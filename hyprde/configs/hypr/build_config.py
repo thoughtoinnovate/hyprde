@@ -363,6 +363,34 @@ def cleanup_old_configs() -> None:
                 logger.warning(f"Could not remove {path}: {e}")
 
 
+def resolve_string(s: str, full_data: Dict[str, Any]) -> str:
+    import re
+    pattern = re.compile(r'\$\{([^}]+)\}')
+    def replacer(match):
+        path = match.group(1).split('.')
+        val = full_data
+        for p in path:
+            if isinstance(val, dict) and p in val:
+                val = val[p]
+            else:
+                return match.group(0)
+        return str(val)
+    return pattern.sub(replacer, s)
+
+def resolve_variables(data: Any, full_data: Dict[str, Any]) -> None:
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(v, str):
+                data[k] = resolve_string(v, full_data)
+            elif isinstance(v, (dict, list)):
+                resolve_variables(v, full_data)
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            if isinstance(item, str):
+                data[i] = resolve_string(item, full_data)
+            elif isinstance(item, (dict, list)):
+                resolve_variables(item, full_data)
+
 def generate_and_write_lua(data: Dict[str, Any]) -> None:
     """Generate Lua config and write to hyprland.lua. Also cleans up old configs."""
     # Clean old hyprlang configs
@@ -799,6 +827,8 @@ if __name__ == "__main__":
     except OSError as e:
         logger.error(f"File I/O error: {e}")
 
+    data_full = inject_defaults(data_full)
+    resolve_variables(data_full, data_full)
     generate_and_write_lua(data_full)
     generate_hypridle_conf(data_full)
     generate_hyprlock_conf(data_full)
