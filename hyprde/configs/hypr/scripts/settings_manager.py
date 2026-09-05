@@ -1368,7 +1368,6 @@ class SettingsManager(Gtk.Window):
         caps_opt = self.widgets['caps_behavior'].get_active_id() or ""
         
         # Remove existing caps options from adv_opts string
-        import re
         adv_opts = re.sub(r'ctrl:nocaps|caps:escape|caps:swapescape', '', adv_opts)
         adv_opts = ','.join(filter(bool, [x.strip() for x in adv_opts.split(',')]))
         
