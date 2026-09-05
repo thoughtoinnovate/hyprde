@@ -63,6 +63,12 @@ fi
 selected=$(printf '%s\n' "${!APP_EXEC[@]}" | sort | "$LAUNCHER" --dmenu --prompt "Run on AMD GPU:")
 [ -z "$selected" ] && exit 0
 
+# Defense in depth: only launch names from our own map (dmenu free-text
+# input or unexpected output must never become a command).
+if [ -z "${APP_EXEC[$selected]+x}" ]; then
+    notify "Error" "Unknown selection"
+    exit 1
+fi
 exec_line="${APP_EXEC[$selected]}"
 # Strip .desktop field codes (%U %F %u %f %i %c %k %d %D %n %N %v %m)
 # shellcheck disable=SC2206

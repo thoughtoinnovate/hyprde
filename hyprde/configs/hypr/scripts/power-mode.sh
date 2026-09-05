@@ -14,7 +14,7 @@ fi
 : "${POWER_MODE_AUTO:=󰑮}"
 : "${POWER_ICON_SAVER:=󰈐}"
 
-STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/hyprde"
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/hyprde-$UID}/hyprde"
 STATE_FILE="$STATE_DIR/power-mode"
 
 PSTATE_BASE="/sys/devices/system/cpu/intel_pstate"
@@ -43,7 +43,13 @@ get_mode() {
 }
 
 save_mode() {
+    # Private dirs only (umask, since mkdir -p -m covers just the leaf)
+    umask 077
     mkdir -p "$STATE_DIR" 2>/dev/null || true
+    # Refuse to follow a pre-existing symlink (tmp squatting protection)
+    if [ -L "$STATE_FILE" ]; then
+        rm -f "$STATE_FILE" 2>/dev/null || return 1
+    fi
     printf '%s' "$1" > "$STATE_FILE" 2>/dev/null || true
 }
 
