@@ -198,7 +198,7 @@ width_percent = 50
 [launcher.dock]
 enabled = true
 autohide = true                           # Hide dock when not hovered
-position = "bottom"                       # bottom, left, right
+position = "left"                         # bottom, left, right
 icon_size = 48                            # Icon size
 padding = 12                              # Inner padding
 rounding = 24                             # Shelf rounding
