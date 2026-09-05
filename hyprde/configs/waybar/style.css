@@ -252,10 +252,10 @@ tooltip label {
 
 /* Compact pill for power-profile toggle so the bg hugs the icon */
 #statusbar #custom-ps_toggle {
-    padding: 0px 4px;
-    margin: 6px 2px;
+    padding: 1px 0px;
+    margin: 5px 2px;
     border-radius: 10px;
-    min-width: 0;
+    min-width: 30px;
 }
 
 .enbld {
