@@ -528,16 +528,16 @@ window = [
 # so the global default alone cannot migrate them). Kept in sync with
 # general.layout by layout-ctrl.sh on every toggle.
 workspace = [
-    "1, layout = \"scroll\"",
-    "2, layout = \"scroll\"",
-    "3, layout = \"scroll\"",
-    "4, layout = \"scroll\"",
-    "5, layout = \"scroll\"",
-    "6, layout = \"scroll\"",
-    "7, layout = \"scroll\"",
-    "8, layout = \"scroll\"",
-    "9, layout = \"scroll\"",
-    "10, layout = \"scroll\""
+    "1, layout = \"scrolling\"",
+    "2, layout = \"scrolling\"",
+    "3, layout = \"scrolling\"",
+    "4, layout = \"scrolling\"",
+    "5, layout = \"scrolling\"",
+    "6, layout = \"scrolling\"",
+    "7, layout = \"scrolling\"",
+    "8, layout = \"scrolling\"",
+    "9, layout = \"scrolling\"",
+    "10, layout = \"scrolling\""
 ]
 
 # =============================================================================
