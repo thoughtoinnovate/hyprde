@@ -32,6 +32,9 @@ LauncherConfig config; DockConfig dock_config;
 char *current_mode = "drun"; int is_dark_mode = 1;
 int is_pin_mode = 0; char *instance_name = "hyprsearch";
 char *custom_config_path = NULL; char *prompt_text = "Search...";
+/* Calculator: resolved helper binaries + history view flag */
+const char *calc_bin = NULL; const char *calc_timeout_bin = NULL;
+int history_mode = 0;
 
 /* Prototypes */
 void quit_launcher();
@@ -59,6 +62,13 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 gboolean on_main_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 gboolean on_list_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data);
 char* try_math(const char *query);
+int looks_like_math(const char *query);
+void copy_to_clipboard(const char *text);
+void notify_calc(const char *msg);
+void calc_history_append(const char *expr, const char *res);
+GList* calc_history_load(void);
+void show_calc_history(void);
+void resolve_calc_bins(void);
 
 /* Implementations */
 void quit_launcher() { gtk_main_quit(); }
@@ -112,11 +122,19 @@ void launch_app(App *app) {
 
 void on_row_activated(GtkListBox *lb, GtkListBoxRow *row, gpointer user_data) {
     if (!row) return;
+    if (g_object_get_data(G_OBJECT(row), "calc_error")) { quit_launcher(); return; }
     char *math = g_object_get_data(G_OBJECT(row), "math_result");
     if (math) {
-        char *cmd = g_strdup_printf("echo -n '%s' | wl-copy", math);
-        system(cmd); g_free(cmd);
-        system("notify-send -t 2000 'Calculator' 'Copied to clipboard'");
+        copy_to_clipboard(math);
+        char *expr = g_object_get_data(G_OBJECT(row), "math_expr");
+        if (expr) {
+            char *msg = g_strdup_printf("%s = %s", expr, math);
+            notify_calc(msg);
+            calc_history_append(expr, math);
+            g_free(msg);
+        } else {
+            notify_calc(math);
+        }
         quit_launcher();
     } else {
         App *app = g_object_get_data(G_OBJECT(row), "app_data"); launch_app(app);
@@ -183,11 +201,39 @@ void populate_list(const char *query) {
     GList *children = gtk_container_get_children(GTK_CONTAINER(listbox));
     for (GList *l = children; l != NULL; l = l->next) gtk_container_remove(GTK_CONTAINER(listbox), GTK_WIDGET(l->data));
     g_list_free(children);
+    if (history_mode) {
+        GList *hist = calc_history_load();
+        int count = 0;
+        for (GList *l = hist; l != NULL; l = l->next) {
+            char *line = (char*)l->data;
+            char *sep = strstr(line, " = ");
+            GtkWidget *row = gtk_list_box_row_new();
+            g_object_set_data_full(G_OBJECT(row), "math_result",
+                g_strdup(sep ? sep + 3 : line), g_free);
+            if (sep) g_object_set_data_full(G_OBJECT(row), "math_expr",
+                g_strndup(line, sep - line), g_free);
+            GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, config.row_spacing * 2); gtk_container_set_border_width(GTK_CONTAINER(hbox), config.row_spacing);
+            GtkWidget *icon = gtk_image_new_from_icon_name("accessories-calculator", GTK_ICON_SIZE_DND);
+            gtk_image_set_pixel_size(GTK_IMAGE(icon), config.icon_size); gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
+            GtkWidget *label = gtk_label_new(line); gtk_widget_set_halign(label, GTK_ALIGN_START);
+            gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
+            gtk_container_add(GTK_CONTAINER(row), hbox); gtk_container_add(GTK_CONTAINER(listbox), row);
+            count++;
+        }
+        g_list_free_full(hist, g_free);
+        if (count == 0) history_mode = 0;
+        else {
+            gtk_widget_show_all(listbox);
+            gtk_list_box_select_row(GTK_LIST_BOX(listbox), gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), 0));
+            return;
+        }
+    }
     int count = 0; char *query_lower = query ? g_ascii_strdown(query, -1) : NULL;
     
-    char *math_res = try_math(query);
+    char *math_res = (!history_mode) ? try_math(query) : NULL;
     if (math_res) {
         GtkWidget *row = gtk_list_box_row_new(); g_object_set_data_full(G_OBJECT(row), "math_result", g_strdup(math_res), g_free);
+        g_object_set_data_full(G_OBJECT(row), "math_expr", g_strdup(query), g_free);
         GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, config.row_spacing * 2); gtk_container_set_border_width(GTK_CONTAINER(hbox), config.row_spacing);
         GtkWidget *icon = gtk_image_new_from_icon_name("accessories-calculator", GTK_ICON_SIZE_DND);
         gtk_image_set_pixel_size(GTK_IMAGE(icon), config.icon_size); gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
@@ -196,6 +242,16 @@ void populate_list(const char *query) {
         gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
         g_free(label_text); gtk_container_add(GTK_CONTAINER(row), hbox); gtk_container_add(GTK_CONTAINER(listbox), row);
         count++; g_free(math_res);
+    } else if (!history_mode && query && strlen(query) > 0 && looks_like_math(query)) {
+        GtkWidget *row = gtk_list_box_row_new(); gtk_widget_set_name(row, "calc-error");
+        g_object_set_data(G_OBJECT(row), "calc_error", GINT_TO_POINTER(1));
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, config.row_spacing * 2); gtk_container_set_border_width(GTK_CONTAINER(hbox), config.row_spacing);
+        GtkWidget *icon = gtk_image_new_from_icon_name("accessories-calculator", GTK_ICON_SIZE_DND);
+        gtk_image_set_pixel_size(GTK_IMAGE(icon), config.icon_size); gtk_box_pack_start(GTK_BOX(hbox), icon, FALSE, FALSE, 0);
+        GtkWidget *label = gtk_label_new("Couldn't calculate — check the expression"); gtk_widget_set_halign(label, GTK_ALIGN_START);
+        gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
+        gtk_container_add(GTK_CONTAINER(row), hbox); gtk_container_add(GTK_CONTAINER(listbox), row);
+        count++;
     }
 
     for (GList *l = apps_list; l != NULL; l = l->next) {
@@ -219,7 +275,12 @@ void populate_list(const char *query) {
     if (count > 0) gtk_list_box_select_row(GTK_LIST_BOX(listbox), gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), 0));
 }
 
-void on_search_changed(GtkEditable *e, gpointer user_data) { populate_list(gtk_entry_get_text(GTK_ENTRY(e))); }
+void on_search_changed(GtkEditable *e, gpointer user_data) { history_mode = 0; populate_list(gtk_entry_get_text(GTK_ENTRY(e))); }
+
+void show_calc_history(void) {
+    history_mode = !history_mode;
+    populate_list(entry ? gtk_entry_get_text(GTK_ENTRY(entry)) : "");
+}
 
 void load_dock_apps() {
     for (int i = 0; i < dock_config.apps_count; i++) {
@@ -407,6 +468,11 @@ void load_config() {
 
 gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
     if (event->keyval == GDK_KEY_Escape) { quit_launcher(); return TRUE; }
+    if ((event->state & GDK_CONTROL_MASK) &&
+        (event->keyval == GDK_KEY_h || event->keyval == GDK_KEY_H)) {
+        if (listbox && strcmp(current_mode, "dock") != 0) show_calc_history();
+        return TRUE;
+    }
     if (event->keyval == GDK_KEY_Down || event->keyval == GDK_KEY_Up) {
         GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(listbox));
         int idx = row ? gtk_list_box_row_get_index(row) : -1;
@@ -443,24 +509,151 @@ gboolean on_main_button_press(GtkWidget *widget, GdkEventButton *event, gpointer
     return FALSE;
 }
 
+void resolve_calc_bins(void) {
+    char *q = g_find_program_in_path("qalc");
+    if (!q && g_file_test("/usr/sbin/qalc", G_FILE_TEST_IS_EXECUTABLE))
+        q = g_strdup("/usr/sbin/qalc");
+    calc_bin = q;
+    calc_timeout_bin = g_find_program_in_path("timeout");
+}
+
+int looks_like_math(const char *query) {
+    if (!query || strlen(query) < 2) return 0;
+    int has_digit = 0, has_trigger = 0;
+    for (const char *p = query; *p; p++) {
+        if (g_ascii_isdigit(*p)) has_digit = 1;
+        if (strchr("+-*/^%()", *p)) has_trigger = 1;
+    }
+    if (!has_digit) return 0;
+    if (has_trigger) return 1;
+    static const char *kw[] = {"sqrt", "sin", "cos", "tan", "log", "ln(",
+        "exp", "abs", "floor", "ceil", "round", "pi", "tau", "deg", "rad",
+        "factorial", "gcd", " to ", " in ", " mod ", " per ", NULL};
+    char *lower = g_ascii_strdown(query, -1);
+    for (const char **k = kw; *k; k++) {
+        if (strstr(lower, *k)) { has_trigger = 1; break; }
+    }
+    g_free(lower);
+    return has_trigger;
+}
+
+/* qalc reads % as modulo, so rewrite "N% of M" to "(N/100)*M" first.
+ * Trailing "N%" already evaluates natively (0.5), leave it alone. */
+static char* expand_percent(const char *q) {
+    GRegex *re = g_regex_new("([0-9]+(?:\\.[0-9]+)?)%\\s+of\\s+([0-9]+(?:\\.[0-9]+)?)",
+                             G_REGEX_CASELESS, 0, NULL);
+    if (!re) return g_strdup(q);
+    char *out = g_regex_replace(re, q, -1, 0, "(\\1/100)*\\2", 0, NULL);
+    g_regex_unref(re);
+    return out ? out : g_strdup(q);
+}
+
+static char* strip_spaces(const char *s) {
+    GString *g = g_string_new(NULL);
+    for (const char *p = s; *p; p++)
+        if (!g_ascii_isspace(*p)) g_string_append_c(g, *p);
+    return g_string_free(g, FALSE);
+}
+
 char* try_math(const char *query) {
-    if (!query || strlen(query) < 3) return NULL;
-    if (!strpbrk(query, "+-*/^")) return NULL;
-    char *cmd = g_strdup_printf("qalc -t '%s'", query);
-    char *output = NULL;
-    if (g_spawn_command_line_sync(cmd, &output, NULL, NULL, NULL)) {
-        g_free(cmd);
-        if (output) {
-            char *trimmed = g_strstrip(output);
-            if (trimmed && strlen(trimmed) > 0 && strchr(trimmed, '=') == NULL) return trimmed;
-            if (output) g_free(output);
+    /* Hardened qalc evaluation: argv spawn (no shell — queries may contain
+     * quotes), bounded runtime, single-line length-capped output. */
+    if (!looks_like_math(query) || !calc_bin) return NULL;
+    gchar *q = g_strdup(query); g_strstrip(q);
+    if (strlen(q) == 0 || strlen(q) > 200) { g_free(q); return NULL; }
+    gchar *expanded = expand_percent(q);
+    const gchar *argv[6]; int i = 0;
+    if (calc_timeout_bin) { argv[i++] = calc_timeout_bin; argv[i++] = "5"; }
+    argv[i++] = calc_bin; argv[i++] = "-t"; argv[i++] = expanded; argv[i] = NULL;
+    gchar *output = NULL;
+    gboolean ok = g_spawn_sync(NULL, (gchar**)argv, NULL, G_SPAWN_SEARCH_PATH,
+                               NULL, NULL, &output, NULL, NULL, NULL);
+    if (!ok || !output) { g_free(output); g_free(expanded); g_free(q); return NULL; }
+    char *nl = strchr(output, '\n'); if (nl) *nl = '\0';
+    char *t = g_strstrip(output);
+    char *res = NULL;
+    if (strlen(t) > 0 && strlen(t) <= 120 && strchr(t, '=') == NULL) {
+        /* qalc echoes the input (reformatted) when it cannot evaluate,
+         * e.g. "1/0" -> "1 / 0". Treat echo as failure. */
+        char *in_flat = strip_spaces(expanded);
+        char *out_flat = strip_spaces(t);
+        if (strcmp(in_flat, out_flat) != 0) res = g_strdup(t);
+        g_free(in_flat); g_free(out_flat);
+    }
+    g_free(output); g_free(expanded); g_free(q);
+    return res;
+}
+
+void copy_to_clipboard(const char *text) {
+    if (!text) return;
+    gchar *argv[] = {"wl-copy", NULL};
+    GPid pid = 0; gint in_fd = -1;
+    if (g_spawn_async_with_pipes(NULL, argv, NULL, G_SPAWN_SEARCH_PATH,
+                                 NULL, NULL, &pid, &in_fd, NULL, NULL, NULL)) {
+        if (in_fd >= 0) {
+            size_t left = strlen(text); const char *p = text; ssize_t w;
+            while (left > 0 && (w = write(in_fd, p, left)) > 0) { p += w; left -= w; }
+            close(in_fd);
         }
-    } else { g_free(cmd); }
-    return NULL;
+        g_spawn_close_pid(pid);
+    }
+}
+
+void notify_calc(const char *msg) {
+    if (!msg) return;
+    gchar *argv[] = {"notify-send", "-t", "2000", "Calculator", (gchar*)msg, NULL};
+    g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+}
+
+static char* calc_history_path(void) {
+    const char *cache = g_get_user_cache_dir();
+    char *dir = g_build_filename(cache, "hyprde", NULL);
+    g_mkdir_with_parents(dir, 0700);
+    char *path = g_build_filename(dir, "calc-history", NULL);
+    g_free(dir);
+    return path;
+}
+
+void calc_history_append(const char *expr, const char *res) {
+    if (!expr || !res) return;
+    char *path = calc_history_path();
+    FILE *f = fopen(path, "a");
+    if (f) { fprintf(f, "%s = %s\n", expr, res); fclose(f); }
+    /* Cap at 50 lines. */
+    GList *lines = calc_history_load();
+    if (g_list_length(lines) > 50) {
+        f = fopen(path, "w");
+        if (f) {
+            int skip = g_list_length(lines) - 50;
+            for (GList *l = g_list_nth(lines, skip); l; l = l->next)
+                fprintf(f, "%s\n", (char*)l->data);
+            fclose(f);
+        }
+    }
+    g_list_free_full(lines, g_free);
+    g_free(path);
+}
+
+GList* calc_history_load(void) {
+    GList *out = NULL;
+    char *path = calc_history_path();
+    char *contents = NULL;
+    if (g_file_get_contents(path, &contents, NULL, NULL)) {
+        gchar **lines = g_strsplit(contents, "\n", -1);
+        for (int i = 0; lines[i]; i++) {
+            gchar *t = g_strstrip(lines[i]);
+            if (strlen(t) > 0) out = g_list_prepend(out, g_strdup(t));
+        }
+        g_strfreev(lines);
+        g_free(contents);
+    }
+    g_free(path);
+    return out; /* most-recent-first */
 }
 
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
+    resolve_calc_bins();
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--dock") == 0) { current_mode = "dock"; instance_name = "dock"; }
         else if (strcmp(argv[i], "--pin") == 0) { is_pin_mode = 1; current_mode = "drun"; }
@@ -512,6 +705,11 @@ int main(int argc, char *argv[]) {
     centered_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); 
     gtk_container_add(GTK_CONTAINER(main_window), centered_box);
     g_signal_connect(main_window, "key-press-event", G_CALLBACK(on_key_press), NULL);
+    /* Click-outside-to-close for drun / power-menu / dmenu (dock excluded
+     * inside the handler). Child widgets consume their own clicks, so only
+     * clicks on empty padding bubble up to the window. */
+    gtk_widget_add_events(main_window, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(main_window, "button-press-event", G_CALLBACK(on_main_button_press), NULL);
 
     char *css = NULL;
     if (strcmp(current_mode, "dock") == 0) {
@@ -522,7 +720,8 @@ int main(int argc, char *argv[]) {
         else gtk_widget_set_margin_bottom(centered_box, dock_config.margin);
 
         GtkWidget *overlay = gtk_overlay_new(); gtk_box_pack_start(GTK_BOX(centered_box), overlay, FALSE, FALSE, 0);
-        dock_shelf = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0); gtk_widget_set_name(dock_shelf, "dock-shelf");
+        GtkOrientation orient = (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
+        dock_shelf = gtk_box_new(orient, 0); gtk_widget_set_name(dock_shelf, "dock-shelf");
         if (dock_config.autohide) gtk_widget_set_opacity(dock_shelf, 0.05);
         
         int buffer = 80;
@@ -531,7 +730,6 @@ int main(int argc, char *argv[]) {
         else if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_bottom(dock_shelf, buffer);
         else gtk_widget_set_margin_top(dock_shelf, buffer);
 
-        GtkOrientation orient = (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
         GtkWidget *icons_box = gtk_box_new(orient, 10); gtk_container_set_border_width(GTK_CONTAINER(icons_box), dock_config.padding);
         for (GList *l = apps_list; l != NULL; l = l->next) {
             App *app = (App*)l->data;
@@ -613,6 +811,7 @@ int main(int argc, char *argv[]) {
             "list { background: transparent; padding: 8px; }"
             "row { color: %s; border-radius: 12px; margin: 2px 15px; padding: 6px; transition: all 0.15s ease; }"
             "row label { font-size: %dpx; }"
+            "#calc-error { opacity: 0.55; }"
             "row:selected { background-color: %s; color: %s; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.3); }",
             config.bg_color, config.rounding, config.font_size, entry_bg, config.fg_color, config.rounding, config.rounding, config.fg_color, row_font_size, config.sel_bg_color, config.sel_fg_color
         );
