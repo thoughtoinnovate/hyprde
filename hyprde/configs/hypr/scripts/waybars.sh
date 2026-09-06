@@ -58,7 +58,6 @@ elif [ "$1" = "close-all" ]; then
     close_bar "control-center/config"
     close_bar "waybar_bt_gen.json"
     pkill wofi || true
-    pkill -f "python3.*spotlight.py" || true
     pkill -x "hyprsearch" || true
     pkill -f "any_finder.sh" || true
     # Close any floating terminal launchers by class
