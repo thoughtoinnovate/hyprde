@@ -53,7 +53,16 @@ try:
 except (ValueError, ImportError) as e:
     _missing_dep_exit("Gtk", f"{e}; install gtk3")
 
+try:
+    gi.require_version('GdkPixbuf', '2.0')
+except (ValueError, ImportError):
+    pass
+
 from gi.repository import Gtk, Gdk, Gio, GLib, Pango
+try:
+    from gi.repository import GdkPixbuf
+except ImportError:
+    GdkPixbuf = None
 import signal
 
 def check_single_instance():
@@ -133,6 +142,152 @@ def get_theme_colors():
         except: pass
     return colors
 
+
+# Second-line explanations for setting rows, keyed by row label text.
+# Shared across pages when a label repeats (e.g. Blur Size on desktop + lock).
+DESCRIPTIONS = {
+    "Inner Gaps": "Space between tiled windows, in pixels.",
+    "Outer Gaps": "Space between windows and the screen edges.",
+    "Border Size": "Thickness of the focused window border.",
+    "Rounding": "Corner radius for windows and surfaces.",
+    "Active Window": "Opacity of the focused window.",
+    "Inactive Window": "Opacity of background windows.",
+    "Waybar Opacity": "Transparency of the top bar.",
+    "Launcher Opacity": "Transparency of the app launcher.",
+    "Window Layout": "Tiling algorithm: dwindle, master, or scroll.",
+    "Resize on Border Drag": "Resize windows by dragging their borders with SUPER held.",
+    "Allow Tearing": "Lets fullscreen games tear frames to cut input latency.",
+    "Enable Blur": "Blur content behind translucent surfaces. Costs GPU.",
+    "Blur Size": "Blur radius. Higher is softer but slower.",
+    "Blur Passes": "Blur quality passes. Higher is smoother but slower.",
+    "Active Border": "Gradient colors of the focused window border.",
+    "Inactive Border": "Gradient colors of unfocused window borders.",
+    "Theme Mode": "Dark, light, or automatic by time of day.",
+    "Accent Color": "Highlight color for selections, sliders, and active UI.",
+    "Active Mode": "Fixed image, rotating collection, or disabled.",
+    "Static Image": "Single wallpaper shown on all monitors.",
+    "Collection Folder": "Folder cycled when dynamic mode is active.",
+    "Enable Motion Effects": "Master switch for all window animations.",
+    "Open Style": "Animation played when a window opens.",
+    "Exit Style": "Animation played when a window closes.",
+    "Border Speed": "Duration of the border animation.",
+    "Fading Curve": "Easing curve used for fade in and out.",
+    "Workspace Transition": "Animation played when switching workspaces.",
+    "Global UI Scale": "Display scaling factor, e.g. 1.0, 1.5, 2.0.",
+    "Advanced Monitor Rules (name, res, pos, scale)": "Raw per-monitor rules, one per line.",
+    "Layout": "Keyboard layout code, e.g. us, de.",
+    "Variant": "Keyboard layout variant, e.g. colemak.",
+    "Model": "Keyboard model, e.g. pc105.",
+    "Rules": "Extra xkb rules file, rarely needed.",
+    "Caps Lock Behavior": "Remap Caps Lock to Control, Escape, or swap it with Esc.",
+    "Advanced Options String": "Raw xkb_options passed to the keyboard.",
+    "Natural Scrolling (Touchpad)": "Invert the touchpad scroll direction.",
+    "Focus Follows Mouse": "Focus windows by hovering, without clicking.",
+    "Sensitivity": "Pointer speed. Negative values slow it down.",
+    "Main Modifier": "Primary shortcut key used by all keybinds.",
+    "Normal (MOD, KEY, ACTION, ARGS)": "Standard keybinds, one per line.",
+    "Release": "Binds fired when the key is released.",
+    "Repeat": "Binds that repeat while the key is held.",
+    "Locked": "Binds that also work on the lock screen.",
+    "Mouse": "Mouse button binds.",
+    "Gesture Rules (fingers = N, direction = \"...\", action = \"...\")": "Touchpad gestures, one rule per line.",
+    "Auto-Lock (s)": "Idle seconds before the screen locks.",
+    "Screen Off (s)": "Idle seconds before the display powers off.",
+    "Suspend (s)": "Idle seconds before the machine suspends.",
+    "Lock Wallpaper": "Background image of the lock screen.",
+    "User Picture": "Avatar shown on the lock screen.",
+    "Fail Text": "Message shown after a wrong password.",
+    "Placeholder Text": "Prompt inside the password field.",
+    "Enable Night Light": "Warm the screen colors in the evening.",
+    "Day Temp (K)": "Daytime color temperature. Lower is warmer.",
+    "Night Strength / Temp (K)": "Nighttime warmth. Lower is more orange.",
+    "Launch at Startup (one per line)": "Commands run once at login.",
+    "Enable Scheduler": "Master switch for the timed routines below.",
+    "Time (24h)": "Trigger time in HH:MM format.",
+    "Days": "Optional day filter, e.g. Mon-Fri.",
+    "Enabled": "Whether this routine runs.",
+    "Active Plugins (hyprpm names)": "Hyprland plugins loaded at startup.",
+    "Rules (ACTION, class:REGEX or title:REGEX)": "Per-window rules matched by app class or title.",
+    "KEY,VALUE pairs": "Environment variables exported to the session.",
+    "New Window Status": "Where new windows open in the dwindle layout.",
+    "Preserve Split": "Keep manual split directions when moving windows.",
+    "Column Width": "Default width of columns in the scrolling layout.",
+    "Explicit Widths": "Per-column width overrides.",
+    "Focus Fit Method": "How focus moves between tiles when scrolling.",
+    "Fullscreen Single Column": "Fullscreen spans a single column only.",
+    "Screen Position": "Where on screen this element appears.",
+    "Position": "Screen edge or area this element anchors to.",
+    "Width %": "Width as a percentage of the screen.",
+    "Width (%)": "Width as a percentage of the screen.",
+    "Top Margin": "Gap from the top screen edge.",
+    "Top Margin (px)": "Gap from the top screen edge, in pixels.",
+    "Screen Margin": "Gap between the element and the screen edge.",
+    "Icon Size": "Pixel size of icons.",
+    "App Icon Size": "Pixel size of application icons.",
+    "Item Spacing": "Gap between items in the list.",
+    "Padding": "Inner padding around the content.",
+    "Search Font Size": "Text size inside the launcher search box.",
+    "Dock Apps (binary names)": "Apps pinned to the dock, one binary name per line.",
+    "Dock Position": "Screen edge the dock sits on.",
+    "Autohide": "Fade the dock until the cursor touches it.",
+    "Enable Mac-style Dock": "Show the bottom icon dock.",
+    "Terminal": "Preferred terminal emulator.",
+    "Filemanager": "Preferred file manager.",
+    "Launcher": "Preferred application for this role.",
+    "Status bar": "Preferred status bar application.",
+    "Notification service": "Preferred notification daemon.",
+    "Autohide Status Bar": "Hide the bar until the cursor touches its edge.",
+    "Disable Splash Text": "Skip the startup splash message.",
+    "Disable Startup Logo": "Skip the logo shown at compositor start.",
+    "Force Default Wallpaper": "Always use the bundled wallpaper.",
+}
+
+WIDGET_CELL_WIDTH = 240
+
+# Instant-apply: whitelisted widget keys apply live (debounced) without Apply.
+# Second layer of defense: only sections in LIVE_SAFE_SECTIONS may differ —
+# anything else dirty (binds, lua text, monitors, ...) forces manual Apply.
+LIVE_SAFE_WIDGETS = {
+    'gaps_in', 'gaps_out', 'border_size', 'rounding',
+    'active_opacity', 'inactive_opacity', 'waybar_opacity', 'launcher_opacity',
+    'blur_enabled', 'blur_size', 'blur_passes',
+    'nl_enabled', 'nl_temp_day', 'nl_temp_night',
+    'anim_enabled',
+}
+LIVE_SAFE_SECTIONS = {'general', 'decoration', 'nightlight', 'animations'}
+LIVE_APPLY_DEBOUNCE_MS = 600
+
+# Guided keybind editor: modifiers, action names, parse/serialize helpers.
+# Stored bind strings use "$mainMod"-style variables and mixed-case keys;
+# the parser preserves unknown mod tokens verbatim so round-trips are lossless.
+BIND_MODS = ("SUPER", "SHIFT", "ALT", "CTRL")
+
+BIND_ACTIONS_FALLBACK = [
+    "exec", "exec-once", "killactive", "closewindow", "fullscreen",
+    "fakefullscreen", "togglefloating", "toggleopaque",
+    "togglespecialworkspace", "workspace", "movetoworkspace",
+    "movetoworkspacesilent", "movewindow", "resizewindow", "resizeactive",
+    "movefocus", "moveintogroup", "moveoutofgroup", "togglegroup",
+    "changegroupactive", "lockgroups", "pin", "centerwindow", "focuswindow",
+    "focusurgentorlast", "bringactivetotop", "tagwindow", "togglesplit",
+    "layoutmsg", "splitratio", "alterzone", "submap", "dpms", "exit",
+    "focusmonitor", "movecurrentworkspacetomonitor", "mouse",
+]
+
+
+def _bind_action_names():
+    """Action names for the guided editor dropdown.
+
+    Prefers the live DISPATCHER_MAP from lua_generator so the editor and the
+    config builder can never disagree; falls back to a static list (notably
+    when running from ~/.config where lua_generator is not on sys.path)."""
+    try:
+        import lua_generator
+        return sorted(lua_generator.DISPATCHER_MAP.keys())
+    except Exception:
+        return list(BIND_ACTIONS_FALLBACK)
+
+
 class SettingsManager(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
@@ -144,6 +299,11 @@ class SettingsManager(Gtk.Window):
         # section used to crash startup with a bare KeyError. Fill tables
         # in-memory (persisted only when the user hits Done with changes).
         self.ensure_defaults()
+        self._bind_actions = _bind_action_names()
+        self._key_capture = None
+        # Normalize stored bind strings (case, spacing) so untouched binds
+        # serialize identically on collect — otherwise every close would look dirty.
+        self._normalize_binds()
         self.initial_config_str = tomlkit.dumps(self.doc)
         self._initial_sections = self._snapshot_sections()
 
@@ -215,12 +375,12 @@ class SettingsManager(Gtk.Window):
         tl_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         tl_box.set_valign(Gtk.Align.CENTER)
         tl_box.set_margin_top(12); tl_box.set_margin_bottom(12)
-        for btn_name in ["tl-close", "tl-minimize", "tl-maximize"]:
-            dot = Gtk.Button(); dot.set_name(btn_name)
-            dot.set_size_request(13, 13); dot.set_can_focus(False)
-            if btn_name == "tl-close":
-                dot.connect("clicked", lambda x: self.close_window())
-            tl_box.pack_start(dot, False, False, 0)
+        dot = Gtk.Button(); dot.set_name("tl-close")
+        dot.set_size_request(13, 13); dot.set_can_focus(False)
+        dot.set_tooltip_text("Close")
+        dot.connect("clicked", lambda x: self.close_window())
+        tl_box.pack_start(dot, False, False, 0)
+        self.close_dot = dot
         titlebar.pack_start(tl_box, False, False, 0)
 
         tl_spacer1 = Gtk.Box(); titlebar.pack_start(tl_spacer1, True, True, 0)
@@ -247,6 +407,11 @@ class SettingsManager(Gtk.Window):
         sidebar_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         sidebar_vbox.set_name("sidebar-area")
         sidebar_vbox.set_size_request(200, -1)
+        self.search_entry = Gtk.SearchEntry(); self.search_entry.set_name("settings-search")
+        self.search_entry.set_placeholder_text("Search settings…")
+        self.search_entry.connect("search-changed", self.on_search_changed)
+        self.search_entry.connect("activate", self.on_search_activate)
+        sidebar_vbox.pack_start(self.search_entry, False, False, 0)
         self.sidebar = Gtk.ListBox(); self.sidebar.set_name("sidebar")
         self.sidebar.connect("row-activated", self.on_sidebar_row_activated)
         self.sidebar.connect("row-selected", lambda lb, row: self.on_sidebar_row_activated(lb, row) if row else None)
@@ -289,24 +454,252 @@ class SettingsManager(Gtk.Window):
     def cleanup_lock(self):
         cleanup_lock()
 
-    def on_key_press(self, widget, event):
-        from gi.repository import Gdk
-        if event.keyval == Gdk.KEY_Escape:
-            self.close_window()
-            return True
-            
-        # Catch SUPER+Q, SUPER+C, CTRL+Q, CTRL+C
-        if event.state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SUPER_MASK):
-            if event.keyval in [Gdk.KEY_q, Gdk.KEY_Q, Gdk.KEY_c, Gdk.KEY_C]:
-                self.close_window()
-                return True
-                
-        return False
-
     def close_window(self):
+        if getattr(self, '_dirty', False) and self._has_unsaved_changes():
+            dialog = Gtk.MessageDialog(
+                transient_for=self, modal=True,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.NONE,
+                text="Discard unsaved changes?")
+            dialog.format_secondary_text(
+                "You have unapplied changes. Closing now will lose them.")
+            dialog.add_button("Keep Editing", Gtk.ResponseType.CANCEL)
+            discard = dialog.add_button("Discard Changes", Gtk.ResponseType.OK)
+            discard.get_style_context().add_class("destructive-action")
+            
+            def on_response(dlg, res):
+                dlg.destroy()
+                if res == Gtk.ResponseType.OK:
+                    self.cleanup_lock()
+                    self.main_box.get_style_context().add_class("closing")
+                    GLib.timeout_add(200, Gtk.main_quit)
+                    
+            dialog.connect("response", on_response)
+            dialog.show_all()
+            return
+            
         self.cleanup_lock()
         self.main_box.get_style_context().add_class("closing")
         GLib.timeout_add(200, Gtk.main_quit)
+
+    def _has_unsaved_changes(self):
+        """Authoritative dirty check: collect widget state, diff vs last apply."""
+        try:
+            snap = self._collect_widget_state()
+        except Exception:
+            return True
+        return snap.get("config_str") != self.initial_config_str
+
+    # --- DIRTY TRACKING / REVERT ---
+    def _mark_dirty(self, *args):
+        if getattr(self, '_restoring', False):
+            return
+        self._dirty = True
+        dot = getattr(self, 'close_dot', None)
+        if dot is not None:
+            dot.get_style_context().add_class("dirty")
+            dot.set_tooltip_text("Close • unsaved changes")
+
+    def _mark_clean(self):
+        self._dirty = False
+        dot = getattr(self, 'close_dot', None)
+        if dot is not None:
+            dot.get_style_context().remove_class("dirty")
+            dot.set_tooltip_text("Close")
+
+    def _track_dirty_signals(self):
+        """Optimistic dirty flag: any widget interaction marks dirty.
+
+        The close dialog re-verifies authoritatively, so false positives
+        (change then change back) only tint the dot — they never lie."""
+        seen = set()
+
+        def hook(w):
+            if w is None or id(w) in seen:
+                return
+            seen.add(id(w))
+            if isinstance(w, Gtk.Entry):
+                w.connect("changed", self._mark_dirty)
+            elif isinstance(w, (Gtk.SpinButton, Gtk.Scale)):
+                w.connect("value-changed", self._mark_dirty)
+            elif isinstance(w, Gtk.Switch):
+                w.connect("notify::active", self._mark_dirty)
+            elif isinstance(w, Gtk.ComboBoxText):
+                w.connect("changed", self._mark_dirty)
+            elif isinstance(w, Gtk.TextView):
+                w.get_buffer().connect("changed", self._mark_dirty)
+            elif isinstance(w, Gtk.TextBuffer):
+                w.connect("changed", self._mark_dirty)
+            elif isinstance(w, Gtk.Container):
+                w.connect("add", self._mark_dirty)
+                w.connect("remove", self._mark_dirty)
+            elif isinstance(w, list):
+                for item in w:
+                    if isinstance(item, dict):
+                        for v in item.values():
+                            hook(v)
+                    else:
+                        hook(item)
+
+        for w in self.widgets.values():
+            hook(w)
+        # Accent picker mutates the doc directly (no widget signal to catch)
+        if 'theme_accent_btn' in self.widgets:
+            self.widgets['theme_accent_btn'].connect("clicked", self._mark_dirty)
+
+    def _read_widget_value(self, w):
+        # NOTE: SpinButton subclasses Entry — numeric check must come first,
+        # and restore must use set_value (set_text does not move the adjustment).
+        if isinstance(w, (Gtk.SpinButton, Gtk.Scale)):
+            return ("num", w.get_value())
+        if isinstance(w, Gtk.Entry):
+            return ("entry", w.get_text())
+        if isinstance(w, Gtk.Switch):
+            return ("bool", w.get_active())
+        if isinstance(w, Gtk.ComboBoxText):
+            return ("combo", w.get_active_id())
+        if isinstance(w, Gtk.TextView):
+            buf = w.get_buffer()
+            return ("text", buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
+        if isinstance(w, Gtk.TextBuffer):
+            return ("text", w.get_text(w.get_start_iter(), w.get_end_iter(), True))
+        if w is self.widgets.get('theme_accent_btn'):
+            return ("accent", self._tg('theme', 'accent', '#007aff'))
+        if isinstance(w, Gtk.Container) and getattr(w, 'is_dynamic_list', False):
+            if getattr(w, 'bind_kind', None) == 'binds':
+                try:
+                    return ("binditems", self.get_bind_items(w))
+                except Exception:
+                    return None
+            try:
+                items = [c.get_children()[0].get_text()
+                         for c in w.get_children()
+                         if c.get_children() and isinstance(c.get_children()[0], Gtk.Entry)]
+                return ("items", items)
+            except Exception:
+                return None
+        return None
+
+    def _write_widget_value(self, w, val):
+        kind, data = val
+        if kind == "entry" and isinstance(w, Gtk.Entry):
+            w.set_text(data)
+        elif kind == "num" and isinstance(w, (Gtk.SpinButton, Gtk.Scale)):
+            adj = w.get_adjustment()
+            w.set_value(max(adj.get_lower(), min(data, adj.get_upper())))
+        elif kind == "bool" and isinstance(w, Gtk.Switch):
+            w.set_active(data)
+        elif kind == "combo" and isinstance(w, Gtk.ComboBoxText):
+            w.set_active_id(data)
+        elif kind == "text":
+            buf = w.get_buffer() if isinstance(w, Gtk.TextView) else w
+            if isinstance(buf, Gtk.TextBuffer):
+                buf.set_text(data)
+        elif kind == "accent" and w is self.widgets.get('theme_accent_btn'):
+            self._st('theme', 'accent', data)
+            self._update_accent_preview(self._parse_color(data))
+        elif kind == "binditems" and isinstance(w, Gtk.Container):
+            self._dynamic_list_set(w, data)
+        elif kind == "items" and isinstance(w, Gtk.Container):
+            self._dynamic_list_set(w, data)
+
+    def _dynamic_list_set(self, container, items):
+        """Restore a dynamic list to an exact item set (mirrors the builders)."""
+        if getattr(container, 'bind_kind', None) == 'binds':
+            for ch in list(container.get_children()):
+                container.remove(ch)
+            for s in items:
+                try:
+                    self._add_bind_row(container, str(s))
+                except Exception:
+                    continue
+            return
+        for ch in list(container.get_children()):
+            container.remove(ch)
+        for text in items:
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+            entry = Gtk.Entry(); entry.set_text(text); entry.set_hexpand(True)
+            del_btn = Gtk.Button.new_from_icon_name("list-remove-symbolic", Gtk.IconSize.BUTTON)
+            del_btn.connect("clicked", lambda x, r=row: container.remove(r))
+            row.pack_start(entry, True, True, 0); row.pack_end(del_btn, False, False, 0)
+            container.add(row)
+        container.show_all()
+
+    def _snapshot_widget_values(self):
+        self._initial_widget_values = {}
+        self._initial_routines = {}
+
+        def snap(w):
+            if w is None or id(w) in self._initial_widget_values:
+                return
+            if isinstance(w, list):
+                for item in w:
+                    if isinstance(item, dict):
+                        for v in item.values():
+                            snap(v)
+                    else:
+                        snap(item)
+                return
+            v = self._read_widget_value(w)
+            if v is not None:
+                self._initial_widget_values[id(w)] = (w, v)
+
+        for w in self.widgets.values():
+            snap(w)
+        for u in self.widgets.get('rocket_events_list', []):
+            if isinstance(u, dict) and isinstance(u.get('name'), str):
+                buf = u['actions'].get_buffer()
+                self._initial_routines[u['name']] = {
+                    'trig': u['trig'].get_text(), 'days': u['days'].get_text(),
+                    'on': u['on'].get_active(),
+                    'actions': buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True)}
+
+    def _revert_routines(self):
+        """Added routines are destroyed, deleted ones re-created, values restored."""
+        current = {u['name']: u for u in self.widgets.get('rocket_events_list', [])
+                   if isinstance(u, dict)}
+        for name, u in list(current.items()):
+            if name not in self._initial_routines:
+                self.remove_rocket_routine_ui(u)
+        for name, vals in self._initial_routines.items():
+            u = next((x for x in self.widgets['rocket_events_list']
+                      if isinstance(x, dict) and x.get('name') == name), None)
+            if u is None:
+                self.add_rocket_routine_ui(name, {
+                    'trigger': vals['trig'], 'days': vals['days'],
+                    'enabled': vals['on'], 'actions': vals['actions'].split('\n')})
+            else:
+                u['trig'].set_text(vals['trig'])
+                u['days'].set_text(vals['days'])
+                u['on'].set_active(vals['on'])
+                u['actions'].get_buffer().set_text(vals['actions'])
+
+    def _on_revert_page(self, page_name):
+        page = self.stack.get_child_by_name(page_name)
+        if page is None:
+            return
+        restored = 0
+
+        def walk(w):
+            nonlocal restored
+            if id(w) in self._initial_widget_values:
+                w0, v = self._initial_widget_values[id(w)]
+                self._write_widget_value(w0, v)
+                restored += 1
+            if isinstance(w, Gtk.Container):
+                for ch in w.get_children():
+                    walk(ch)
+
+        self._restoring = True
+        try:
+            if page_name == 'hyprrocket':
+                self._revert_routines()
+            walk(page)
+        finally:
+            self._restoring = False
+        if not self._has_unsaved_changes():
+            self._mark_clean()
+        self.status_label.set_text(f"Reverted {restored} setting(s) on this page")
 
     def apply_css(self):
         c = get_theme_colors()
@@ -331,22 +724,34 @@ class SettingsManager(Gtk.Window):
         #titlebar-sep {{ background-color: {c['border']}; min-height: 1px; }}
         #title-label {{ font-size: 13px; font-weight: 500; color: {c['base_fg']}; opacity: 0.8; }}
 
-        #tl-close, #tl-minimize, #tl-maximize {{
+        #tl-close {{
             border-radius: 50%; min-width: 13px; min-height: 13px;
             padding: 0; border: none; box-shadow: none;
+            background-color: #ff5f57;
         }}
-        #tl-close {{ background-color: #ff5f57; }}
-        #tl-minimize {{ background-color: #febc2e; }}
-        #tl-maximize {{ background-color: #28c840; }}
         #tl-close:hover {{ background-color: #e0443c; }}
-        #tl-minimize:hover {{ background-color: #e0a326; }}
-        #tl-maximize:hover {{ background-color: #1fa832; }}
+        #tl-close.dirty {{ background-color: #ff9f0a; }}
+        #tl-close.dirty:hover {{ background-color: #e08a06; }}
+        #revert-btn {{
+            font-size: 11px; padding: 2px 10px; border-radius: 6px;
+            opacity: 0.55; background: transparent;
+            border: 1px solid {c['border']}; color: {c['base_fg']};
+        }}
+        #revert-btn:hover {{ opacity: 1.0; background: {c['hover_bg']}; }}
+        .anchor-btn {{
+            font-size: 11px; padding: 2px 10px; border-radius: 6px;
+            opacity: 0.7; background: transparent;
+            border: 1px solid {c['border']}; color: {c['base_fg']};
+        }}
+        .anchor-btn:hover {{ opacity: 1.0; background: {c['hover_bg']}; }}
 
         #sidebar-area, #sidebar {{ background-color: rgba(0,0,0,0.1); border-right: 1px solid {c['border']}; }}
-        #sidebar row {{ padding: 8px 10px; border-radius: 8px; margin: 2px 6px; color: {c['base_fg']}; opacity: 0.65; font-weight: 400; font-size: 12px; background: transparent; }}
+        #sidebar row {{ padding: 8px 10px; border-radius: 8px; margin: 2px 6px; color: {c['base_fg']}; opacity: 0.8; font-weight: 400; font-size: 12px; background: transparent; }}
         #sidebar row:selected {{ background-color: rgba(255,255,255,0.07); color: {c['base_fg']}; opacity: 1.0; font-weight: 600; border-left: 3px solid {c['accent']}; padding-left: 7px; }}
         #sidebar row label {{ color: inherit; font-size: 12px; }}
-        .sidebar-group-label {{ font-size: 10px; font-weight: 700; opacity: 0.35; color: {c['base_fg']}; padding: 10px 12px 3px 12px; letter-spacing: 1px; background: transparent; }}
+        .sidebar-group-label {{ font-size: 11px; font-weight: 700; opacity: 0.5; color: {c['base_fg']}; padding: 10px 12px 3px 12px; letter-spacing: 1px; background: transparent; }}
+        #settings-search {{ margin: 8px 8px 4px 8px; }}
+        .search-highlight {{ box-shadow: inset 0 0 0 2px {c['accent']}; border-radius: 8px; background: rgba(255,255,255,0.05); }}
 
         #save-button {{
             background-color: {c['active_bg']};
@@ -358,10 +763,11 @@ class SettingsManager(Gtk.Window):
             font-size: 13px;
         }}
         #save-button:hover {{ opacity: 0.85; }}
-        #status-label {{ font-size: 11px; opacity: 0.5; color: {c['base_fg']}; }}
+        #status-label {{ font-size: 11px; opacity: 0.75; color: {c['base_fg']}; }}
         #status-label.error {{ color: #ff5f57; font-weight: 600; opacity: 1.0; }}
 
-        .section-title {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 12px; color: {c['base_fg']}; opacity: 0.4; }}
+        .section-title {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 12px; color: {c['base_fg']}; opacity: 0.65; }}
+        .setting-desc {{ font-size: 11px; opacity: 0.7; color: {c['base_fg']}; }}
 
         .group-frame {{
             background: rgba(255,255,255,0.04);
@@ -461,7 +867,21 @@ class SettingsManager(Gtk.Window):
         return None
 
     def create_row(self, label_text, widget):
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16); hbox.set_margin_bottom(8); label = Gtk.Label(label=label_text); label.set_xalign(0); hbox.pack_start(label, True, True, 0); hbox.pack_end(widget, False, False, 0)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16); hbox.set_margin_bottom(8)
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        title = Gtk.Label(label=label_text); title.set_xalign(0)
+        text.pack_start(title, False, False, 0)
+        desc = DESCRIPTIONS.get(label_text)
+        if desc:
+            d = Gtk.Label(label=desc); d.set_xalign(0); d.set_line_wrap(True)
+            d.get_style_context().add_class("setting-desc")
+            text.pack_start(d, False, False, 0)
+        hbox.pack_start(text, True, True, 0)
+        cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        cell.set_size_request(WIDGET_CELL_WIDTH, -1)
+        widget.set_hexpand(True)
+        cell.pack_start(widget, True, True, 0)
+        hbox.pack_end(cell, False, False, 0)
         return hbox
 
     def create_row_with_btn(self, label_text, widget, btn_label, btn_cb):
@@ -474,15 +894,228 @@ class SettingsManager(Gtk.Window):
         add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic", Gtk.IconSize.BUTTON); add_btn.connect("clicked", lambda x: add_entry(""))
         title_box.pack_end(add_btn, False, False, 0); vbox.pack_start(title_box, False, False, 10)
         list_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10); vbox.pack_start(list_container, False, False, 0)
+        list_container.is_dynamic_list = True
+        hint = Gtk.Label(label="No entries yet — use + to add one"); hint.set_xalign(0); hint.set_opacity(0.5)
+        vbox.pack_start(hint, False, False, 0)
+
+        def refresh_hint(*_a):
+            hint.set_visible(len(list_container.get_children()) == 0)
+
+        list_container.connect("add", refresh_hint)
+        list_container.connect("remove", refresh_hint)
         def add_entry(val=""):
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15); entry = Gtk.Entry(); entry.set_text(val); entry.set_hexpand(True)
             del_btn = Gtk.Button.new_from_icon_name("list-remove-symbolic", Gtk.IconSize.BUTTON); del_btn.connect("clicked", lambda x: list_container.remove(row))
             row.pack_start(entry, True, True, 0); row.pack_end(del_btn, False, False, 0); list_container.add(row); row.show_all(); return entry
         for item in items: add_entry(item)
+        refresh_hint()
         return vbox, list_container
 
     def build_page_vbox(self, title_text):
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); v.set_margin_top(20); v.set_margin_bottom(20); v.set_margin_start(28); v.set_margin_end(28); lbl = Gtk.Label(label=title_text.upper()); lbl.set_xalign(0); lbl.get_style_context().add_class("section-title"); v.pack_start(lbl, False, False, 0); return v
+
+    # --- GUIDED KEYBIND EDITOR ---
+    @staticmethod
+    def _parse_bind_string(s):
+        """Split 'MODS, KEY, ACTION, ARGS' without losing anything.
+
+        Unknown mod tokens ($mainMod etc.) are preserved verbatim in `extra`
+        so parse->serialize round-trips losslessly."""
+        parts = [p.strip() for p in str(s).split(",", 3)]
+        raw_mods = parts[0].split() if parts and parts[0] else []
+        uppers = [t.upper() for t in raw_mods]
+        sel = [m for m in BIND_MODS if m in uppers]
+        extra = [t for t in raw_mods if t.upper() not in BIND_MODS]
+        key = parts[1] if len(parts) > 1 else ""
+        if len(key) == 1 and key.isalpha():
+            key = key.upper()
+        action = parts[2] if len(parts) > 2 else ""
+        args = parts[3] if len(parts) > 3 else ""
+        return extra, sel, key, action, args
+
+    @staticmethod
+    def _serialize_bind(extra, sel, key, action, args):
+        mods = " ".join(list(extra) + list(sel))
+        s = f"{mods}, {key}, {action}"
+        return s + f", {args}" if args else s
+
+    def build_bind_list(self, items, label_title):
+        """Structured editor for one bind subsection (normal/release/...)."""
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12); vbox.get_style_context().add_class("group-frame")
+        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15); title_box.pack_start(Gtk.Label(label=label_title), True, True, 0)
+        add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic", Gtk.IconSize.BUTTON)
+        add_btn.set_tooltip_text("Add bind")
+        add_btn.connect("clicked", lambda x: self._add_bind_row(list_container, None))
+        title_box.pack_end(add_btn, False, False, 0); vbox.pack_start(title_box, False, False, 10)
+        list_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6); vbox.pack_start(list_container, False, False, 0)
+        list_container.is_dynamic_list = True
+        list_container.bind_kind = "binds"
+        hint = Gtk.Label(label="No binds here — use + to add one"); hint.set_xalign(0); hint.set_opacity(0.5)
+        vbox.pack_start(hint, False, False, 0)
+
+        def refresh_hint(*_a):
+            hint.set_visible(len(list_container.get_children()) == 0)
+
+        list_container.connect("add", refresh_hint)
+        list_container.connect("remove", refresh_hint)
+        for item in items:
+            self._add_bind_row(list_container, str(item))
+        refresh_hint()
+        return vbox, list_container
+
+    def _add_bind_row(self, container, bind_str):
+        if bind_str is None:
+            main = self.doc.get('binds', {}).get('mainMod', 'SUPER')
+            extra, sel, key, action, args = [], ([main] if main in BIND_MODS else ["SUPER"]), "", "", ""
+        else:
+            extra, sel, key, action, args = self._parse_bind_string(bind_str)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        row.set_margin_bottom(2)
+        mod_checks = {}
+        for m in BIND_MODS:
+            cb = Gtk.CheckButton(label=m)
+            cb.set_tooltip_text(f"Require {m} modifier")
+            cb.set_active(m in sel)
+            cb.connect("toggled", self._mark_dirty)
+            mod_checks[m] = cb
+            row.pack_start(cb, False, False, 0)
+        key_btn = Gtk.Button(label=key or "Set…")
+        key_btn.set_size_request(84, -1)
+        key_btn.set_tooltip_text("Left-click: press a key • Right-click: type a key name")
+        key_btn.connect("clicked", lambda b: self._start_key_capture(b, row))
+        key_btn.connect("button-press-event", lambda b, e: self._on_key_btn_press(b, e, row))
+        row.pack_start(key_btn, False, False, 0)
+        action_combo = Gtk.ComboBoxText.new_with_entry()
+        for a in self._bind_actions:
+            action_combo.append(a, a)
+        if action and action in self._bind_actions:
+            action_combo.set_active_id(action)
+        elif action:
+            action_combo.get_child().set_text(action)
+        action_combo.get_child().set_width_chars(14)
+        action_combo.set_tooltip_text("Dispatcher action (type a custom/plugin one if needed)")
+        action_combo.connect("changed", self._mark_dirty)
+        row.pack_start(action_combo, False, False, 0)
+        args_entry = Gtk.Entry()
+        args_entry.set_text(args)
+        args_entry.set_placeholder_text("args…")
+        args_entry.set_hexpand(True)
+        args_entry.connect("changed", self._mark_dirty)
+        row.pack_start(args_entry, True, True, 0)
+        del_btn = Gtk.Button.new_from_icon_name("list-remove-symbolic", Gtk.IconSize.BUTTON)
+        del_btn.connect("clicked", lambda x: container.remove(row))
+        row.pack_end(del_btn, False, False, 0)
+        row.bind_mods = mod_checks
+        row.bind_mods_extra = list(extra)
+        row.bind_key = key
+        row.bind_key_btn = key_btn
+        row.bind_action = action_combo
+        row.bind_args = args_entry
+        container.add(row)
+        row.show_all()
+        return row
+
+    def _read_bind_row(self, row):
+        sel = [m for m in BIND_MODS if row.bind_mods[m].get_active()]
+        key = row.bind_key or ""
+        action = (row.bind_action.get_active_text() or "").strip()
+        args = row.bind_args.get_text().strip()
+        return self._serialize_bind(row.bind_mods_extra, sel, key, action, args)
+
+    def _bind_rows(self, container):
+        return [ch for ch in container.get_children() if hasattr(ch, 'bind_mods')]
+
+    def get_bind_items(self, container):
+        return [self._read_bind_row(r) for r in self._bind_rows(container)]
+
+    def validate_binds(self):
+        errors = []
+        for key, label in [('bind_list', 'Normal'), ('bind_release_list', 'Release'),
+                           ('bind_mouse_list', 'Mouse'), ('bind_repeat_list', 'Repeat'),
+                           ('bind_locked_list', 'Locked')]:
+            c = self.widgets.get(key)
+            if c is None:
+                continue
+            for i, row in enumerate(self._bind_rows(c), 1):
+                parts = [p.strip() for p in self._read_bind_row(row).split(",", 3)]
+                k = parts[1] if len(parts) > 1 else ""
+                a = parts[2] if len(parts) > 2 else ""
+                if not k:
+                    errors.append(f"{label} row {i}: missing key")
+                if not a:
+                    errors.append(f"{label} row {i}: missing action")
+        return errors
+
+    def _start_key_capture(self, btn, row):
+        self._key_capture = {'btn': btn, 'row': row, 'prev': btn.get_label()}
+        btn.set_label("Press key…")
+        self._mark_dirty()
+
+    def _on_key_btn_press(self, btn, event, row):
+        if event.button == 3:
+            self._manual_key_dialog(row)
+            return True
+        return False
+
+    def _manual_key_dialog(self, row):
+        dialog = Gtk.MessageDialog(transient_for=self, modal=True,
+                                   message_type=Gtk.MessageType.QUESTION,
+                                   buttons=Gtk.ButtonsType.OK_CANCEL,
+                                   text="Key name (e.g. Q, F5, XF86AudioRaiseVolume, mouse:272)")
+        entry = Gtk.Entry(); entry.set_text(row.bind_key or ""); entry.show()
+        dialog.get_content_area().pack_start(entry, True, True, 0)
+        res = dialog.run()
+        name = entry.get_text().strip()
+        dialog.destroy()
+        if res == Gtk.ResponseType.OK and name:
+            row.bind_key = name
+            row.bind_key_btn.set_label(name)
+            self._mark_dirty()
+
+    def _finish_key_capture(self, event):
+        cap = self._key_capture
+        if event.keyval == Gdk.KEY_Escape:
+            cap['btn'].set_label(cap['prev'])
+            self._key_capture = None
+            return True
+        name = Gdk.keyval_name(event.keyval)
+        if not name:
+            return True
+        # Ignore pure modifier presses; keep waiting for the real key.
+        if name in ('Shift_L', 'Shift_R', 'Control_L', 'Control_R',
+                    'Alt_L', 'Alt_R', 'Super_L', 'Super_R', 'Meta_L', 'Meta_R',
+                    'ISO_Level3_Shift', 'Caps_Lock', 'Num_Lock'):
+            return True
+        if len(name) == 1 and name.isalpha():
+            name = name.upper()
+        cap['row'].bind_key = name
+        cap['btn'].set_label(name)
+        self._key_capture = None
+        self._mark_dirty()
+        return True
+
+    def _normalize_binds(self):
+        """Rewrite stored bind strings to canonical form, in place.
+
+        In-place item assignment preserves each array's TOML formatting, so
+        the startup snapshot matches what collect will later produce."""
+        binds = self.doc.get('binds')
+        if not isinstance(binds, dict):
+            return
+        for sub in ('normal', 'release', 'mouse', 'repeat', 'locked'):
+            sec = binds.get(sub)
+            if not isinstance(sec, dict):
+                continue
+            lst = sec.get('list')
+            if not isinstance(lst, list):
+                continue
+            for i, s in enumerate(lst):
+                try:
+                    n = self._serialize_bind(*self._parse_bind_string(s))
+                except Exception:
+                    continue
+                if n != str(s):
+                    lst[i] = n
 
     def _tg(self, section, key, default):
         """Thread-safe get for nested TOML sections that may not exist."""
@@ -580,15 +1213,19 @@ class SettingsManager(Gtk.Window):
     def create_settings_pages(self):
         self.widgets = {}
         groups = [
-            ("APPEARANCE", [
+            ("PERSONALIZATION", [
                 ("appearance","Desktop","preferences-desktop-theme",self.build_appearance),
                 ("colors","Border Colors","preferences-desktop-color",self.build_colors),
                 ("themes","Themes & Accent","gnome-twist",self.build_themes),
                 ("wallpapers","Wallpapers","background",self.build_wallpapers),
                 ("animations","Motion Effects","view-restore",self.build_animations),
             ]),
-            ("DISPLAY", [
+            ("DISPLAY & WINDOWS", [
                 ("monitors","Displays & Layout","video-display",self.build_monitors),
+                ("display_flags","Startup & Splash","video-display",self.build_display_flags),
+                ("window_rules","Window Rules","preferences-other",self.build_window_rules),
+                ("scrolling","Scrolling Layout","go-down",self.build_scrolling),
+                ("layouts","Tiling Layouts","view-grid",self.build_layouts),
             ]),
             ("INPUT", [
                 ("keyboard","Keyboard","input-keyboard",self.build_keyboard),
@@ -600,7 +1237,7 @@ class SettingsManager(Gtk.Window):
                 ("lockscreen","Lock & Power","system-lock-screen",self.build_lock),
                 ("nightlight","Nightlight","weather-clear-night",self.build_nightlight),
                 ("autostart","Autostart","system-run",self.build_autostart),
-                ("hyprrocket","Event Bus","alarm",self.build_hyprrocket),
+                ("hyprrocket","Routines","alarm",self.build_hyprrocket),
                 ("environment","Environment","preferences-system",self.build_environment),
             ]),
             ("APPS", [
@@ -608,10 +1245,6 @@ class SettingsManager(Gtk.Window):
                 ("programs","Default Apps","application-x-executable",self.build_programs),
             ]),
             ("ADVANCED", [
-                ("scrolling","Scrolling Layout","go-down",self.build_scrolling),
-                ("window_rules","Window Rules","preferences-other",self.build_window_rules),
-                ("display_flags","Display Flags","video-display",self.build_display_flags),
-                ("layouts","Dwindle & Master","view-grid",self.build_layouts),
                 ("plugins","Extensions","preferences-plugin",self.build_plugins),
                 ("custom_lua","Custom Lua","accessories-text-editor",self.build_custom_lua),
             ]),
@@ -620,14 +1253,35 @@ class SettingsManager(Gtk.Window):
         for group_label, pages in groups:
             lbl = Gtk.Label(label=group_label); lbl.set_xalign(0); lbl.get_style_context().add_class("sidebar-group-label")
             lbl_row = Gtk.ListBoxRow(); lbl_row.set_selectable(False); lbl_row.set_activatable(False); lbl_row.add(lbl); self.sidebar.add(lbl_row)
+            lbl_row.is_group_label = True; lbl_row.group_label = group_label
             for name, title, icon, builder in pages:
                 row = Gtk.ListBoxRow(); row.row_name = name; row.set_name(name); row.set_can_focus(True)
+                row.page_title = title; row.page_group = group_label
                 box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
                 box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
                 box.pack_start(Gtk.Label(label=title), False, False, 0)
-                row.add(box); self.sidebar.add(row); self.stack.add_titled(builder(), name, title)
+                row.add(box); self.sidebar.add(row)
+                page = builder()
+                revert_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                revert_wrap.pack_start(Gtk.Box(), True, True, 0)
+                revert = Gtk.Button(label="Revert page"); revert.set_name("revert-btn")
+                revert.set_tooltip_text("Restore this page to the values it had when Settings was opened")
+                revert.connect("clicked", lambda _b, n=name: self._on_revert_page(n))
+                revert_wrap.pack_end(revert, False, False, 0)
+                page.pack_start(revert_wrap, False, False, 0); page.reorder_child(revert_wrap, 1); revert_wrap.show_all()
+                self.stack.add_titled(page, name, title)
                 if first_row is None: first_row = row
         if first_row: self.sidebar.select_row(first_row)
+        self._search_index = {}
+        self._build_search_index()
+        self.sidebar.set_filter_func(self._sidebar_filter_func, None)
+        self._dirty = False
+        self._restoring = False
+        self._initial_widget_values = {}
+        self._snapshot_widget_values()
+        self._track_dirty_signals()
+        self._track_live_apply()
+        self._mark_clean()
 
     # --- PAGE BUILDERS ---
 
@@ -744,7 +1398,29 @@ class SettingsManager(Gtk.Window):
         self._accent_css_provider.load_from_data(css.encode())
 
     def build_monitors(self):
-        v = self.build_page_vbox("Displays & Layout"); f, self.widgets['monitor_list'] = self.build_dynamic_list(self.doc['monitors'].get('rules', []), "Monitor Configuration Rules"); v.pack_start(f, False, False, 0); return v
+        v = self.build_page_vbox("Displays & Layout")
+        
+        # Scale Slider
+        f1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f1.get_style_context().add_class("group-frame")
+        self.widgets['monitor_scale'] = Gtk.ComboBoxText()
+        for s in ["0.5", "0.75", "0.8", "1.0", "1.25", "1.5", "1.75", "2.0", "2.5"]: 
+            self.widgets['monitor_scale'].append(s, f"{int(float(s)*100)}%")
+        
+        current_scale = "1.0"
+        rules = self.doc['monitors'].get('rules', [])
+        if rules and len(rules) > 0:
+            parts = rules[0].split(',')
+            if len(parts) >= 4:
+                current_scale = parts[3].strip()
+        self.widgets['monitor_scale'].set_active_id(current_scale)
+        f1.pack_start(self.create_row("Global UI Scale", self.widgets['monitor_scale']), False, False, 0)
+        v.pack_start(f1, False, False, 0)
+
+        f, self.widgets['monitor_list'] = self.build_dynamic_list(rules, "Advanced Monitor Rules (name, res, pos, scale)")
+        v.pack_start(f, False, False, 0)
+        v.pack_start(self._anchor_bar('monitors', [("Scale", f1), ("Rules", f)]), False, False, 0)
+        v.reorder_child(v.get_children()[-1], 1)
+        return v
 
     def build_wallpapers(self):
         v = self.build_page_vbox("Wallpaper Management")
@@ -763,7 +1439,7 @@ class SettingsManager(Gtk.Window):
         self.widgets['wp_image_path'].set_text(self.doc['wallpapers']['fixed'].get('image', ""))
         self.widgets['_wp_fixed_row'] = self.create_row("Static Image", self.widgets['wp_image_btn'])
         f.pack_start(self.widgets['_wp_fixed_row'], False, False, 0)
-        f.pack_start(self.widgets['wp_image_path'], False, False, 0)
+        f.pack_start(self._wrap_with_thumbnail('wp_image_path'), False, False, 0)
 
         self.widgets['wp_dir_btn'] = Gtk.Button(label="Browse Folder...")
         self.widgets['wp_dir_btn'].get_style_context().add_class("picker")
@@ -790,6 +1466,35 @@ class SettingsManager(Gtk.Window):
     def update_picker_path(self, key, title, folder=False):
         p = self.open_picker(title, folder)
         if p: self.widgets[key].set_text(p)
+
+    def _wrap_with_thumbnail(self, entry_key, size=56):
+        """Pack a path entry with a small image preview (file paths only).
+
+        Display-only: the entry itself stays the tracked/saved widget."""
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        entry = self.widgets[entry_key]
+        if GdkPixbuf is not None:
+            thumb = Gtk.Image()
+            thumb.set_size_request(size, size)
+
+            def refresh(*_a):
+                path = os.path.expanduser(os.path.expandvars(entry.get_text().strip()))
+                try:
+                    if path and os.path.isfile(path):
+                        pb = GdkPixbuf.Pixbuf.new_from_file_at_size(path, size, size)
+                        thumb.set_from_pixbuf(pb)
+                        thumb.set_visible(True)
+                    else:
+                        thumb.set_visible(False)
+                except Exception:
+                    thumb.set_visible(False)
+
+            entry.connect("changed", refresh)
+            hbox.pack_start(thumb, False, False, 0)
+            refresh()
+        entry.set_hexpand(True)
+        hbox.pack_start(entry, True, True, 0)
+        return hbox
 
     def build_animations(self):
         v = self.build_page_vbox("Motion Engine"); f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
@@ -861,24 +1566,28 @@ class SettingsManager(Gtk.Window):
         v.pack_start(f, False, False, 0)
 
         binds_norm = self.doc['binds'].get('normal', {}).get('list', [])
-        f2, self.widgets['bind_list'] = self.build_dynamic_list(binds_norm, "Normal (MOD, KEY, ACTION, ARGS)")
+        f2, self.widgets['bind_list'] = self.build_bind_list(binds_norm, "Normal (MOD, KEY, ACTION, ARGS)")
         v.pack_start(f2, False, False, 0)
 
         binds_rel = self.doc['binds'].get('release', {}).get('list', [])
-        f3, self.widgets['bind_release_list'] = self.build_dynamic_list(binds_rel, "Release")
+        f3, self.widgets['bind_release_list'] = self.build_bind_list(binds_rel, "Release")
         v.pack_start(f3, False, False, 0)
 
         binds_mouse = self.doc['binds'].get('mouse', {}).get('list', [])
-        f4, self.widgets['bind_mouse_list'] = self.build_dynamic_list(binds_mouse, "Mouse")
+        f4, self.widgets['bind_mouse_list'] = self.build_bind_list(binds_mouse, "Mouse")
         v.pack_start(f4, False, False, 0)
 
         binds_repeat = self.doc['binds'].get('repeat', {}).get('list', [])
-        f5, self.widgets['bind_repeat_list'] = self.build_dynamic_list(binds_repeat, "Repeat")
+        f5, self.widgets['bind_repeat_list'] = self.build_bind_list(binds_repeat, "Repeat")
         v.pack_start(f5, False, False, 0)
 
         binds_locked = self.doc['binds'].get('locked', {}).get('list', [])
-        f6, self.widgets['bind_locked_list'] = self.build_dynamic_list(binds_locked, "Locked")
+        f6, self.widgets['bind_locked_list'] = self.build_bind_list(binds_locked, "Locked")
         v.pack_start(f6, False, False, 0)
+        v.pack_start(self._anchor_bar('keybinds', [
+            ("Normal", f2), ("Release", f3), ("Mouse", f4),
+            ("Repeat", f5), ("Locked", f6)]), False, False, 0)
+        v.reorder_child(v.get_children()[-1], 1)
         return v
 
     def build_lock(self):
@@ -890,14 +1599,14 @@ class SettingsManager(Gtk.Window):
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         self.widgets['lock_wp_btn'] = Gtk.Button(label="Select Wallpaper..."); self.widgets['lock_wp_btn'].get_style_context().add_class("picker"); self.widgets['lock_wp_btn'].connect("clicked", lambda x: self.update_picker_path('lock_wp_path', "Select Lock Wallpaper"))
         self.widgets['lock_wp_path'] = Gtk.Entry(); self.widgets['lock_wp_path'].set_text(self.doc['lockscreen'].get('background', ""))
-        f2.pack_start(self.create_row("Lock Wallpaper", self.widgets['lock_wp_btn']), False, False, 0); f2.pack_start(self.widgets['lock_wp_path'], False, False, 5)
+        f2.pack_start(self.create_row("Lock Wallpaper", self.widgets['lock_wp_btn']), False, False, 0); f2.pack_start(self._wrap_with_thumbnail('lock_wp_path'), False, False, 5)
         self.widgets['lock_blur_passes'] = Gtk.SpinButton.new_with_range(0, 20, 1); self.widgets['lock_blur_passes'].set_value(self.doc['lockscreen'].get('blur_passes', 3))
         f2.pack_start(self.create_row("Blur Passes", self.widgets['lock_blur_passes']), False, False, 0)
         self.widgets['lock_blur_size'] = Gtk.SpinButton.new_with_range(0, 20, 1); self.widgets['lock_blur_size'].set_value(self.doc['lockscreen'].get('blur_size', 8))
         f2.pack_start(self.create_row("Blur Size", self.widgets['lock_blur_size']), False, False, 0); v.pack_start(f2, False, False, 0)
         f3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f3.get_style_context().add_class("group-frame")
         self.widgets['profile_btn'] = Gtk.Button(label="Select Picture..."); self.widgets['profile_btn'].get_style_context().add_class("picker"); self.widgets['profile_btn'].connect("clicked", lambda x: self.update_picker_path('profile_path', "Select Profile Picture"))
-        self.widgets['profile_path'] = Gtk.Entry(); self.widgets['profile_path'].set_text(self.doc['lockscreen'].get('profile_image', "")); f3.pack_start(self.create_row("User Picture", self.widgets['profile_btn']), False, False, 0); f3.pack_start(self.widgets['profile_path'], False, False, 0); v.pack_start(f3, False, False, 0)
+        self.widgets['profile_path'] = Gtk.Entry(); self.widgets['profile_path'].set_text(self.doc['lockscreen'].get('profile_image', "")); f3.pack_start(self.create_row("User Picture", self.widgets['profile_btn']), False, False, 0); f3.pack_start(self._wrap_with_thumbnail('profile_path'), False, False, 0); v.pack_start(f3, False, False, 0)
         f4 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f4.get_style_context().add_class("group-frame")
         self.widgets['lock_fail_text'] = Gtk.Entry(); self.widgets['lock_fail_text'].set_text(self.doc['lockscreen'].get('fail_text', '')); f4.pack_start(self.create_row("Fail Text", self.widgets['lock_fail_text']), False, False, 0)
         self.widgets['lock_placeholder_text'] = Gtk.Entry(); self.widgets['lock_placeholder_text'].set_text(self.doc['lockscreen'].get('placeholder_text', '')); f4.pack_start(self.create_row("Placeholder Text", self.widgets['lock_placeholder_text']), False, False, 0)
@@ -999,7 +1708,12 @@ class SettingsManager(Gtk.Window):
         self.widgets['rocket_events_list'].append(ui_obj)
         
         del_btn.connect("clicked", lambda x: self.remove_rocket_routine_ui(ui_obj))
-        
+
+        trig.connect("changed", self._mark_dirty)
+        days.connect("changed", self._mark_dirty)
+        on.connect("notify::active", self._mark_dirty)
+        act_view.get_buffer().connect("changed", self._mark_dirty)
+
         self.widgets['rocket_routines_box'].pack_start(ef, False, False, 0)
         self.widgets['rocket_routines_box'].show_all()
 
@@ -1027,8 +1741,8 @@ class SettingsManager(Gtk.Window):
 
         self.widgets['l_width'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1)
         self.widgets['l_width'].set_value(self.doc['launcher'].get('width_percent', 70))
-        self.widgets['l_width'].set_size_request(300,-1)
-        f1.pack_start(self.create_row("Width %", self.widgets['l_width']), False, False, 0)
+        self.widgets['l_width'].set_size_request(220,-1)
+        f1.pack_start(self.create_row("Width (%)", self.widgets['l_width']), False, False, 0)
 
         self.widgets['l_margin'] = Gtk.SpinButton.new_with_range(0, 1000, 10)
         self.widgets['l_margin'].set_value(self.doc['launcher'].get('margin_top', 100))
@@ -1041,12 +1755,12 @@ class SettingsManager(Gtk.Window):
 
         self.widgets['l_font'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 12, 72, 1)
         self.widgets['l_font'].set_value(self.doc['launcher'].get('font_size', 24))
-        self.widgets['l_font'].set_size_request(300,-1)
+        self.widgets['l_font'].set_size_request(220,-1)
         f2.pack_start(self.create_row("Search Font Size", self.widgets['l_font']), False, False, 0)
 
         self.widgets['l_icon'] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 16, 128, 4)
         self.widgets['l_icon'].set_value(self.doc['launcher'].get('icon_size', 32))
-        self.widgets['l_icon'].set_size_request(300,-1)
+        self.widgets['l_icon'].set_size_request(220,-1)
         f2.pack_start(self.create_row("App Icon Size", self.widgets['l_icon']), False, False, 0)
 
         self.widgets['l_spacing'] = Gtk.SpinButton.new_with_range(0, 50, 1)
@@ -1151,7 +1865,7 @@ class SettingsManager(Gtk.Window):
         return v
 
     def build_display_flags(self):
-        v = self.build_page_vbox("Display Flags")
+        v = self.build_page_vbox("Startup & Splash")
         f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
         self.widgets['force_default_wallpaper'] = Gtk.ComboBoxText()
         for vv, ll in [("0","Off"),("1","On"),("2","On (Hyprland)")]: self.widgets['force_default_wallpaper'].append(vv, ll)
@@ -1198,6 +1912,156 @@ class SettingsManager(Gtk.Window):
         if hasattr(row, 'row_name'):
             self.stack.set_visible_child_name(row.row_name)
 
+    # --- SEARCH ---
+    def _build_search_index(self):
+        """Auto-index every page: label text -> setting row widget.
+
+        Walks each page's widget tree once. A label counts as a setting row
+        when it sits directly in a horizontal box (legacy rows, list titles)
+        or in the vertical text cell of a create_row() hbox (title + second-line
+        description both index to the same row). Stays in sync automatically
+        when pages gain options."""
+        self._search_index = {}
+        for row in self.sidebar.get_children():
+            if getattr(row, 'is_group_label', False) or not hasattr(row, 'row_name'):
+                continue
+            page = self.stack.get_child_by_name(row.row_name)
+            if page is None:
+                continue
+            entries = []
+
+            def walk(w):
+                if isinstance(w, Gtk.Label):
+                    t = (w.get_text() or "").strip()
+                    p = w.get_parent()
+                    target = None
+                    if t and isinstance(p, Gtk.Box):
+                        if p.get_orientation() == Gtk.Orientation.HORIZONTAL:
+                            target = p
+                        else:
+                            gp = p.get_parent()
+                            if (isinstance(gp, Gtk.Box)
+                                    and gp.get_orientation() == Gtk.Orientation.HORIZONTAL):
+                                target = gp
+                    if target is not None and (t, id(target)) not in seen_pairs:
+                        seen_pairs.add((t, id(target)))
+                        entries.append((t, target))
+                if isinstance(w, Gtk.Container):
+                    try:
+                        children = w.get_children()
+                    except Exception:
+                        children = []
+                    for ch in children:
+                        walk(ch)
+
+            seen_pairs = set()
+            walk(page)
+            self._search_index[row.row_name] = entries
+
+    def _row_matches(self, name, title, q):
+        if q in title.lower():
+            return True, title
+        for label_text, _w in self._search_index.get(name, []):
+            if q in label_text.lower():
+                return True, label_text
+        return False, None
+
+    def _sidebar_filter_func(self, row, _data):
+        q = (self.search_entry.get_text() or "").strip().lower()
+        if not q:
+            return True
+        if getattr(row, 'is_group_label', False):
+            for r in self.sidebar.get_children():
+                if getattr(r, 'is_group_label', False) or not hasattr(r, 'row_name'):
+                    continue
+                if getattr(r, 'page_group', None) == row.group_label:
+                    ok, _ = self._row_matches(r.row_name, r.page_title, q)
+                    if ok:
+                        return True
+            return False
+        if hasattr(row, 'row_name'):
+            ok, _ = self._row_matches(row.row_name, row.page_title, q)
+            return ok
+        return True
+
+    def _current_matches(self):
+        q = (self.search_entry.get_text() or "").strip().lower()
+        if not q:
+            return []
+        out = []
+        for r in self.sidebar.get_children():
+            if getattr(r, 'is_group_label', False) or not hasattr(r, 'row_name'):
+                continue
+            ok, anchor = self._row_matches(r.row_name, r.page_title, q)
+            if ok:
+                out.append((r, anchor))
+        return out
+
+    def on_search_changed(self, entry):
+        self.sidebar.invalidate_filter()
+
+    def on_search_activate(self, entry):
+        """Enter: jump to the top match and flash the matched setting row."""
+        matches = self._current_matches()
+        if not matches:
+            return
+        row, anchor = matches[0]
+        self.sidebar.select_row(row)
+        self.stack.set_visible_child_name(row.row_name)
+        self._highlight_anchor(row.row_name, anchor)
+
+    def _highlight_anchor(self, page_name, anchor):
+        if not anchor:
+            return
+        target = None
+        for label_text, w in self._search_index.get(page_name, []):
+            if anchor.lower() in label_text.lower():
+                target = w
+                break
+        if target is None:
+            return
+        self.reveal_widget(page_name, target)
+
+    # --- IN-PAGE ANCHORS ---
+    def reveal_widget(self, page_name, target, flash=True):
+        """Scroll a page so `target` is visible, optionally flashing it."""
+        if target is None:
+            return
+        try:
+            if self.stack.get_visible_child_name() != page_name:
+                self.stack.set_visible_child_name(page_name)
+        except Exception:
+            pass
+        if flash:
+            ctx = target.get_style_context()
+            ctx.add_class("search-highlight")
+            GLib.timeout_add(1600, lambda: ctx.remove_class("search-highlight") or False)
+
+        def _scroll():
+            try:
+                page = self.stack.get_child_by_name(page_name)
+                y = target.translate_coordinates(page, 0, 0)[-1]
+                adj = self.stack_scroll.get_vadjustment()
+                adj.set_value(max(0, min(y - adj.get_page_size() / 2,
+                                         adj.get_upper() - adj.get_page_size())))
+            except Exception as e:
+                logger.warning(f"Reveal scroll failed: {e}")
+            return False
+
+        GLib.idle_add(_scroll)
+
+    def _anchor_bar(self, page_name, targets):
+        """Compact jump-link bar: [(button label, widget), ...]."""
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        for label, target in targets:
+            b = Gtk.Button(label=label)
+            b.get_style_context().add_class("anchor-btn")
+            b.set_tooltip_text(f"Jump to {label}")
+            b.connect("clicked", lambda _x, t=target: self.reveal_widget(page_name, t))
+            bar.pack_start(b, False, False, 0)
+        bar.show_all()
+        return bar
+
     def on_save_clicked(self, btn):
         """Apply settings without freezing the UI or closing the window.
 
@@ -1209,6 +2073,21 @@ class SettingsManager(Gtk.Window):
         if getattr(self, '_applying', False):
             return
         self.status_label.get_style_context().remove_class("error")
+        bind_errors = self.validate_binds()
+        if bind_errors:
+            msg = "; ".join(bind_errors[:4])
+            if len(bind_errors) > 4:
+                msg += f" (+{len(bind_errors) - 4} more)"
+            logger.error(f"Bind validation failed: {msg}")
+            self.status_label.set_text(f"⚠ Invalid binds: {msg}")
+            self.status_label.get_style_context().add_class("error")
+            try:
+                subprocess.run(["notify-send", "-t", "5000", "HyprDE Settings",
+                                f"Invalid binds: {msg}"],
+                               capture_output=True, timeout=5)
+            except Exception:
+                pass
+            return
         try:
             snapshot = self._collect_widget_state()
         except Exception as e:
@@ -1221,12 +2100,60 @@ class SettingsManager(Gtk.Window):
             self.status_label.set_text("No changes to apply")
             return
 
+        self._begin_apply(snapshot)
+
+    def _begin_apply(self, snapshot):
         self._applying = True
         self.save_btn.set_label("Applying…")
         self.save_btn.set_sensitive(False)
         self.status_label.set_text("Applying settings…")
         threading.Thread(target=self._apply_worker, args=(snapshot,),
                          daemon=True).start()
+
+    # --- INSTANT-APPLY (lightweight widgets only) ---
+    def _track_live_apply(self):
+        """Debounced live-apply for whitelisted widgets (no Apply press needed)."""
+        self._live_apply_id = None
+        for key in LIVE_SAFE_WIDGETS:
+            w = self.widgets.get(key)
+            if w is None:
+                continue
+            if isinstance(w, Gtk.Entry):
+                w.connect("changed", lambda *_a: self._schedule_live_apply())
+            elif isinstance(w, (Gtk.SpinButton, Gtk.Scale)):
+                w.connect("value-changed", lambda *_a: self._schedule_live_apply())
+            elif isinstance(w, Gtk.Switch):
+                w.connect("notify::active", lambda *_a: self._schedule_live_apply())
+            elif isinstance(w, Gtk.ComboBoxText):
+                w.connect("changed", lambda *_a: self._schedule_live_apply())
+
+    def _schedule_live_apply(self):
+        if getattr(self, '_restoring', False) or getattr(self, '_applying', False):
+            return
+        if getattr(self, '_live_apply_id', None) is not None:
+            GLib.source_remove(self._live_apply_id)
+        self._live_apply_id = GLib.timeout_add(
+            LIVE_APPLY_DEBOUNCE_MS, self._maybe_live_apply)
+
+    def _maybe_live_apply(self):
+        self._live_apply_id = None
+        if getattr(self, '_applying', False) or getattr(self, '_restoring', False):
+            return False
+        try:
+            snapshot = self._collect_widget_state()
+        except Exception:
+            return False
+        changed = set(snapshot.get("changed", []))
+        if not changed:
+            return False
+        # Anything outside the safe sections (binds, lua text, monitors,
+        # autostart, ...) forces manual Apply — never auto-apply half-typed input.
+        if changed - LIVE_SAFE_SECTIONS:
+            return False
+        if snapshot["config_str"] == self.initial_config_str:
+            return False
+        self._begin_apply(snapshot)
+        return False
 
     def _collect_widget_state(self):
         """Read all widgets into self.doc (main thread) and snapshot what's
@@ -1302,13 +2229,22 @@ class SettingsManager(Gtk.Window):
         self.doc['wallpapers']['path'] = self.widgets['wp_dir_path'].get_text()
         self.doc['wallpapers']['mode'] = self.widgets['wp_mode'].get_active_id()
 
-        # Monitors, binds, plugins
-        self.doc['monitors']['rules'] = get_items(self.widgets['monitor_list'])
-        self.doc['binds']['normal']['list'] = get_items(self.widgets['bind_list'])
+        # Monitors
+        mlist = get_items(self.widgets['monitor_list'])
+        scale = self.widgets['monitor_scale'].get_active_id() or "1.0"
+        if mlist:
+            for i in range(len(mlist)):
+                parts = [p.strip() for p in mlist[i].split(',')]
+                if len(parts) >= 3:
+                    while len(parts) < 4: parts.append("1.0")
+                    parts[3] = scale
+                    mlist[i] = ", ".join(parts)
+        self.doc['monitors']['rules'] = mlist
+        self.doc['binds']['normal']['list'] = self.get_bind_items(self.widgets['bind_list'])
         self.doc['binds']['mainMod'] = self.widgets['mainMod'].get_active_id()
         # Ensure all bind subsections exist
         for sub in ['release','mouse','repeat','locked']:
-            lblist = get_items(self.widgets[f'bind_{sub}_list'])
+            lblist = self.get_bind_items(self.widgets[f'bind_{sub}_list'])
             if sub not in self.doc['binds']: self.doc['binds'][sub] = tomlkit.table()
             self.doc['binds'][sub]['list'] = lblist
         self.doc['plugins']['enabled'] = get_items(self.widgets['plugin_list'])
@@ -1557,7 +2493,21 @@ class SettingsManager(Gtk.Window):
         self._applying = False
         self.save_btn.set_label("Apply")
         self.save_btn.set_sensitive(True)
+        self._mark_clean()
+        self.status_label.get_style_context().remove_class("error")
         self.status_label.set_text("✓ Settings applied")
+        try:
+            subprocess.run(["notify-send", "-t", "2500", "HyprDE Settings",
+                            "✓ Settings applied"],
+                           capture_output=True, timeout=5)
+        except Exception:
+            pass
+        GLib.timeout_add(4000, self._clear_status)
+        return False
+
+    def _clear_status(self):
+        if self.status_label.get_text() == "✓ Settings applied":
+            self.status_label.set_text("")
         return False
 
     def _on_apply_error(self, message):
@@ -1571,7 +2521,16 @@ class SettingsManager(Gtk.Window):
         return False
 
     def on_key_press(self, widget, event):
+        # Single canonical key handler (one definition only — do not duplicate).
+        # Press-to-capture for the guided keybind editor pre-empts everything.
+        if getattr(self, '_key_capture', None) is not None:
+            return self._finish_key_capture(event)
         if event.keyval == Gdk.KEY_Escape:
+            if (getattr(self, 'search_entry', None) is not None
+                    and self.search_entry.has_focus()
+                    and self.search_entry.get_text()):
+                self.search_entry.set_text("")
+                return True
             self.close_window()
             return True
         elif event.keyval in [Gdk.KEY_Return, Gdk.KEY_KP_Enter]:
@@ -1587,6 +2546,17 @@ class SettingsManager(Gtk.Window):
         elif event.keyval == Gdk.KEY_Left:
             if not self.sidebar.has_focus():
                 self.sidebar.grab_focus()
+                return True
+        # Catch CTRL+F: focus search
+        if event.state & Gdk.ModifierType.CONTROL_MASK:
+            if event.keyval in [Gdk.KEY_f, Gdk.KEY_F]:
+                if getattr(self, 'search_entry', None) is not None:
+                    self.search_entry.grab_focus()
+                    return True
+        # Catch SUPER+Q, SUPER+C, CTRL+Q, CTRL+C
+        if event.state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SUPER_MASK):
+            if event.keyval in [Gdk.KEY_q, Gdk.KEY_Q, Gdk.KEY_c, Gdk.KEY_C]:
+                self.close_window()
                 return True
         return False
 
