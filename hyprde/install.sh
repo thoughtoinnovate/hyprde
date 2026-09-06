@@ -405,9 +405,11 @@ if command -v sudo >/dev/null 2>&1; then
     echo "Configuring passwordless sudo for hardware toggles in $SUDOERS_FILE..."
 if [ -n "$SUDO_USER" ]; then
     printf "$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$SUDO_USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$SUDO_USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$SUDO_USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$SUDO_USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/intel_pstate/max_perf_pct\n$SUDO_USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/intel_pstate/no_turbo\n$SUDO_USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference\n" | sudo tee -a "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
 else
     printf "$USER ALL=(ALL) NOPASSWD: $TLP_PATH ac\n$USER ALL=(ALL) NOPASSWD: $TLP_PATH bat\n$USER ALL=(ALL) NOPASSWD: $MODPROBE_PATH -r uvcvideo\n$USER ALL=(ALL) NOPASSWD: $RMMOD_PATH -f uvcvideo\n$USER ALL=(ALL) NOPASSWD: $PACTL_PATH set-source-mute @DEFAULT_SOURCE@ on\n" | sudo tee "$SUDOERS_FILE" > /dev/null
+    printf "$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/intel_pstate/max_perf_pct\n$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/intel_pstate/no_turbo\n$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference\n" | sudo tee -a "$SUDOERS_FILE" > /dev/null
     sudo chmod 440 "$SUDOERS_FILE"
 fi
 fi

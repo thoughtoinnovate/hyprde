@@ -515,11 +515,10 @@ class SettingsManager(Gtk.Window):
             dot.set_tooltip_text("Close")
 
     def _track_dirty_signals(self):
-        """Optimistic dirty flag: any widget interaction marks dirty.
-
-        The close dialog re-verifies authoritatively, so false positives
-        (change then change back) only tint the dot — they never lie."""
-        seen = set()
+        """Optimistic dirty flag: any widget interaction marks dirty."""
+        if not hasattr(self, '_seen_dirty_widgets'):
+            self._seen_dirty_widgets = set()
+        seen = self._seen_dirty_widgets
 
         def hook(w):
             if w is None or id(w) in seen:
@@ -633,8 +632,9 @@ class SettingsManager(Gtk.Window):
         container.show_all()
 
     def _snapshot_widget_values(self):
-        self._initial_widget_values = {}
-        self._initial_routines = {}
+        if not hasattr(self, '_initial_widget_values'):
+            self._initial_widget_values = {}
+            self._initial_routines = {}
 
         def snap(w):
             if w is None or id(w) in self._initial_widget_values:
@@ -1267,6 +1267,7 @@ class SettingsManager(Gtk.Window):
             ]),
         ]
         first_row = None
+        self._pending_pages = []
         for group_label, pages in groups:
             lbl = Gtk.Label(label=group_label); lbl.set_xalign(0); lbl.get_style_context().add_class("sidebar-group-label")
             lbl_row = Gtk.ListBoxRow(); lbl_row.set_selectable(False); lbl_row.set_activatable(False); lbl_row.add(lbl); self.sidebar.add(lbl_row)
@@ -1278,29 +1279,51 @@ class SettingsManager(Gtk.Window):
                 box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
                 box.pack_start(Gtk.Label(label=title), False, False, 0)
                 row.add(box); self.sidebar.add(row)
-                page = builder()
-                revert_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                revert_wrap.pack_start(Gtk.Box(), True, True, 0)
-                revert = Gtk.Button(label="Revert page"); revert.set_name("revert-btn")
-                revert.set_tooltip_text("Restore this page to the values it had when Settings was opened")
-                revert.connect("clicked", lambda _b, n=name: self._on_revert_page(n))
-                revert_wrap.pack_end(revert, False, False, 0)
-                page.pack_start(revert_wrap, False, False, 0); page.reorder_child(revert_wrap, 1); revert_wrap.show_all()
-                self.stack.add_titled(page, name, title)
+                
+                placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                self.stack.add_titled(placeholder, name, title)
+                self._pending_pages.append((name, title, builder, placeholder))
+                
                 if first_row is None: first_row = row
         if first_row: self.sidebar.select_row(first_row)
         self._search_index = {}
-        self._build_search_index()
         self.sidebar.set_filter_func(self._sidebar_filter_func, None)
         self._dirty = False
         self._restoring = False
         self._closed = False
         self._live_apply_id = None
-        self._initial_widget_values = {}
+        
+        if self._pending_pages:
+            self._build_one_page(self._pending_pages.pop(0))
+            
+        GLib.idle_add(self._idle_build_pages)
+
+    def _build_one_page(self, page_data):
+        name, title, builder, placeholder = page_data
+        page = builder()
+        revert_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        revert_wrap.pack_start(Gtk.Box(), True, True, 0)
+        revert = Gtk.Button(label="Revert page"); revert.set_name("revert-btn")
+        revert.set_tooltip_text("Restore this page to the values it had when Settings was opened")
+        revert.connect("clicked", lambda _b, n=name: self._on_revert_page(n))
+        revert_wrap.pack_end(revert, False, False, 0)
+        page.pack_start(revert_wrap, False, False, 0); page.reorder_child(revert_wrap, 1); revert_wrap.show_all()
+        placeholder.pack_start(page, True, True, 0)
+        placeholder.show_all()
+        
         self._snapshot_widget_values()
         self._track_dirty_signals()
         self._track_live_apply()
         self._mark_clean()
+
+    def _idle_build_pages(self):
+        if getattr(self, '_closed', False): return False
+        if not self._pending_pages:
+            self._build_search_index()
+            return False
+        
+        self._build_one_page(self._pending_pages.pop(0))
+        return True
 
     # --- PAGE BUILDERS ---
 
