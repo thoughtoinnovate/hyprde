@@ -60,7 +60,13 @@
     },
     "hyprland/workspaces": {
         "format": "{name}",
-        "on-click": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"{name}\" })'"
+        // NOTE: no on-click here — waybar 0.15.0 ignores on-click for workspace
+        // buttons (see Workspace::handleClicked) and its built-in handler sends
+        // pre-Lua `dispatch workspace <id>`, which Hyprland 0.55+ ignores
+        // (upstream Alexays/Waybar#5008, fixed by #5013). Clicks will work once
+        // Arch ships a waybar containing that fix. Meanwhile scroll switches:
+        "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e+1\" })'",
+        "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e-1\" })'"
     },
     "group/leftActions": {
         "orientation": "horizontal",
