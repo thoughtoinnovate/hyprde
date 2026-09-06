@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Settings
-Comment=Configure HyprDE Settings (Wallpapers, Idle, Nightlight)
-Exec=sh -c "/usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py"
+Comment=Configure System Settings
+Exec=python3 /home/hunk/.config/hypr/scripts/settings_manager.py
 Icon=preferences-system
 Terminal=false
 Type=Application

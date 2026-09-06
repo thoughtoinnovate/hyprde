@@ -455,6 +455,13 @@ class SettingsManager(Gtk.Window):
         cleanup_lock()
 
     def close_window(self):
+        self._closed = True
+        if getattr(self, '_live_apply_id', None) is not None:
+            try:
+                GLib.source_remove(self._live_apply_id)
+            except Exception:
+                pass
+            self._live_apply_id = None
         if getattr(self, '_dirty', False) and self._has_unsaved_changes():
             dialog = Gtk.MessageDialog(
                 transient_for=self, modal=True,
@@ -800,6 +807,8 @@ class SettingsManager(Gtk.Window):
         scale trough {{ background: rgba(255,255,255,0.1); border-radius: 6px; min-height: 4px; }}
         scale value {{ font-size: 11px; color: {c['base_fg']}; opacity: 0.55; }}
         switch:checked {{ background: {c['active_bg']}; }}
+        switch {{ background: rgba(255,255,255,0.15); border-radius: 12px; border: none; }}
+        switch slider {{ background: #ffffff; border-radius: 50%; min-width: 20px; min-height: 20px; border: none; }}
 
         button {{
             background: {c['module_bg']};
@@ -879,8 +888,16 @@ class SettingsManager(Gtk.Window):
         hbox.pack_start(text, True, True, 0)
         cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         cell.set_size_request(WIDGET_CELL_WIDTH, -1)
-        widget.set_hexpand(True)
-        cell.pack_start(widget, True, True, 0)
+        # Fill widgets (entries, spins, scales, combos) span the cell;
+        # fixed-size controls (switches, buttons) keep natural size, right aligned.
+        if isinstance(widget, (Gtk.Entry, Gtk.SpinButton, Gtk.Scale, Gtk.ComboBox)):
+            widget.set_hexpand(True)
+            cell.pack_start(widget, True, True, 0)
+        else:
+            widget.set_hexpand(False)
+            widget.set_halign(Gtk.Align.END)
+            widget.set_valign(Gtk.Align.CENTER)
+            cell.pack_end(widget, False, False, 0)
         hbox.pack_end(cell, False, False, 0)
         return hbox
 
@@ -1277,6 +1294,8 @@ class SettingsManager(Gtk.Window):
         self.sidebar.set_filter_func(self._sidebar_filter_func, None)
         self._dirty = False
         self._restoring = False
+        self._closed = False
+        self._live_apply_id = None
         self._initial_widget_values = {}
         self._snapshot_widget_values()
         self._track_dirty_signals()
@@ -2102,7 +2121,12 @@ class SettingsManager(Gtk.Window):
 
         self._begin_apply(snapshot)
 
-    def _begin_apply(self, snapshot):
+    def _begin_apply(self, snapshot, light=False):
+        """Kick off the background worker. Light applies (instant-apply path)
+        only write the file, rebuild and reload — heavy fan-out (theme
+        scripts, dock/bar restarts, wallpaper engine) is manual-Apply only,
+        otherwise every slider tick would churn the whole session."""
+        snapshot["light"] = light
         self._applying = True
         self.save_btn.set_label("Applying…")
         self.save_btn.set_sensitive(False)
@@ -2128,15 +2152,19 @@ class SettingsManager(Gtk.Window):
                 w.connect("changed", lambda *_a: self._schedule_live_apply())
 
     def _schedule_live_apply(self):
-        if getattr(self, '_restoring', False) or getattr(self, '_applying', False):
+        if getattr(self, '_restoring', False) or getattr(self, '_closed', False):
             return
         if getattr(self, '_live_apply_id', None) is not None:
             GLib.source_remove(self._live_apply_id)
-        self._live_apply_id = GLib.timeout_add(
-            LIVE_APPLY_DEBOUNCE_MS, self._maybe_live_apply)
+            self._live_apply_id = None
+        # While an apply is running, re-arm instead of dropping the change.
+        delay = 1000 if getattr(self, '_applying', False) else LIVE_APPLY_DEBOUNCE_MS
+        self._live_apply_id = GLib.timeout_add(delay, self._maybe_live_apply)
 
     def _maybe_live_apply(self):
         self._live_apply_id = None
+        if getattr(self, '_closed', False):
+            return False
         if getattr(self, '_applying', False) or getattr(self, '_restoring', False):
             return False
         try:
@@ -2152,7 +2180,7 @@ class SettingsManager(Gtk.Window):
             return False
         if snapshot["config_str"] == self.initial_config_str:
             return False
-        self._begin_apply(snapshot)
+        self._begin_apply(snapshot, light=True)
         return False
 
     def _collect_widget_state(self):
@@ -2411,13 +2439,28 @@ class SettingsManager(Gtk.Window):
             "permission", "permissions",
         }
         changed = set(snapshot.get("changed", []))
+        light = snapshot.get("light", False)
         # Be conservative: if change detection failed, run everything.
         if not changed:
             changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle",
                                       "theme", "launcher", "programs"}
+            light = False
         try:
             with open(self.config_path, 'w') as f:
                 f.write(snapshot["config_str"])
+
+            if light:
+                # Instant-apply path: file + rebuild + reload only. Heavy
+                # fan-out stays manual so slider drags can't churn the session.
+                subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
+                               capture_output=True, timeout=120)
+                if changed & LUA_SECTIONS:
+                    subprocess.run(["hyprctl", "reload"], capture_output=True, timeout=30)
+                logger.info("Settings live-applied (sections: %s)",
+                            ",".join(sorted(changed)))
+                GLib.idle_add(self._on_apply_done, snapshot["config_str"],
+                              snapshot["sections"])
+                return
 
             # Fan out the accent color to every component (theme CSS vars,
             # wofi selection, notif borders, Mako). Non-fatal on failure.
