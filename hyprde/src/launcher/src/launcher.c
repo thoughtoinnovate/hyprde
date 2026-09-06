@@ -47,6 +47,7 @@ void populate_list(const char *query);
 void on_search_changed(GtkEditable *e, gpointer user_data);
 void load_dock_apps();
 void load_apps();
+void load_dmenu_apps();
 void load_power_menu();
 void load_custom_items(toml_table_t* table);
 char* extract_color(const char *line);
@@ -248,6 +249,19 @@ void load_apps() {
         }
     }
     g_list_free_full(all, g_object_unref);
+}
+
+void load_dmenu_apps() {
+    char line[2048];
+    while (fgets(line, sizeof(line), stdin)) {
+        line[strcspn(line, "\n")] = 0;
+        if (strlen(line) == 0) continue;
+        App *app = g_new0(App, 1);
+        app->name = g_strdup(line);
+        app->name_lower = g_ascii_strdown(app->name, -1);
+        app->icon = g_strdup("text-x-generic");
+        apps_list = g_list_append(apps_list, app);
+    }
 }
 
 void load_power_menu() {
@@ -457,6 +471,7 @@ int main(int argc, char *argv[]) {
     }
     load_config(); if (strcmp(current_mode, "dock") == 0) load_dock_apps(); 
     else if (strcmp(current_mode, "power-menu") == 0) load_power_menu();
+    else if (strcmp(current_mode, "dmenu") == 0) load_dmenu_apps();
     else load_apps();
 
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
