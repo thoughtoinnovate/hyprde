@@ -47,7 +47,7 @@ toggle() {
     fi
   else
     # Currently OFF -> Turn ON (Driver Load)
-    notify-send -t 3000 "Security Alert" "Camera activation requested. Please authenticate to enable video recording."
+    notify-send -u critical -t 3000 "Security Alert" "Camera activation requested. Please authenticate to enable video recording."
     if pkexec /usr/local/bin/hyprde-camera-auth; then
         save_state "on"
     fi
@@ -60,7 +60,7 @@ toggle() {
 
 # Function to turn ON (Driver Load) - Secure
 turn_on() {
-  notify-send -t 3000 "Security Alert" "Camera activation requested. Please authenticate to enable video recording."
+  notify-send -u critical -t 3000 "Security Alert" "Camera activation requested. Please authenticate to enable video recording."
   if pkexec /usr/local/bin/hyprde-camera-auth; then
       save_state "on"
   fi

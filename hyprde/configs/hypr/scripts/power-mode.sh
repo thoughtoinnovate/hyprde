@@ -103,6 +103,7 @@ privileged_batch() {
     printf '%s' "$batch" | sudo -n sh >/dev/null 2>&1 && return 0
     # Last resort: polkit auth dialog (desktop sessions only, never headless)
     if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v pkexec >/dev/null 2>&1; then
+        [ -n "${HYPRDE_POWER_NO_PKEXEC:-}" ] && return 1
         printf '%s' "$batch" | pkexec sh >/dev/null 2>&1 && return 0
     fi
     return 1
@@ -140,6 +141,7 @@ apply_profile() {
     fi
     if [ "$fail" -gt 0 ] && [ "$ok" -eq 0 ]; then
         notify "Power Mode" "Could not write CPU nodes (need sudo?). Mode saved, values unchanged."
+        return 1
     fi
 }
 
@@ -198,10 +200,12 @@ get_status() {
 
 set_mode() {
     local mode="$1" profile label
-    save_mode "$mode"
     profile="$mode"
     [ "$mode" = "auto" ] && profile=$(resolve_auto)
-    apply_profile "$profile"
+    if ! apply_profile "$profile"; then
+        return 1
+    fi
+    save_mode "$mode"
     case "$mode" in
         high)  label="High Performance $POWER_MODE_HIGH — turbo on, caps off" ;;
         saver) label="Power Saver $POWER_ICON_SAVER — hardware at minimum (cap 30)" ;;
@@ -230,7 +234,7 @@ case "$1" in
         ;;
     --event)
         # udev / resume / timer hook: only acts in auto mode
-        [ "$(get_mode)" = "auto" ] && { apply_profile "$(resolve_auto)"; }
+        [ "$(get_mode)" = "auto" ] && { HYPRDE_POWER_NO_PKEXEC=1 apply_profile "$(resolve_auto)"; }
         get_status
         ;;
     install-auto)
