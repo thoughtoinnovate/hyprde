@@ -238,6 +238,8 @@ actions = ["theme-ctrl.sh --mode auto"]              # Automatic theme transitio
 list = [
     # 3-finger horizontal swipe for workspace switching
     'fingers = 3, direction = "horizontal", action = "workspace"',
+    # 4-finger horizontal swipe scrolls the tape (niri-like columns, scroll layout)
+    'fingers = 4, direction = "horizontal", action = "scroll_move"',
 ]
 
 # =============================================================================
