@@ -455,6 +455,9 @@ class SettingsManager(Gtk.Window):
         cleanup_lock()
 
     def close_window(self):
+        if getattr(self, '_close_dialog_open', False):
+            return
+            
         self._closed = True
         if getattr(self, '_live_apply_id', None) is not None:
             try:
@@ -462,7 +465,15 @@ class SettingsManager(Gtk.Window):
             except Exception:
                 pass
             self._live_apply_id = None
+            
         if getattr(self, '_dirty', False) and self._has_unsaved_changes():
+            self._close_dialog_open = True
+            try:
+                from gi.repository import GtkLayerShell
+                GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
+                GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+            except: pass
+            
             dialog = Gtk.MessageDialog(
                 transient_for=self, modal=True,
                 message_type=Gtk.MessageType.QUESTION,
@@ -475,11 +486,28 @@ class SettingsManager(Gtk.Window):
             discard.get_style_context().add_class("destructive-action")
             
             def on_response(dlg, res):
+                self._close_dialog_open = False
                 dlg.destroy()
+                try:
+                    from gi.repository import GtkLayerShell
+                    GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+                    GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+                except: pass
+                
                 if res == Gtk.ResponseType.OK:
                     self.cleanup_lock()
                     self.main_box.get_style_context().add_class("closing")
                     GLib.timeout_add(200, Gtk.main_quit)
+                else:
+                    self._closed = False
+                    
+            dialog.connect("response", on_response)
+            dialog.show_all()
+            return
+            
+        self.cleanup_lock()
+        self.main_box.get_style_context().add_class("closing")
+        GLib.timeout_add(200, Gtk.main_quit)
                     
             dialog.connect("response", on_response)
             dialog.show_all()
@@ -1076,6 +1104,11 @@ class SettingsManager(Gtk.Window):
         return False
 
     def _manual_key_dialog(self, row):
+        try:
+            from gi.repository import GtkLayerShell
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        except: pass
         dialog = Gtk.MessageDialog(transient_for=self, modal=True,
                                    message_type=Gtk.MessageType.QUESTION,
                                    buttons=Gtk.ButtonsType.OK_CANCEL,
@@ -1085,6 +1118,11 @@ class SettingsManager(Gtk.Window):
         res = dialog.run()
         name = entry.get_text().strip()
         dialog.destroy()
+        try:
+            from gi.repository import GtkLayerShell
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        except: pass
         if res == Gtk.ResponseType.OK and name:
             row.bind_key = name
             row.bind_key_btn.set_label(name)
@@ -1704,12 +1742,22 @@ class SettingsManager(Gtk.Window):
         return v
 
     def on_add_rocket_routine(self, btn):
+        try:
+            from gi.repository import GtkLayerShell
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        except: pass
         dialog = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL, text="New Routine Name (e.g. morning)")
         entry = Gtk.Entry(); entry.set_placeholder_text("routine_name"); entry.show()
         dialog.get_content_area().pack_start(entry, True, True, 0)
         res = dialog.run()
         name = entry.get_text().strip()
         dialog.destroy()
+        try:
+            from gi.repository import GtkLayerShell
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        except: pass
         if res == Gtk.ResponseType.OK and name:
             self.add_rocket_routine_ui(name, {})
 
