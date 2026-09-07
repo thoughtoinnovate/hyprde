@@ -509,14 +509,6 @@ class SettingsManager(Gtk.Window):
         self.main_box.get_style_context().add_class("closing")
         GLib.timeout_add(200, Gtk.main_quit)
                     
-            dialog.connect("response", on_response)
-            dialog.show_all()
-            return
-            
-        self.cleanup_lock()
-        self.main_box.get_style_context().add_class("closing")
-        GLib.timeout_add(200, Gtk.main_quit)
-
     def _has_unsaved_changes(self):
         """Authoritative dirty check: collect widget state, diff vs last apply."""
         try:
