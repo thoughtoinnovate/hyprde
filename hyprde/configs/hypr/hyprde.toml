@@ -459,7 +459,7 @@ list = [
     "$mainMod CTRL, M, exec, $HOME/.config/hypr/scripts/waybars.sh sys-metrics",
     "$mainMod, Print, exec, ~/.config/hypr/scripts/screenshot.sh area",
     ", Print, exec, ~/.config/hypr/scripts/screenshot.sh",
-    ", escape, exec, $HOME/.config/hypr/scripts/waybars.sh close-all",
+    "$mainMod, escape, exec, $HOME/.config/hypr/scripts/waybars.sh close-all",
     "$mainMod SHIFT, H, exec, $HOME/.config/hypr/scripts/shortcuts-help.sh",
     "$mainMod, C, exec, /usr/bin/python3 $HOME/.config/hypr/scripts/settings_manager.py",
     "$mainMod, D, exec, $HOME/.config/hypr/scripts/dock-toggle.sh"
