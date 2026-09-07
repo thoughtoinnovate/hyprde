@@ -703,19 +703,20 @@ def _write_window_rules(lines: list, data: dict):
 
 
 def _write_layer_rules(lines: list, data: dict):
-    """Emit hl.layerrule() calls from [rules].layer list."""
-    rules = data.get("rules", {}).get("layer", [])
+    rules = list(data.get("rules", {}).get("layer", []))
+    launcher_op = data.get("decoration", {}).get("launcher_opacity", 1.0)
+    if float(launcher_op) < 1.0:
+        for ns in ["hyprsearch", "dmenu", "power-menu", "dock"]:
+            rules.append(f"opacity {launcher_op}, {ns}")
     if not rules:
         return
     lines.append("-- [[ Layer Rules ]]")
+    lines.append("hl.config({")
+    lines.append("    layerrule = {")
     for rule in rules:
-        parts = [p.strip() for p in rule.split(",", 1)]
-        if len(parts) != 2:
-            lines.append(f"-- [[ SKIPPED invalid layer rule: {rule} ]]")
-            continue
-        selector = _parse_rule_selector(parts[1])
-        props = _rule_action_to_props(parts[0])
-        lines.append(f"hl.layerrule({selector}, {props})")
+        lines.append(f'        "{rule}",')
+    lines.append("    }")
+    lines.append("})")
     lines.append("")
 
 
