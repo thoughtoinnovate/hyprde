@@ -805,6 +805,7 @@ class SettingsManager(Gtk.Window):
 
         scale slider {{ background: {c['accent']}; border-radius: 50%; min-height: 18px; min-width: 18px; }}
         scale trough {{ background: rgba(255,255,255,0.1); border-radius: 6px; min-height: 4px; }}
+        scale highlight {{ background: {c['accent']}; border-radius: 6px; }}
         scale value {{ font-size: 11px; color: {c['base_fg']}; opacity: 0.55; }}
         switch:checked {{ background: {c['active_bg']}; }}
         switch {{ background: rgba(255,255,255,0.15); border-radius: 12px; border: none; }}
