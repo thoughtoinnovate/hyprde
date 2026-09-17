@@ -34,3 +34,7 @@ Thumbs.db
 ~/.config/hypr/wallpaper-schedule.conf
 ~/.config/hypr/wallpaper-schedule.conf.tmp
 hyprde/src/launcher/.zig-cache/
+
+# Generated binaries (built by install.sh, never committed)
+hyprde/src/launcher/zig-out/
+hyprde/configs/hypr/scripts/hyprsearch
