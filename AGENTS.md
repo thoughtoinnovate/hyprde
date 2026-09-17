@@ -74,3 +74,11 @@
 ### Git Workflow
 - Atomic commits preferred.
 - Conventional commit messages (`feat:`, `fix:`, `test:`, `docs:`).
+
+### Public Repo Hygiene (this repo is public — no personal data, ever)
+- No hardcoded usernames, `/home/<user>` paths, hostnames, emails, IPs/MACs, or secrets in tracked files. Use `$HOME`, `$USER`, `/home/user/` placeholders.
+- `.desktop` `Exec` lines must use `$HOME` (e.g. `sh -c "/usr/bin/python3 $HOME/.config/hypr/..."`), never an absolute home path.
+- `build.zig` remaps absolute paths via `-ffile-prefix-map=<root>=hyprde-src` — keep it so committed binaries never embed builder paths. Verify with `strings <bin> | grep /home/`.
+- sudoers rules must use explicit paths (no `cpu*`-style globs in args — arg wildcards match `/`); validate generator output with `visudo -c -f <file>`.
+- Never commit `__pycache__/`, `.idea/`, `.zig-cache/`, `*.log`, backups, or live `~/.config` contents (backups belong in `~/.config/hyprde_bkps`, outside the repo).
+- Pre-commit self-check: grep the tree for your username and any absolute home paths — both must be empty (excluding acknowledged placeholders).
