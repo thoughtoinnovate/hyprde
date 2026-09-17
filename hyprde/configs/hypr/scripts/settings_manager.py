@@ -244,19 +244,6 @@ DESCRIPTIONS = {
 
 WIDGET_CELL_WIDTH = 240
 
-# Instant-apply: whitelisted widget keys apply live (debounced) without Apply.
-# Second layer of defense: only sections in LIVE_SAFE_SECTIONS may differ —
-# anything else dirty (binds, lua text, monitors, ...) forces manual Apply.
-LIVE_SAFE_WIDGETS = {
-    'gaps_in', 'gaps_out', 'border_size', 'rounding',
-    'active_opacity', 'inactive_opacity', 'waybar_opacity', 'launcher_opacity',
-    'blur_enabled', 'blur_size', 'blur_passes',
-    'nl_enabled', 'nl_temp_day', 'nl_temp_night',
-    'anim_enabled',
-}
-LIVE_SAFE_SECTIONS = {'general', 'decoration', 'nightlight', 'animations'}
-LIVE_APPLY_DEBOUNCE_MS = 600
-
 # Guided keybind editor: modifiers, action names, parse/serialize helpers.
 # Stored bind strings use "$mainMod"-style variables and mixed-case keys;
 # the parser preserves unknown mod tokens verbatim so round-trips are lossless.
@@ -457,15 +444,7 @@ class SettingsManager(Gtk.Window):
     def close_window(self):
         if getattr(self, '_close_dialog_open', False):
             return
-            
-        self._closed = True
-        if getattr(self, '_live_apply_id', None) is not None:
-            try:
-                GLib.source_remove(self._live_apply_id)
-            except Exception:
-                pass
-            self._live_apply_id = None
-            
+
         if getattr(self, '_dirty', False) and self._has_unsaved_changes():
             self._close_dialog_open = True
             try:
@@ -498,8 +477,6 @@ class SettingsManager(Gtk.Window):
                     self.cleanup_lock()
                     self.main_box.get_style_context().add_class("closing")
                     GLib.timeout_add(200, Gtk.main_quit)
-                else:
-                    self._closed = False
                     
             dialog.connect("response", on_response)
             dialog.show_all()
@@ -1321,8 +1298,6 @@ class SettingsManager(Gtk.Window):
         self.sidebar.set_filter_func(self._sidebar_filter_func, None)
         self._dirty = False
         self._restoring = False
-        self._closed = False
-        self._live_apply_id = None
         
         if self._pending_pages:
             self._build_one_page(self._pending_pages.pop(0))
@@ -1344,7 +1319,6 @@ class SettingsManager(Gtk.Window):
         
         self._snapshot_widget_values()
         self._track_dirty_signals()
-        self._track_live_apply()
         self._mark_clean()
 
     def _idle_build_pages(self):
@@ -2185,67 +2159,13 @@ class SettingsManager(Gtk.Window):
 
         self._begin_apply(snapshot)
 
-    def _begin_apply(self, snapshot, light=False):
-        """Kick off the background worker. Light applies (instant-apply path)
-        only write the file, rebuild and reload — heavy fan-out (theme
-        scripts, dock/bar restarts, wallpaper engine) is manual-Apply only,
-        otherwise every slider tick would churn the whole session."""
-        snapshot["light"] = light
+    def _begin_apply(self, snapshot):
         self._applying = True
         self.save_btn.set_label("Applying…")
         self.save_btn.set_sensitive(False)
         self.status_label.set_text("Applying settings…")
         threading.Thread(target=self._apply_worker, args=(snapshot,),
                          daemon=True).start()
-
-    # --- INSTANT-APPLY (lightweight widgets only) ---
-    def _track_live_apply(self):
-        """Debounced live-apply for whitelisted widgets (no Apply press needed)."""
-        self._live_apply_id = None
-        for key in LIVE_SAFE_WIDGETS:
-            w = self.widgets.get(key)
-            if w is None:
-                continue
-            if isinstance(w, Gtk.Entry):
-                w.connect("changed", lambda *_a: self._schedule_live_apply())
-            elif isinstance(w, (Gtk.SpinButton, Gtk.Scale)):
-                w.connect("value-changed", lambda *_a: self._schedule_live_apply())
-            elif isinstance(w, Gtk.Switch):
-                w.connect("notify::active", lambda *_a: self._schedule_live_apply())
-            elif isinstance(w, Gtk.ComboBoxText):
-                w.connect("changed", lambda *_a: self._schedule_live_apply())
-
-    def _schedule_live_apply(self):
-        if getattr(self, '_restoring', False) or getattr(self, '_closed', False):
-            return
-        if getattr(self, '_live_apply_id', None) is not None:
-            GLib.source_remove(self._live_apply_id)
-            self._live_apply_id = None
-        # While an apply is running, re-arm instead of dropping the change.
-        delay = 1000 if getattr(self, '_applying', False) else LIVE_APPLY_DEBOUNCE_MS
-        self._live_apply_id = GLib.timeout_add(delay, self._maybe_live_apply)
-
-    def _maybe_live_apply(self):
-        self._live_apply_id = None
-        if getattr(self, '_closed', False):
-            return False
-        if getattr(self, '_applying', False) or getattr(self, '_restoring', False):
-            return False
-        try:
-            snapshot = self._collect_widget_state()
-        except Exception:
-            return False
-        changed = set(snapshot.get("changed", []))
-        if not changed:
-            return False
-        # Anything outside the safe sections (binds, lua text, monitors,
-        # autostart, ...) forces manual Apply — never auto-apply half-typed input.
-        if changed - LIVE_SAFE_SECTIONS:
-            return False
-        if snapshot["config_str"] == self.initial_config_str:
-            return False
-        self._begin_apply(snapshot, light=True)
-        return False
 
     def _collect_widget_state(self):
         """Read all widgets into self.doc (main thread) and snapshot what's
@@ -2503,28 +2423,13 @@ class SettingsManager(Gtk.Window):
             "permission", "permissions",
         }
         changed = set(snapshot.get("changed", []))
-        light = snapshot.get("light", False)
         # Be conservative: if change detection failed, run everything.
         if not changed:
             changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle",
                                       "theme", "launcher", "programs"}
-            light = False
         try:
             with open(self.config_path, 'w') as f:
                 f.write(snapshot["config_str"])
-
-            if light:
-                # Instant-apply path: file + rebuild + reload only. Heavy
-                # fan-out stays manual so slider drags can't churn the session.
-                subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
-                               capture_output=True, timeout=120)
-                if changed & LUA_SECTIONS:
-                    subprocess.run(["hyprctl", "reload"], capture_output=True, timeout=30)
-                logger.info("Settings live-applied (sections: %s)",
-                            ",".join(sorted(changed)))
-                GLib.idle_add(self._on_apply_done, snapshot["config_str"],
-                              snapshot["sections"])
-                return
 
             # Fan out the accent color to every component (theme CSS vars,
             # wofi selection, notif borders, Mako). Non-fatal on failure.
