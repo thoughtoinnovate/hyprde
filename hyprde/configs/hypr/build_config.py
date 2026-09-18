@@ -244,6 +244,7 @@ def is_plugin_enabled(data: Dict[str, Any], plugin_name: str) -> bool:
 
 VALID_TOP_LEVEL_SECTIONS = {
     "monitors", "programs", "autostart", "wallpapers", "lockscreen", "idle",
+    "sleep", "wake",
     "nightlight", "plugins", "plugin", "scrolling", "launcher", "hyprrocket",
     "gesture", "submaps", "env", "input", "general", "decoration", "animations",
     "dwindle", "master", "misc", "binds", "binds_config", "rules", "custom", "color",
@@ -261,8 +262,91 @@ EXTERNAL_MANAGERS = {
     "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
     "lockscreen": "hyprlock.conf",
     "idle": "hypridle.conf",
+    "sleep": "hypridle.conf (suspend timer) + logind drop-in (lid/power)",
+    "wake": "hypridle.conf on-resume/after_sleep + wake-sources helper",
     "nightlight": "hyprsunset/gamma.sh via screen_shader",
 }
+
+# Env override knobs for idle/sleep/wake (ENV wins over TOML).
+# Bools accept 1/0/true/false/yes/no/on/off; ints in seconds (0 = off).
+def _env_bool(name: str) -> Optional[bool]:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    v = raw.strip().lower()
+    if v in ("1", "true", "yes", "on"):
+        return True
+    if v in ("0", "false", "no", "off"):
+        return False
+    logger.warning(f"Ignoring invalid bool {name}={raw!r}")
+    return None
+
+
+def _env_int(name: str) -> Optional[int]:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    try:
+        val = int(raw.strip())
+    except ValueError:
+        logger.warning(f"Ignoring invalid int {name}={raw!r}")
+        return None
+    return val
+
+
+def _env_str(name: str) -> Optional[str]:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    v = raw.strip()
+    return v if v else None
+
+
+def apply_power_env_overrides(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply HYPRDE_* env overrides to [idle]/[sleep]/[wake]. ENV wins."""
+    idle = data.setdefault("idle", {})
+    sleep = data.setdefault("sleep", {})
+    wake = data.setdefault("wake", {})
+
+    def set_bool(table: Dict[str, Any], key: str, env: str) -> None:
+        val = _env_bool(env)
+        if val is not None:
+            table[key] = val
+            logger.info(f"{key}={val} from ENV {env}")
+
+    def set_int(table: Dict[str, Any], key: str, env: str) -> None:
+        val = _env_int(env)
+        if val is not None:
+            table[key] = val
+            logger.info(f"{key}={val} from ENV {env}")
+
+    def set_str(table: Dict[str, Any], key: str, env: str) -> None:
+        val = _env_str(env)
+        if val is not None:
+            table[key] = val
+            logger.info(f"{key}={val} from ENV {env}")
+
+    set_bool(idle, "enabled", "HYPRDE_IDLE_ENABLED")
+    set_bool(idle, "dim_enabled", "HYPRDE_DIM_ENABLED")
+    set_int(idle, "dim_timeout", "HYPRDE_DIM_TIMEOUT")
+    set_int(idle, "dim_level", "HYPRDE_DIM_LEVEL")
+    set_bool(idle, "lock_enabled", "HYPRDE_LOCK_ENABLED")
+    set_int(idle, "lock_timeout", "HYPRDE_LOCK_TIMEOUT")
+    set_bool(idle, "screen_off_enabled", "HYPRDE_SCREEN_OFF_ENABLED")
+    set_int(idle, "screen_off_timeout", "HYPRDE_SCREEN_OFF_TIMEOUT")
+
+    set_bool(sleep, "suspend_enabled", "HYPRDE_SUSPEND_ENABLED")
+    set_int(sleep, "suspend_timeout", "HYPRDE_SUSPEND_TIMEOUT")
+    set_str(sleep, "suspend_mode", "HYPRDE_SUSPEND_MODE")
+    set_bool(sleep, "hibernate_enabled", "HYPRDE_HIBERNATE_ENABLED")
+    set_bool(sleep, "lock_before_sleep", "HYPRDE_LOCK_BEFORE_SLEEP")
+    set_str(sleep, "lid_close_action", "HYPRDE_LID_ACTION")
+    set_str(sleep, "power_button_action", "HYPRDE_POWER_ACTION")
+
+    set_bool(wake, "dpms_on_wake", "HYPRDE_WAKE_DPMS")
+    set_bool(wake, "brightness_restore", "HYPRDE_WAKE_BRIGHTNESS")
+    set_bool(wake, "wake_to_lock", "HYPRDE_WAKE_TO_LOCK")
+    return data
 
 
 def validate_config(data: Dict[str, Any]) -> List[str]:
@@ -298,6 +382,32 @@ def validate_config(data: Dict[str, Any]) -> List[str]:
                 f"Section '[{key}]' is managed externally ({EXTERNAL_MANAGERS[key]}), "
                 f"not emitted to hyprland.lua — intentional."
             )
+
+    # Idle/sleep/wake ordering + value checks (only when enabled).
+    idle = data.get("idle", {})
+    sleep = data.get("sleep", {})
+    if isinstance(idle, dict) and idle.get("enabled", True):
+        def _on(base: str) -> bool:
+            return bool(idle.get(f"{base}_enabled", True)) and int(idle.get(f"{base}_timeout", 1) or 0) > 0
+
+        order = [n for n in ("dim", "lock", "screen_off") if _on(n)]
+        vals = {n: int(idle.get(f"{n}_timeout", 0)) for n in order}
+        for a, b in (("dim", "lock"), ("lock", "screen_off")):
+            if a in vals and b in vals and vals[a] > vals[b]:
+                warnings.append(f"[idle] {a}_timeout ({vals[a]}s) should be <= {b}_timeout ({vals[b]}s)")
+        if isinstance(sleep, dict) and sleep.get("suspend_enabled", True):
+            try:
+                susp = int(sleep.get("suspend_timeout", idle.get("suspend_timeout", 1800)) or 0)
+            except (TypeError, ValueError):
+                susp = 0
+            if susp > 0 and order and susp < max(vals.values()):
+                warnings.append(f"[sleep] suspend_timeout ({susp}s) should be >= screen_off_timeout")
+        for key in ("lid_close_action", "power_button_action"):
+            if isinstance(sleep, dict) and key in sleep:
+                if sleep[key] not in ("ignore", "lock", "suspend", "hibernate", "poweroff"):
+                    warnings.append(f"[sleep] {key} should be ignore|lock|suspend|hibernate|poweroff. Got: {sleep[key]}")
+        if isinstance(sleep, dict) and sleep.get("suspend_mode") not in (None, "suspend", "hibernate", "hybrid-sleep"):
+            warnings.append(f"[sleep] suspend_mode should be suspend|hibernate|hybrid-sleep. Got: {sleep.get('suspend_mode')}")
 
     return warnings
 
@@ -341,6 +451,31 @@ def inject_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     # Ensure binds section exists with mainMod
     if "binds" not in data:
         data["binds"] = {"mainMod": "SUPER", "normal": {"list": []}}
+
+    # Idle/sleep/wake defaults (back-compat with old [idle] suspend_timeout).
+    idle = data.setdefault("idle", {})
+    idle.setdefault("enabled", True)
+    idle.setdefault("dim_enabled", True)
+    idle.setdefault("dim_timeout", 120)
+    idle.setdefault("dim_level", 20)
+    idle.setdefault("lock_enabled", True)
+    idle.setdefault("lock_timeout", 300)
+    idle.setdefault("screen_off_enabled", True)
+    idle.setdefault("screen_off_timeout", 330)
+    sleep = data.setdefault("sleep", {})
+    if "suspend_timeout" in idle and "suspend_timeout" not in sleep:
+        sleep["suspend_timeout"] = idle["suspend_timeout"]
+    sleep.setdefault("suspend_enabled", True)
+    sleep.setdefault("suspend_timeout", 1800)
+    sleep.setdefault("suspend_mode", "suspend")
+    sleep.setdefault("hibernate_enabled", False)
+    sleep.setdefault("lock_before_sleep", True)
+    sleep.setdefault("lid_close_action", "hibernate")
+    sleep.setdefault("power_button_action", "suspend")
+    wake = data.setdefault("wake", {})
+    wake.setdefault("dpms_on_wake", True)
+    wake.setdefault("brightness_restore", True)
+    wake.setdefault("wake_to_lock", True)
 
     return data
 
@@ -412,6 +547,8 @@ def generate_and_write_lua(data: Dict[str, Any]) -> None:
 HYPRIDLE_CONF = os.path.join(CONFIG_DIR, "hypridle.conf")
 HYPRLOCK_CONF = os.path.join(CONFIG_DIR, "hyprlock.conf")
 HYPRPAPER_CONF = os.path.join(CONFIG_DIR, "hyprpaper.conf")
+# Staged logind drop-in (copy to /etc/systemd/logind.conf.d/ + reload logind).
+LOGIND_DROPIN = os.path.join(CONFIG_DIR, "hyprde-lid-power.conf")
 
 def generate_hyprpaper_conf(data: Dict[str, Any]) -> None:
     if "wallpapers" not in data:
@@ -600,58 +737,138 @@ image {{
 """
     atomic_write(HYPRLOCK_CONF, content)
 
+def _idle_on(table: Dict[str, Any], base: str, default_timeout: int) -> int:
+    """Return timeout if enabled and >0, else 0 (disabled). 0/false = off."""
+    try:
+        timeout = int(table.get(f"{base}_timeout", default_timeout) or 0)
+    except (TypeError, ValueError):
+        return 0
+    if not table.get(f"{base}_enabled", True):
+        return 0
+    return timeout if timeout > 0 else 0
+
+
 def generate_hypridle_conf(data: Dict[str, Any]) -> None:
-    if "idle" not in data:
-        logger.info("No [idle] section found. Skipping hypridle.conf generation.")
+    if not any(k in data for k in ("idle", "sleep", "wake")):
+        logger.info("No [idle]/[sleep]/[wake] section found. Skipping hypridle.conf generation.")
+        return
+    data = inject_defaults(dict(data))
+    idle = data.get("idle", {})
+    sleep = data.get("sleep", {})
+    wake = data.get("wake", {})
+
+    if not idle.get("enabled", True):
+        logger.info("Idle management disabled ([idle] enabled=false). Writing minimal hypridle.conf.")
+        atomic_write(HYPRIDLE_CONF, "general {\n    lock_cmd = pidof hyprlock || hyprlock\n}\n")
         return
 
     logger.info(f"Generating hypridle config at {HYPRIDLE_CONF}...")
-    idle = data["idle"]
-
     lock_cmd = "pidof hyprlock || hyprlock"
-    before_sleep = "loginctl lock-session && sleep 1"
-    after_sleep = "hyprctl dispatch 'hl.dsp.dpms(\"on\")'"
+    lines = ["general {", f"    lock_cmd = {lock_cmd}"]
+    if sleep.get("lock_before_sleep", True):
+        lines.append("    before_sleep_cmd = loginctl lock-session && sleep 1")
+    if wake.get("dpms_on_wake", True):
+        lines.append("    after_sleep_cmd = hyprctl dispatch 'hl.dsp.dpms(\"on\")'")
+    lines.append("}")
+    lines.append("")
 
-    lock_timeout = idle.get("lock_timeout", 300)
-    screen_off_timeout = idle.get("screen_off_timeout", 330)
-    suspend_timeout = idle.get("suspend_timeout", 1800)
+    dim_timeout = _idle_on(idle, "dim", 120)
+    try:
+        dim_level = int(idle.get("dim_level", 20) or 20)
+    except (TypeError, ValueError):
+        dim_level = 20
+    dim_level = max(1, min(100, dim_level))
+    lock_timeout = _idle_on(idle, "lock", 300)
+    screen_off_timeout = _idle_on(idle, "screen_off", 330)
+    try:
+        suspend_timeout = int(sleep.get("suspend_timeout", idle.get("suspend_timeout", 1800)) or 0)
+    except (TypeError, ValueError):
+        suspend_timeout = 0
+    if not sleep.get("suspend_enabled", True):
+        suspend_timeout = 0
+    suspend_mode = sleep.get("suspend_mode", "suspend")
+    if suspend_mode not in ("suspend", "hibernate", "hybrid-sleep"):
+        logger.warning(f"Unknown suspend_mode {suspend_mode!r}, falling back to suspend")
+        suspend_mode = "suspend"
+    if sleep.get("hibernate_enabled", False) is False and suspend_mode == "hibernate":
+        logger.warning("Auto-hibernate timer is off but suspend_mode=hibernate; timer skipped (lid/manual only)")
 
-    content = f"""
-general {{
-    lock_cmd = {lock_cmd}
-    before_sleep_cmd = {before_sleep}
-    after_sleep_cmd = {after_sleep}
-}}
+    brightness_restore = wake.get("brightness_restore", True)
+    dpms_on_wake = wake.get("dpms_on_wake", True)
 
-listener {{
-    timeout = 150
-    on-timeout = brightnessctl -s set 10
-    on-resume = brightnessctl -r
-}}
+    if dim_timeout > 0:
+        lines.append("listener {")
+        lines.append(f"    timeout = {dim_timeout}")
+        lines.append(f"    on-timeout = brightnessctl -s set {dim_level}")
+        if brightness_restore:
+            lines.append("    on-resume = brightnessctl -r")
+        lines.append("}")
+        lines.append("")
+        lines.append("listener {")
+        lines.append(f"    timeout = {dim_timeout}")
+        lines.append("    on-timeout = brightnessctl -sd rgb:kbd_backlight set 0")
+        if brightness_restore:
+            lines.append("    on-resume = brightnessctl -rd rgb:kbd_backlight")
+        lines.append("}")
+        lines.append("")
 
-listener {{
-    timeout = 150
-    on-timeout = brightnessctl -sd rgb:kbd_backlight set 0
-    on-resume = brightnessctl -rd rgb:kbd_backlight
-}}
+    if lock_timeout > 0:
+        lines.append("listener {")
+        lines.append(f"    timeout = {lock_timeout}")
+        lines.append("    on-timeout = loginctl lock-session")
+        lines.append("}")
+        lines.append("")
 
-listener {{
-    timeout = {lock_timeout}
-    on-timeout = loginctl lock-session
-}}
+    if screen_off_timeout > 0:
+        lines.append("listener {")
+        lines.append(f"    timeout = {screen_off_timeout}")
+        lines.append("    on-timeout = hyprctl dispatch 'hl.dsp.dpms(\"off\")'")
+        if dpms_on_wake:
+            lines.append("    on-resume = hyprctl dispatch 'hl.dsp.dpms(\"on\")'")
+        lines.append("}")
+        lines.append("")
 
-listener {{
-    timeout = {screen_off_timeout}
-    on-timeout = hyprctl dispatch 'hl.dsp.dpms("off")'
-    on-resume = hyprctl dispatch 'hl.dsp.dpms("on")'
-}}
+    suspend_active = (
+        suspend_timeout > 0
+        and (suspend_mode != "hibernate" or sleep.get("hibernate_enabled", False))
+    )
+    if suspend_active:
+        lines.append("listener {")
+        lines.append(f"    timeout = {suspend_timeout}")
+        lines.append(f"    on-timeout = systemctl {suspend_mode}")
+        lines.append("}")
+        lines.append("")
 
-listener {{
-    timeout = {suspend_timeout}
-    on-timeout = systemctl suspend
-}}
-"""
-    atomic_write(HYPRIDLE_CONF, content)
+    if len(lines) <= 5:
+        logger.info("All idle listeners disabled — hypridle will stay idle.")
+    atomic_write(HYPRIDLE_CONF, "\n".join(lines).rstrip() + "\n")
+
+
+def generate_logind_dropin(data: Dict[str, Any]) -> None:
+    """Stage logind lid/power config (needs sudo to install + reload)."""
+    data = inject_defaults(dict(data))
+    sleep = data.get("sleep", {})
+    lid = sleep.get("lid_close_action", "hibernate")
+    power = sleep.get("power_button_action", "suspend")
+    valid = ("ignore", "lock", "suspend", "hibernate", "hybrid-sleep", "poweroff")
+    if lid not in valid:
+        logger.warning(f"Unknown lid_close_action {lid!r}, using hibernate")
+        lid = "hibernate"
+    if power not in valid:
+        logger.warning(f"Unknown power_button_action {power!r}, using suspend")
+        power = "suspend"
+    content = (
+        "# HyprDE lid/power mapping — copy to /etc/systemd/logind.conf.d/ then:\n"
+        "#   sudo systemctl restart systemd-logind\n"
+        "# NOTE: hibernate needs swap >= RAM and 'systemctl hibernate' tested.\n"
+        "# Hibernate wakes with power button only; sleep wakes with power + keys.\n"
+        "[Login]\n"
+        f"HandleLidSwitch={lid}\n"
+        f"HandleLidSwitchExternalPower={lid}\n"
+        f"HandlePowerKey={power}\n"
+    )
+    atomic_write(LOGIND_DROPIN, content)
+    logger.info(f"Staged logind drop-in at {LOGIND_DROPIN} (lid={lid}, power={power})")
 
 def generate_hyrocket_systemd_units(data: Dict[str, Any]) -> None:
     if "hyprrocket" not in data:
@@ -827,9 +1044,11 @@ if __name__ == "__main__":
         logger.error(f"File I/O error: {e}")
 
     data_full = inject_defaults(data_full)
+    data_full = apply_power_env_overrides(data_full)
     resolve_variables(data_full, data_full)
     generate_and_write_lua(data_full)
     generate_hypridle_conf(data_full)
+    generate_logind_dropin(data_full)
     generate_hyprlock_conf(data_full)
     generate_hyprpaper_conf(data_full)
     generate_fixed_wallpaper_config(data_full)

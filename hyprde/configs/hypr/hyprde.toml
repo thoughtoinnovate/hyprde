@@ -121,13 +121,49 @@ placeholder_text = "<i>Input Password...</i>"      # Placeholder text
 
 # =============================================================================
 # IDLE
-# Automatic screen locking and power management (Timeouts)
-# Times are in seconds
+# Automatic screen dimming, locking and display power (hypridle listeners)
+# Times are in seconds. Set timeout to 0 or *_enabled = false to disable.
+# Order should be: dim <= lock <= screen_off. Wake: any key/mouse wakes.
+# Env overrides: HYPRDE_DIM_ENABLED/TIMEOUT, HYPRDE_LOCK_ENABLED/TIMEOUT,
+#   HYPRDE_SCREEN_OFF_ENABLED/TIMEOUT, HYPRDE_IDLE_ENABLED
 # =============================================================================
 [idle]
-lock_timeout = 300                        # Lock screen after 5 minutes (300s)
-screen_off_timeout = 330                  # Turn off display after 5.5 minutes
-suspend_timeout = 1800                    # Suspend after 30 minutes (1800s)
+enabled = true                          # Master switch for all idle listeners
+dim_enabled = true                      # Dim screen to save battery
+dim_timeout = 120                       # Dim after 2 minutes (was hardcoded 150)
+dim_level = 20                          # Brightness % when dimmed (higher = less scary)
+lock_enabled = true                     # Lock screen with hyprlock
+lock_timeout = 300                      # Lock screen after 5 minutes (300s)
+screen_off_enabled = true               # Turn display off (dpms off)
+screen_off_timeout = 330                # Turn off display after 5.5 minutes
+
+# =============================================================================
+# SLEEP / SUSPEND / HIBERNATE / BUTTONS
+# Idle suspend timer (hypridle) + lid-close / power-button actions (logind).
+# suspend_mode: "suspend" (fast, RAM) or "hibernate" (disk, zero battery, slow).
+# lid_close_action / power_button_action: ignore, lock, suspend, hibernate, poweroff.
+# Wake: sleep wakes with power button + keys; hibernate wakes with power only.
+# Env overrides: HYPRDE_SUSPEND_ENABLED/TIMEOUT/MODE, HYPRDE_HIBERNATE_ENABLED,
+#   HYPRDE_LID_ACTION, HYPRDE_POWER_ACTION, HYPRDE_LOCK_BEFORE_SLEEP
+# =============================================================================
+[sleep]
+suspend_enabled = true                  # Auto-sleep timer on/off
+suspend_timeout = 1800                  # Auto-sleep after 30 minutes (1800s), 0 = off
+suspend_mode = "suspend"                # suspend (fast) or hibernate (slow, needs swap)
+hibernate_enabled = false               # Auto-hibernate timer off (lid/manual only)
+lock_before_sleep = true                # Run loginctl lock-session before sleep
+lid_close_action = "hibernate"          # Close lid -> hibernate (needs swap, power wakes)
+power_button_action = "suspend"         # Tap power -> sleep (power/keys wake)
+
+# =============================================================================
+# WAKE
+# How the machine recovers from dim / screen-off / sleep.
+# Env overrides: HYPRDE_WAKE_DPMS, HYPRDE_WAKE_BRIGHTNESS, HYPRDE_WAKE_TO_LOCK
+# =============================================================================
+[wake]
+dpms_on_wake = true                     # Turn display back on on resume/after sleep
+brightness_restore = true               # Restore brightness + kbd light on resume
+wake_to_lock = true                     # Require hyprlock password after resume
 
 # =============================================================================
 # NIGHTLIGHT

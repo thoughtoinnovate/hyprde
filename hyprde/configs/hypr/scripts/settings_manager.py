@@ -191,9 +191,24 @@ DESCRIPTIONS = {
     "Locked": "Binds that also work on the lock screen.",
     "Mouse": "Mouse button binds.",
     "Gesture Rules (fingers = N, direction = \"...\", action = \"...\")": "Touchpad gestures, one rule per line.",
-    "Auto-Lock (s)": "Idle seconds before the screen locks.",
-    "Screen Off (s)": "Idle seconds before the display powers off.",
-    "Suspend (s)": "Idle seconds before the machine suspends.",
+    "Auto-Lock (s)": "Idle seconds before the screen locks. 0 = off.",
+    "Screen Off (s)": "Idle seconds before the display powers off. 0 = off.",
+    "Suspend (s)": "Idle seconds before the machine suspends. 0 = off.",
+    "Enable idle management": "Master switch for dim, lock, screen-off and suspend timers.",
+    "Dim (s)": "Idle seconds before dimming. 0 or off = no dimming.",
+    "Dim level (%)": "Brightness when dimmed. Higher is brighter.",
+    "Enable Dim": "Dim the screen after idle timeout.",
+    "Enable Auto-Lock": "Lock the screen after idle timeout.",
+    "Enable Screen Off": "Turn the display off after idle timeout.",
+    "Enable Auto-Suspend": "Suspend the machine after idle timeout.",
+    "Suspend mode": "suspend is fast (RAM); hibernate needs swap and wakes with power only.",
+    "Enable Auto-Hibernate": "Allow hibernate as the suspend timer action.",
+    "Lock before sleep": "Lock the session before suspend/hibernate.",
+    "Lid close": "What closing the lid does. Hibernate needs swap; wakes with power only.",
+    "Power button": "What a short power press does. Wake by pressing power again.",
+    "DPMS on wake": "Turn the display back on after resume.",
+    "Restore brightness": "Restore screen and keyboard brightness after resume.",
+    "Ask password on wake": "Require the lock-screen password after resume.",
     "Lock Wallpaper": "Background image of the lock screen.",
     "User Picture": "Avatar shown on the lock screen.",
     "Fail Text": "Message shown after a wrong password.",
@@ -1196,6 +1211,7 @@ class SettingsManager(Gtk.Window):
             "input.touchpad", "monitors", "wallpapers", "wallpapers.fixed",
             "animations", "binds", "binds.normal", "binds.release",
             "binds.mouse", "binds.repeat", "binds.locked", "idle",
+            "sleep", "wake",
             "lockscreen", "nightlight", "launcher", "launcher.dock",
             "launcher.drun", "launcher.power_menu", "launcher.dmenu",
             "programs", "plugins", "scrolling", "rules", "misc", "dwindle",
@@ -1639,10 +1655,48 @@ class SettingsManager(Gtk.Window):
 
     def build_lock(self):
         v = self.build_page_vbox("Lockscreen & Power")
+        idle = self.doc.get('idle', {})
+        sleep = self.doc.get('sleep', {})
+        wake = self.doc.get('wake', {})
+        # Support old configs that stored suspend_timeout under [idle].
+        if 'suspend_timeout' not in sleep and 'suspend_timeout' in idle:
+            try:
+                sleep = dict(sleep); sleep['suspend_timeout'] = idle.get('suspend_timeout', 1800)
+            except Exception:
+                pass
+        f0 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f0.get_style_context().add_class("group-frame")
+        self.widgets['idle_enabled'] = Gtk.Switch(); self.widgets['idle_enabled'].set_active(idle.get('enabled', True)); f0.pack_start(self.create_row("Enable idle management", self.widgets['idle_enabled']), False, False, 0)
+        v.pack_start(f0, False, False, 0)
         f1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f1.get_style_context().add_class("group-frame")
-        for k, l in [('lock_timeout','Auto-Lock (s)'),('screen_off_timeout','Screen Off (s)'),('suspend_timeout','Suspend (s)')]:
-            self.widgets[f'idle_{k}'] = Gtk.SpinButton.new_with_range(0, 7200, 30); self.widgets[f'idle_{k}'].set_value(self.doc['idle'].get(k, 300)); f1.pack_start(self.create_row(l, self.widgets[f'idle_{k}']), False, False, 0)
+        for en_key, t_key, en_label, t_label, dflt in [
+            ('dim_enabled', 'dim_timeout', 'Enable Dim', 'Dim (s)', 120),
+            ('lock_enabled', 'lock_timeout', 'Enable Auto-Lock', 'Auto-Lock (s)', 300),
+            ('screen_off_enabled', 'screen_off_timeout', 'Enable Screen Off', 'Screen Off (s)', 330),
+        ]:
+            self.widgets[f'idle_{en_key}'] = Gtk.Switch(); self.widgets[f'idle_{en_key}'].set_active(idle.get(en_key, True)); f1.pack_start(self.create_row(en_label, self.widgets[f'idle_{en_key}']), False, False, 0)
+            self.widgets[f'idle_{t_key}'] = Gtk.SpinButton.new_with_range(0, 7200, 30); self.widgets[f'idle_{t_key}'].set_value(idle.get(t_key, dflt)); f1.pack_start(self.create_row(t_label, self.widgets[f'idle_{t_key}']), False, False, 0)
+        self.widgets['idle_dim_level'] = Gtk.SpinButton.new_with_range(1, 100, 1); self.widgets['idle_dim_level'].set_value(idle.get('dim_level', 20)); f1.pack_start(self.create_row("Dim level (%)", self.widgets['idle_dim_level']), False, False, 0)
         v.pack_start(f1, False, False, 0)
+        fs = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fs.get_style_context().add_class("group-frame")
+        self.widgets['sleep_suspend_enabled'] = Gtk.Switch(); self.widgets['sleep_suspend_enabled'].set_active(sleep.get('suspend_enabled', True)); fs.pack_start(self.create_row("Enable Auto-Suspend", self.widgets['sleep_suspend_enabled']), False, False, 0)
+        self.widgets['sleep_suspend_timeout'] = Gtk.SpinButton.new_with_range(0, 7200, 30); self.widgets['sleep_suspend_timeout'].set_value(sleep.get('suspend_timeout', 1800)); fs.pack_start(self.create_row("Suspend (s)", self.widgets['sleep_suspend_timeout']), False, False, 0)
+        self.widgets['sleep_suspend_mode'] = Gtk.ComboBoxText(); 
+        for m in ["suspend", "hibernate", "hybrid-sleep"]: self.widgets['sleep_suspend_mode'].append(m, m)
+        self.widgets['sleep_suspend_mode'].set_active_id(sleep.get('suspend_mode', 'suspend')); fs.pack_start(self.create_row("Suspend mode", self.widgets['sleep_suspend_mode']), False, False, 0)
+        self.widgets['sleep_hibernate_enabled'] = Gtk.Switch(); self.widgets['sleep_hibernate_enabled'].set_active(sleep.get('hibernate_enabled', False)); fs.pack_start(self.create_row("Enable Auto-Hibernate", self.widgets['sleep_hibernate_enabled']), False, False, 0)
+        self.widgets['sleep_lock_before'] = Gtk.Switch(); self.widgets['sleep_lock_before'].set_active(sleep.get('lock_before_sleep', True)); fs.pack_start(self.create_row("Lock before sleep", self.widgets['sleep_lock_before']), False, False, 0)
+        self.widgets['sleep_lid_action'] = Gtk.ComboBoxText()
+        for m in ["ignore", "lock", "suspend", "hibernate", "poweroff"]: self.widgets['sleep_lid_action'].append(m, m)
+        self.widgets['sleep_lid_action'].set_active_id(sleep.get('lid_close_action', 'hibernate')); fs.pack_start(self.create_row("Lid close", self.widgets['sleep_lid_action']), False, False, 0)
+        self.widgets['sleep_power_action'] = Gtk.ComboBoxText()
+        for m in ["ignore", "lock", "suspend", "hibernate", "poweroff"]: self.widgets['sleep_power_action'].append(m, m)
+        self.widgets['sleep_power_action'].set_active_id(sleep.get('power_button_action', 'suspend')); fs.pack_start(self.create_row("Power button", self.widgets['sleep_power_action']), False, False, 0)
+        v.pack_start(fs, False, False, 0)
+        fw = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fw.get_style_context().add_class("group-frame")
+        self.widgets['wake_dpms'] = Gtk.Switch(); self.widgets['wake_dpms'].set_active(wake.get('dpms_on_wake', True)); fw.pack_start(self.create_row("DPMS on wake", self.widgets['wake_dpms']), False, False, 0)
+        self.widgets['wake_brightness'] = Gtk.Switch(); self.widgets['wake_brightness'].set_active(wake.get('brightness_restore', True)); fw.pack_start(self.create_row("Restore brightness", self.widgets['wake_brightness']), False, False, 0)
+        self.widgets['wake_to_lock'] = Gtk.Switch(); self.widgets['wake_to_lock'].set_active(wake.get('wake_to_lock', True)); fw.pack_start(self.create_row("Ask password on wake", self.widgets['wake_to_lock']), False, False, 0)
+        v.pack_start(fw, False, False, 0)
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         self.widgets['lock_wp_btn'] = Gtk.Button(label="Select Wallpaper..."); self.widgets['lock_wp_btn'].get_style_context().add_class("picker"); self.widgets['lock_wp_btn'].connect("clicked", lambda x: self.update_picker_path('lock_wp_path', "Select Lock Wallpaper"))
         self.widgets['lock_wp_path'] = Gtk.Entry(); self.widgets['lock_wp_path'].set_text(self.doc['lockscreen'].get('background', ""))
@@ -2227,9 +2281,27 @@ class SettingsManager(Gtk.Window):
         self.doc['lockscreen']['fail_text'] = self.widgets['lock_fail_text'].get_text()
         self.doc['lockscreen']['placeholder_text'] = self.widgets['lock_placeholder_text'].get_text()
 
-        # Idle
-        for k in ['lock_timeout','screen_off_timeout','suspend_timeout']:
-            self.doc['idle'][k] = int(self.widgets[f'idle_{k}'].get_value())
+        # Idle / Sleep / Wake (toggles + timeouts, 0/false = off)
+        if 'idle' not in self.doc: self.doc['idle'] = tomlkit.table()
+        if 'sleep' not in self.doc: self.doc['sleep'] = tomlkit.table()
+        if 'wake' not in self.doc: self.doc['wake'] = tomlkit.table()
+        self.doc['idle']['enabled'] = self.widgets['idle_enabled'].get_active()
+        for en_key, t_key in [('dim_enabled','dim_timeout'),('lock_enabled','lock_timeout'),('screen_off_enabled','screen_off_timeout')]:
+            self.doc['idle'][en_key] = self.widgets[f'idle_{en_key}'].get_active()
+            self.doc['idle'][t_key] = int(self.widgets[f'idle_{t_key}'].get_value())
+        self.doc['idle']['dim_level'] = int(self.widgets['idle_dim_level'].get_value())
+        self.doc['sleep']['suspend_enabled'] = self.widgets['sleep_suspend_enabled'].get_active()
+        self.doc['sleep']['suspend_timeout'] = int(self.widgets['sleep_suspend_timeout'].get_value())
+        self.doc['sleep']['suspend_mode'] = self.widgets['sleep_suspend_mode'].get_active_id() or "suspend"
+        self.doc['sleep']['hibernate_enabled'] = self.widgets['sleep_hibernate_enabled'].get_active()
+        self.doc['sleep']['lock_before_sleep'] = self.widgets['sleep_lock_before'].get_active()
+        self.doc['sleep']['lid_close_action'] = self.widgets['sleep_lid_action'].get_active_id() or "hibernate"
+        self.doc['sleep']['power_button_action'] = self.widgets['sleep_power_action'].get_active_id() or "suspend"
+        # Keep old [idle] suspend_timeout in sync for back-compat readers.
+        self.doc['idle']['suspend_timeout'] = self.doc['sleep']['suspend_timeout']
+        self.doc['wake']['dpms_on_wake'] = self.widgets['wake_dpms'].get_active()
+        self.doc['wake']['brightness_restore'] = self.widgets['wake_brightness'].get_active()
+        self.doc['wake']['wake_to_lock'] = self.widgets['wake_to_lock'].get_active()
 
         # Nightlight
         self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
@@ -2425,7 +2497,7 @@ class SettingsManager(Gtk.Window):
         changed = set(snapshot.get("changed", []))
         # Be conservative: if change detection failed, run everything.
         if not changed:
-            changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle",
+            changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle", "sleep", "wake",
                                       "theme", "launcher", "programs"}
         try:
             with open(self.config_path, 'w') as f:
@@ -2488,6 +2560,18 @@ class SettingsManager(Gtk.Window):
                 if snapshot["dock_enabled"]:
                     subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"],
                                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Idle/sleep/wake: hypridle only reads config at startup, so restart
+            # it (and pulse dpms on so we never stay stuck black after disabling).
+            if changed & {"idle", "sleep", "wake", "lockscreen"}:
+                subprocess.run(["pkill", "-x", "hypridle"], capture_output=True)
+                time.sleep(0.5)
+                try:
+                    subprocess.Popen(["hypridle"],
+                                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as e:
+                    logger.warning(f"Could not restart hypridle: {e}")
+                subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'], capture_output=True, timeout=10)
+                logger.info("Restarted hypridle after idle/sleep/wake change; logind lid/power needs sudo install from hyprde-lid-power.conf")
             subprocess.run(["notify-send", "Settings Applied", "System updated."],
                            capture_output=True, timeout=5)
             logger.info("Settings applied successfully (sections: %s)",

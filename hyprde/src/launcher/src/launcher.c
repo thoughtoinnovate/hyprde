@@ -32,6 +32,10 @@ LauncherConfig config; DockConfig dock_config;
 char *current_mode = "drun"; int is_dark_mode = 1;
 int is_pin_mode = 0; char *instance_name = "hyprsearch";
 char *custom_config_path = NULL; char *prompt_text = "Search...";
+/* Dock autohide: 1 = shelf hidden (edge trigger only), 0 = fully shown. */
+int dock_hidden = 0;
+/* Width/height in px of the hover trigger strip kept clickable while hidden. */
+#define DOCK_EDGE_TRIGGER 12
 /* Calculator: resolved helper binaries + history view flag */
 const char *calc_bin = NULL; const char *calc_timeout_bin = NULL;
 int history_mode = 0;
@@ -46,6 +50,11 @@ gboolean on_dock_button_press(GtkWidget *widget, GdkEventButton *event, gpointer
 gboolean on_add_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
 gboolean on_dock_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
+void dock_set_hidden(int hidden);
+void dock_update_input_shape(int hidden);
+gboolean on_dock_window_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
+gboolean on_dock_window_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
+void on_dock_window_size_allocate(GtkWidget *widget, GtkAllocation *alloc, gpointer user_data);
 void populate_list(const char *query);
 void on_search_changed(GtkEditable *e, gpointer user_data);
 void load_dock_apps();
@@ -75,15 +84,19 @@ void quit_launcher() { gtk_main_quit(); }
 
 void pin_app(App *app) {
     if (!app) return;
-    char *cmd = g_strdup_printf(
-        "python3 -c \"import tomlkit, os; path=os.path.expanduser('~/.config/hypr/hyprde.toml'); "
-        "d=tomlkit.load(open(path)); apps=d['launcher']['dock']['apps']; "
-        "if '%s' not in apps: apps.append('%s'); "
-        "with open(path, 'w') as f: f.write(tomlkit.dumps(d))\"",
-        app->name, app->name
-    );
-    system(cmd); g_free(cmd);
-    system("pkill -f 'hyprsearch --dock'; ~/.config/hypr/scripts/hyprsearch --dock &");
+    /* dock-pin.sh edits [launcher.dock] apps= with stdlib python3 only
+     * (no tomlkit dependency). $HOME is expanded by sh (repo convention). */
+    char *quoted = g_shell_quote(app->name);
+    char *cmd = g_strdup_printf("$HOME/.config/hypr/scripts/dock-pin.sh %s", quoted);
+    int ret = system(cmd);
+    g_free(quoted);
+    g_free(cmd);
+    if (ret == 0) {
+        system("pkill -f 'hyprsearch --dock'; $HOME/.config/hypr/scripts/hyprsearch --dock &");
+    } else {
+        g_message("dock: pin '%s' failed (exit %d)", app->name, ret);
+        system("notify-send -t 4000 'HyprDE Dock' 'Could not pin app'");
+    }
     quit_launcher();
 }
 
@@ -97,23 +110,33 @@ void launch_app(App *app) {
             char *desktop_id = app->info ? g_strdup(g_app_info_get_id(app->info)) : g_strdup(app->name);
             char *dot = strstr(desktop_id, ".desktop");
             if (dot) *dot = '\0';
-            
-            char *cmd = g_strdup_printf("~/.config/hypr/scripts/dock-focus.sh \"%s\" \"%s\"", app->name, desktop_id);
+
+            char *qname = g_shell_quote(app->name);
+            char *qid = g_shell_quote(desktop_id);
+            char *cmd = g_strdup_printf("$HOME/.config/hypr/scripts/dock-focus.sh %s %s", qname, qid);
             int ret = system(cmd);
             g_free(desktop_id);
+            g_free(qname);
+            g_free(qid);
             g_free(cmd);
-            
-            if (ret == 0) {
-                quit_launcher();
-                return;
-            }
+
+            if (ret == 0) return; /* focused running app; dock stays resident */
         }
-        
+
         if (app->exec) {
             system(app->exec);
         } else if (app->info) {
             GdkAppLaunchContext *context = gdk_display_get_app_launch_context(gdk_display_get_default());
-            g_app_info_launch(app->info, NULL, G_APP_LAUNCH_CONTEXT(context), NULL);
+            GError *err = NULL;
+            if (!g_app_info_launch(app->info, NULL, G_APP_LAUNCH_CONTEXT(context), &err)) {
+                g_message("dock: launch '%s' failed: %s", app->name, err ? err->message : "unknown error");
+                char *qname = g_shell_quote(app->name);
+                char *msg = g_strdup_printf("notify-send -t 4000 'HyprDE Dock' 'Could not open %s'", qname);
+                system(msg);
+                g_free(qname);
+                g_free(msg);
+                g_clear_error(&err);
+            }
             g_object_unref(context);
         }
     }
@@ -162,8 +185,71 @@ gboolean on_dock_button_press(GtkWidget *widget, GdkEventButton *event, gpointer
 }
 
 gboolean on_add_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    if (event->button == 1) { system("~/.config/hypr/scripts/hyprsearch --pin &"); return TRUE; }
+    (void)widget; (void)user_data;
+    if (event->button == 1) { system("$HOME/.config/hypr/scripts/hyprsearch --pin &"); return TRUE; }
     return FALSE;
+}
+
+/* Restrict dock input to a thin screen-edge trigger strip while the shelf is
+ * hidden, so clicks pass through to windows underneath (e.g. Chromium tabs).
+ * When shown, restore full-window input. No-op outside dock mode. */
+void dock_update_input_shape(int hidden) {
+    if (strcmp(current_mode, "dock") != 0) return;
+    if (!main_window || !gtk_widget_get_realized(main_window)) return;
+    GdkWindow *win = gtk_widget_get_window(main_window);
+    if (!win) return;
+    if (!dock_config.autohide || !hidden) {
+        gdk_window_input_shape_combine_region(win, NULL, 0, 0);
+        return;
+    }
+    int w = gdk_window_get_width(win);
+    int h = gdk_window_get_height(win);
+    if (w <= 0 || h <= 0) return;
+    const int trig = DOCK_EDGE_TRIGGER;
+    cairo_rectangle_int_t rect = {0, 0, 0, 0};
+    if (strcmp(dock_config.position, "right") == 0) {
+        rect.x = w - trig; rect.y = 0; rect.width = trig; rect.height = h;
+    } else if (strcmp(dock_config.position, "top") == 0) {
+        rect.x = 0; rect.y = 0; rect.width = w; rect.height = trig;
+    } else if (strcmp(dock_config.position, "bottom") == 0) {
+        rect.x = 0; rect.y = h - trig; rect.width = w; rect.height = trig;
+    } else { /* left (default) */
+        rect.x = 0; rect.y = 0; rect.width = trig; rect.height = h;
+    }
+    if (rect.width <= 0 || rect.height <= 0) return;
+    cairo_region_t *region = cairo_region_create_rectangle(&rect);
+    gdk_window_input_shape_combine_region(win, region, 0, 0);
+    cairo_region_destroy(region);
+}
+
+void dock_set_hidden(int hidden) {
+    if (strcmp(current_mode, "dock") != 0) return;
+    if (!dock_config.autohide) hidden = 0;
+    dock_hidden = hidden;
+    if (dock_shelf) gtk_widget_set_opacity(dock_shelf, hidden ? 0.05 : 1.0);
+    dock_update_input_shape(hidden);
+}
+
+/* Window-level hover: entering anywhere (incl. the edge trigger) reveals the
+ * shelf; truly leaving the window hides it again. Icon handlers only manage
+ * the tooltip label — collapse is owned here so moving between icons never
+ * strands the dock hidden while the cursor is still inside. */
+gboolean on_dock_window_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
+    (void)widget; (void)event; (void)user_data;
+    dock_set_hidden(0);
+    return FALSE;
+}
+
+gboolean on_dock_window_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
+    (void)widget; (void)user_data;
+    if (!event || event->detail == GDK_NOTIFY_INFERIOR) return FALSE; /* still inside */
+    dock_set_hidden(1);
+    return FALSE;
+}
+
+void on_dock_window_size_allocate(GtkWidget *widget, GtkAllocation *alloc, gpointer user_data) {
+    (void)widget; (void)alloc; (void)user_data;
+    if (dock_hidden) dock_update_input_shape(1);
 }
 
 gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
@@ -186,13 +272,16 @@ gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user
         }
         gtk_widget_show(dock_label);
     }
-    if (dock_config.autohide) gtk_widget_set_opacity(dock_shelf, 1.0);
+    dock_set_hidden(0);
     return FALSE;
 }
 
 gboolean on_dock_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
+    /* Only the tooltip is owned here; hiding/collapsing is owned by the
+     * window-level leave handler so icon-to-icon moves never collapse input
+     * while the cursor is still inside the dock window. */
+    (void)widget; (void)event; (void)user_data;
     if (dock_label) gtk_widget_hide(dock_label);
-    if (dock_config.autohide) gtk_widget_set_opacity(dock_shelf, 0.05);
     return FALSE;
 }
 
@@ -282,19 +371,94 @@ void show_calc_history(void) {
     populate_list(entry ? gtk_entry_get_text(GTK_ENTRY(entry)) : "");
 }
 
-void load_dock_apps() {
-    for (int i = 0; i < dock_config.apps_count; i++) {
-        GList *all = g_app_info_get_all();
-        for (GList *l = all; l != NULL; l = l->next) {
+/* Dock TOML entries are short names ("code", "thunar") while .desktop display
+ * names are longer ("Code - OSS", "Thunar File Manager"). Match
+ * case-insensitively, most specific first: exact Name, exact desktop-id
+ * basename ("org.xfce.thunar" -> "thunar"), Name starting with the entry,
+ * Name substring, id substring. Returns a referenced GAppInfo or NULL. */
+static int dock_id_basename_matches(GAppInfo *info, const char *want) {
+    const char *id = g_app_info_get_id(info);
+    if (!id) return 0;
+    char *base = g_strdup(id);
+    char *dot = strrchr(base, '.'); /* strip ".desktop" */
+    if (dot) *dot = '\0';
+    char *ns = strrchr(base, '.'); /* strip reverse-domain prefix */
+    const char *name = ns ? ns + 1 : base;
+    int hit = g_ascii_strcasecmp(name, want) == 0;
+    g_free(base);
+    return hit;
+}
+
+static GAppInfo *find_dock_app_info(const char *want) {
+    if (!want || !*want) return NULL;
+    char *want_lower = g_ascii_strdown(want, -1);
+    GList *all = g_app_info_get_all();
+    GAppInfo *found = NULL;
+    /* Tier 1: exact display name. */
+    for (GList *l = all; l != NULL && !found; l = l->next) {
+        GAppInfo *info = (GAppInfo*)l->data;
+        if (!g_app_info_should_show(info)) continue;
+        if (g_ascii_strcasecmp(g_app_info_get_name(info), want) == 0)
+            found = info;
+    }
+    /* Tier 2: exact desktop-id basename. */
+    if (!found) {
+        for (GList *l = all; l != NULL && !found; l = l->next) {
             GAppInfo *info = (GAppInfo*)l->data;
-            if (g_ascii_strcasecmp(g_app_info_get_name(info), dock_config.apps[i]) == 0) {
-                App *app = g_new0(App, 1); app->name = g_strdup(g_app_info_get_name(info));
-                app->name_lower = g_ascii_strdown(app->name, -1);
-                GIcon *gi = g_app_info_get_icon(info); app->icon = gi ? g_icon_to_string(gi) : g_strdup("system-run");
-                app->info = g_object_ref(info); apps_list = g_list_append(apps_list, app); break;
+            if (!g_app_info_should_show(info)) continue;
+            if (dock_id_basename_matches(info, want)) found = info;
+        }
+    }
+    /* Tier 3: display name starting with the entry ("code" -> "Code - OSS"). */
+    if (!found) {
+        for (GList *l = all; l != NULL && !found; l = l->next) {
+            GAppInfo *info = (GAppInfo*)l->data;
+            if (!g_app_info_should_show(info)) continue;
+            char *name_lower = g_ascii_strdown(g_app_info_get_name(info), -1);
+            if (g_str_has_prefix(name_lower, want_lower)) found = info;
+            g_free(name_lower);
+        }
+    }
+    /* Tier 4: display-name substring, then id substring. */
+    if (!found) {
+        for (GList *l = all; l != NULL && !found; l = l->next) {
+            GAppInfo *info = (GAppInfo*)l->data;
+            if (!g_app_info_should_show(info)) continue;
+            char *name_lower = g_ascii_strdown(g_app_info_get_name(info), -1);
+            if (strstr(name_lower, want_lower) != NULL) found = info;
+            g_free(name_lower);
+        }
+    }
+    if (!found) {
+        for (GList *l = all; l != NULL && !found; l = l->next) {
+            GAppInfo *info = (GAppInfo*)l->data;
+            if (!g_app_info_should_show(info)) continue;
+            const char *id = g_app_info_get_id(info);
+            if (id) {
+                char *id_lower = g_ascii_strdown(id, -1);
+                if (strstr(id_lower, want_lower) != NULL) found = info;
+                g_free(id_lower);
             }
         }
-        g_list_free_full(all, g_object_unref);
+    }
+    if (found) g_object_ref(found);
+    g_list_free_full(all, g_object_unref);
+    g_free(want_lower);
+    return found;
+}
+
+void load_dock_apps() {
+    for (int i = 0; i < dock_config.apps_count; i++) {
+        GAppInfo *info = find_dock_app_info(dock_config.apps[i]);
+        if (!info) {
+            g_message("dock: no installed app matches '%s' — skipping icon", dock_config.apps[i]);
+            continue;
+        }
+        App *app = g_new0(App, 1); app->name = g_strdup(g_app_info_get_name(info));
+        app->name_lower = g_ascii_strdown(app->name, -1);
+        GIcon *gi = g_app_info_get_icon(info); app->icon = gi ? g_icon_to_string(gi) : g_strdup("system-run");
+        app->info = info; apps_list = g_list_append(apps_list, app);
+        g_message("dock: '%s' -> '%s'", dock_config.apps[i], app->name);
     }
 }
 
@@ -674,6 +838,9 @@ int main(int argc, char *argv[]) {
     if (strcmp(current_mode, "dock") == 0) {
         gtk_layer_set_layer(GTK_WINDOW(main_window), GTK_LAYER_SHELL_LAYER_TOP);
         gtk_layer_set_keyboard_mode(GTK_WINDOW(main_window), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
+        /* Never reserve tiling space; windows slide underneath the dock and
+         * the hidden input shape keeps their edge clicks working. */
+        gtk_layer_set_exclusive_zone(GTK_WINDOW(main_window), 0);
         if (strcmp(dock_config.position, "left") == 0) {
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
             gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
@@ -710,6 +877,14 @@ int main(int argc, char *argv[]) {
      * clicks on empty padding bubble up to the window. */
     gtk_widget_add_events(main_window, GDK_BUTTON_PRESS_MASK);
     g_signal_connect(main_window, "button-press-event", G_CALLBACK(on_main_button_press), NULL);
+    if (strcmp(current_mode, "dock") == 0) {
+        /* Hover-to-reveal for autohide (see dock_set_hidden). Window-level
+         * events own show/hide so the shelf can't trap edge clicks. */
+        gtk_widget_add_events(main_window, GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+        g_signal_connect(main_window, "enter-notify-event", G_CALLBACK(on_dock_window_enter), NULL);
+        g_signal_connect(main_window, "leave-notify-event", G_CALLBACK(on_dock_window_leave), NULL);
+        g_signal_connect(main_window, "size-allocate", G_CALLBACK(on_dock_window_size_allocate), NULL);
+    }
 
     char *css = NULL;
     if (strcmp(current_mode, "dock") == 0) {
@@ -821,6 +996,8 @@ int main(int argc, char *argv[]) {
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     gtk_widget_show_all(main_window);
     if (dock_label) gtk_widget_hide(dock_label);
+    /* Start hidden when autohide is on: edge trigger only, clicks pass through. */
+    if (strcmp(current_mode, "dock") == 0 && dock_config.autohide) dock_set_hidden(1);
     if (strcmp(current_mode, "dock") != 0) populate_list("");
     gtk_main(); return 0;
 }

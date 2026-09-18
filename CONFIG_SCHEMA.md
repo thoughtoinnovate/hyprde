@@ -259,24 +259,63 @@ mode = "disabled"
 
 ### idle
 
-Configure idle behavior and automatic locking.
+Configure idle dimming, locking and display power (hypridle listeners).
+`0` or `*_enabled = false` disables that stage. Wake with any key/mouse.
 
 ```toml
 [idle]
-lock_timeout = 300          # Seconds before locking (5 minutes)
-screen_off_timeout = 330    # Seconds before screen off (5.5 minutes)
-suspend_timeout = 1800      # Seconds before suspend (30 minutes)
+enabled = true
+dim_enabled = true; dim_timeout = 120; dim_level = 20
+lock_enabled = true; lock_timeout = 300          # Seconds before locking (5 minutes)
+screen_off_enabled = true; screen_off_timeout = 330
 ```
 
+Env overrides: `HYPRDE_IDLE_ENABLED`, `HYPRDE_DIM_ENABLED/TIMEOUT/LEVEL`,
+`HYPRDE_LOCK_ENABLED/TIMEOUT`, `HYPRDE_SCREEN_OFF_ENABLED/TIMEOUT`.
+
 **Fields:**
-- `lock_timeout` (integer): Seconds of inactivity before screen lock
-- `screen_off_timeout` (integer): Seconds before turning off display
-- `suspend_timeout` (integer): Seconds before system suspend
+- `enabled` (bool): Master switch for all idle listeners
+- `dim_enabled/dim_timeout/dim_level`: Dim to brightness % after timeout
+- `lock_enabled/lock_timeout` (bool/integer): Seconds of inactivity before screen lock
+- `screen_off_enabled/screen_off_timeout`: Seconds before turning off display (dpms off)
 
 **Validation:**
-- All timeouts must be positive integers
-- `screen_off_timeout` should be >= `lock_timeout`
-- `suspend_timeout` should be >= `screen_off_timeout`
+- All timeouts are integers in seconds, `0` = off
+- Order should be `dim <= lock <= screen_off`
+
+### sleep
+
+Idle suspend timer (hypridle) plus lid-close / power-button actions (logind
+drop-in `hyprde-lid-power.conf` — copy to `/etc/systemd/logind.conf.d/` + reload).
+`suspend` is fast (RAM, power+keys wake); `hibernate` needs swap >= RAM and
+wakes with power button only. Auto-hibernate stays off by default.
+
+```toml
+[sleep]
+suspend_enabled = true; suspend_timeout = 1800; suspend_mode = "suspend"
+hibernate_enabled = false
+lock_before_sleep = true
+lid_close_action = "hibernate"     # ignore|lock|suspend|hibernate|poweroff
+power_button_action = "suspend"    # ignore|lock|suspend|hibernate|poweroff
+```
+
+Env overrides: `HYPRDE_SUSPEND_ENABLED/TIMEOUT/MODE`, `HYPRDE_HIBERNATE_ENABLED`,
+`HYPRDE_LOCK_BEFORE_SLEEP`, `HYPRDE_LID_ACTION`, `HYPRDE_POWER_ACTION`.
+
+### wake
+
+How the machine recovers from dim / screen-off / sleep.
+
+```toml
+[wake]
+dpms_on_wake = true         # dpms on in on-resume + after_sleep
+brightness_restore = true   # brightnessctl restore on resume
+wake_to_lock = true         # require hyprlock password after resume
+```
+
+Env overrides: `HYPRDE_WAKE_DPMS`, `HYPRDE_WAKE_BRIGHTNESS`, `HYPRDE_WAKE_TO_LOCK`.
+Wake matrix: dim/screen-off wake with any key; sleep wakes with power + keys;
+hibernate wakes with power button only.
 
 ### nightlight
 

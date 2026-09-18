@@ -29,6 +29,7 @@ def setUpModule():
         "HYPRIDLE_CONF": os.path.join(_TEST_TMPDIR, "hypridle.conf"),
         "HYPRLOCK_CONF": os.path.join(_TEST_TMPDIR, "hyprlock.conf"),
         "HYPRPAPER_CONF": os.path.join(_TEST_TMPDIR, "hyprpaper.conf"),
+        "LOGIND_DROPIN": os.path.join(_TEST_TMPDIR, "hyprde-lid-power.conf"),
         "OLD_CONFIGS": [
             os.path.join(_TEST_TMPDIR, "hyprland.conf"),
             os.path.join(_TEST_TMPDIR, "hyprland.base.conf"),
@@ -777,6 +778,95 @@ class TestBuildConfigHyprrocketOptions(unittest.TestCase):
         warnings = build_config.validate_config(
             {"devices": {}, "permission": [], "group": {}, "ecosystem": {}})
         self.assertFalse(any("Unknown section" in w for w in warnings))
+
+
+class TestPowerToggles(unittest.TestCase):
+    """Tests for idle/sleep/wake toggles, logind drop-in and env overrides."""
+
+    def setUp(self):
+        self.patcher = patch('build_config.atomic_write')
+        self.mock_atomic_write = self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def _written(self, path):
+        for call in self.mock_atomic_write.call_args_list:
+            if call.args[0] == path:
+                return call.args[1]
+        return ""
+
+    def _base(self):
+        return {
+            "idle": {"enabled": True, "dim_enabled": True, "dim_timeout": 120, "dim_level": 20,
+                     "lock_enabled": True, "lock_timeout": 300,
+                     "screen_off_enabled": True, "screen_off_timeout": 330},
+            "sleep": {"suspend_enabled": True, "suspend_timeout": 1800, "suspend_mode": "suspend",
+                      "hibernate_enabled": False, "lock_before_sleep": True,
+                      "lid_close_action": "hibernate", "power_button_action": "suspend"},
+            "wake": {"dpms_on_wake": True, "brightness_restore": True, "wake_to_lock": True},
+        }
+
+    def test_all_listeners_present_by_default(self):
+        build_config.generate_hypridle_conf(self._base())
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertIn("timeout = 120", written)
+        self.assertIn("brightnessctl -s set 20", written)
+        self.assertIn("timeout = 300", written)
+        self.assertIn("timeout = 330", written)
+        self.assertIn("timeout = 1800", written)
+        self.assertIn("systemctl suspend", written)
+
+    def test_zero_disables_listener(self):
+        data = self._base()
+        data["idle"]["lock_timeout"] = 0
+        data["sleep"]["suspend_enabled"] = False
+        build_config.generate_hypridle_conf(data)
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertNotIn("loginctl lock-session\n}", written.split("timeout = 330")[0] if "timeout = 330" in written else written)
+        self.assertNotIn("systemctl suspend", written)
+
+    def test_master_off_writes_minimal(self):
+        data = self._base()
+        data["idle"]["enabled"] = False
+        build_config.generate_hypridle_conf(data)
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertIn("lock_cmd", written)
+        self.assertNotIn("listener", written)
+
+    def test_dim_disabled_skips_brightness(self):
+        data = self._base()
+        data["idle"]["dim_enabled"] = False
+        build_config.generate_hypridle_conf(data)
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertNotIn("brightnessctl", written)
+
+    def test_wake_flags_omit_on_resume(self):
+        data = self._base()
+        data["wake"]["dpms_on_wake"] = False
+        data["wake"]["brightness_restore"] = False
+        build_config.generate_hypridle_conf(data)
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertNotIn("on-resume", written)
+        self.assertNotIn("after_sleep_cmd", written)
+
+    def test_logind_dropin_lid_hibernate_power_suspend(self):
+        build_config.generate_logind_dropin(self._base())
+        written = self._written(build_config.LOGIND_DROPIN)
+        self.assertIn("HandleLidSwitch=hibernate", written)
+        self.assertIn("HandlePowerKey=suspend", written)
+
+    def test_env_overrides_toml(self):
+        data = self._base()
+        with patch.dict(os.environ, {"HYPRDE_LOCK_TIMEOUT": "60", "HYPRDE_SUSPEND_ENABLED": "0"}):
+            build_config.apply_power_env_overrides(data)
+        self.assertEqual(data["idle"]["lock_timeout"], 60)
+        self.assertEqual(data["sleep"]["suspend_enabled"], False)
+
+    def test_ordering_warning(self):
+        warnings = build_config.validate_config(
+            {"idle": {"lock_timeout": 600, "screen_off_timeout": 300}})
+        self.assertTrue(any("screen_off" in w or "lock" in w for w in warnings))
 
 
 class TestSuiteIsolation(unittest.TestCase):

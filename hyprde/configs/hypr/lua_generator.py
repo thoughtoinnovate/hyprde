@@ -54,6 +54,8 @@ EXTERNAL_SECTIONS = {
     "wallpapers": "hyprpaper.conf + wallpaper-*.conf + init_wallpaper.sh",
     "lockscreen": "hyprlock.conf",
     "idle": "hypridle.conf",
+    "sleep": "hypridle.conf (suspend timer) + logind drop-in (lid/power)",
+    "wake": "hypridle.conf on-resume/after_sleep + wake-sources helper",
     "nightlight": "hyprsunset/gamma.sh via screen_shader",
 }
 
