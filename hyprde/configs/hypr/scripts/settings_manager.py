@@ -2,6 +2,7 @@
 import sys
 import os
 import time
+import hashlib
 import logging
 import atexit
 import fcntl
@@ -2660,6 +2661,20 @@ class SettingsManager(Gtk.Window):
             with open(self.config_path, 'w') as f:
                 f.write(snapshot["config_str"])
 
+            def _sha(path):
+                try:
+                    with open(path, "rb") as f:
+                        return hashlib.sha256(f.read()).hexdigest()
+                except OSError:
+                    return None
+
+            # Byte-level gate: rebuilds rewrite outputs even when sections
+            # "changed" spuriously (formatting drift). Reload/restart only
+            # when the bytes the session actually consumes differ.
+            _lua_path = os.path.expanduser("~/.config/hypr/hyprland.lua")
+            _idle_path = os.path.expanduser("~/.config/hypr/hypridle.conf")
+            _lua_before, _idle_before = _sha(_lua_path), _sha(_idle_path)
+
             # Fan out the accent color to every component (theme CSS vars,
             # wofi selection, notif borders, Mako). Only when the theme
             # section actually changed — the script flips GTK theme states
@@ -2693,6 +2708,13 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
                            capture_output=True, timeout=120)
 
+            _lua_changed = _sha(_lua_path) != _lua_before
+            _idle_changed = _sha(_idle_path) != _idle_before
+            logger.info(f"Output drift: hyprland.lua changed={_lua_changed}, "
+                        f"hypridle.conf changed={_idle_changed}")
+            if (changed & LUA_SECTIONS) and not _lua_changed:
+                logger.info("hyprland.lua byte-identical — skipping reload")
+
             # Theme stack only when theme/appearance-affecting sections changed.
             # Runs BEFORE the single reload below (it tweaks the TOML and
             # rebuilds), with reloads suppressed — Apply performs exactly one
@@ -2705,11 +2727,12 @@ class SettingsManager(Gtk.Window):
                     snapshot["new_mode"]
                 ], capture_output=True, timeout=120, env=env)
 
-            # Reload Hyprland so the rebuilt hyprland.lua takes effect live,
-            # but only when a Lua-emitted section actually changed. Without
-            # this, Apply updates files but the running session keeps old
-            # values (e.g. gaps, borders, opacity, layout).
-            if changed & LUA_SECTIONS:
+            # Reload Hyprland so the rebuilt hyprland.lua takes effect live —
+            # but only when Lua-emitted sections changed AND the bytes the
+            # session consumes actually differ. Without this, Apply updates
+            # files but the running session keeps old values (e.g. gaps,
+            # borders, opacity, layout).
+            if (changed & LUA_SECTIONS) and _lua_changed:
                 try:
                     cur = subprocess.run(["brightnessctl", "g"],
                                          capture_output=True, timeout=10)
@@ -2729,21 +2752,44 @@ class SettingsManager(Gtk.Window):
                     GLib.idle_add(self._on_apply_error,
                                   f"Hyprland reload failed — config left as rebuilt, session untouched: {err}")
                     return
-                # Settle, then verify the compositor is still painting before
-                # any follow-up step touches the session again.
-                time.sleep(10)
-                try:
-                    probe = subprocess.run(["hyprctl", "monitors", "-j"],
-                                           capture_output=True, timeout=15)
-                    mons = json.loads(probe.stdout.decode())
-                    dpms = [(m.get("name"), m.get("dpmsStatus")) for m in mons]
-                    logger.info(f"Post-reload probe: monitors={dpms}")
-                    if not mons or not all(m.get("dpmsStatus", True) for m in mons):
-                        logger.warning("Post-reload probe: display not on — pulsing dpms on")
-                        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
-                                       capture_output=True, timeout=10)
-                except Exception as e:
-                    logger.warning(f"Post-reload probe failed: {e}")
+                # Poll (never fixed-sleep): up to 15s, 3s cadence. Timeout
+                # aborts the chain loudly instead of presenting success over
+                # a wedged session.
+                _healthy, _deadline = False, time.time() + 15
+                while time.time() < _deadline:
+                    try:
+                        probe = subprocess.run(["hyprctl", "monitors", "-j"],
+                                               capture_output=True, timeout=10)
+                        mons = json.loads(probe.stdout.decode())
+                        dpms = [(m.get("name"), m.get("dpmsStatus")) for m in mons]
+                        logger.info(f"Post-reload probe: monitors={dpms}")
+                        if mons and all(m.get("dpmsStatus", True) for m in mons):
+                            _healthy = True
+                            break
+                        logger.warning("Post-reload probe: display not on — retrying")
+                    except Exception as e:
+                        logger.warning(f"Post-reload probe failed: {e}")
+                    time.sleep(3)
+                if not _healthy:
+                    # One wake pulse for the benign case (Apply while the
+                    # panel was idle-dimmed/off), then a final verdict.
+                    subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
+                                   capture_output=True, timeout=10)
+                    subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
+                    time.sleep(2)
+                    try:
+                        probe = subprocess.run(["hyprctl", "monitors", "-j"],
+                                               capture_output=True, timeout=10)
+                        mons = json.loads(probe.stdout.decode())
+                        if mons and all(m.get("dpmsStatus", True) for m in mons):
+                            _healthy = True
+                    except Exception as e:
+                        logger.warning(f"Final probe failed: {e}")
+                if not _healthy:
+                    logger.error("Display did not recover within 15s of reload")
+                    GLib.idle_add(self._on_apply_error,
+                                  "Display did not recover after reload — power-cycle once, then send the log")
+                    return
 
             # Wallpaper engine only when [wallpapers] changed — restarting it
             # otherwise snaps a manually-picked wallpaper back to the TOML one.
@@ -2760,11 +2806,12 @@ class SettingsManager(Gtk.Window):
                     subprocess.Popen([os.path.expanduser("~/.config/hypr/scripts/hyprsearch"), "--dock"],
                                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             # Idle/sleep/wake: hypridle only reads config at startup, so restart
-            # it (and pulse dpms on so we never stay stuck black after disabling).
+            # it — but only when its bytes actually changed (spurious section
+            # diffs must not bounce the daemon and reset the idle clock).
             # NOTE: lockscreen is deliberately excluded — hyprlock reads its
             # conf at next lock, so lock-wallpaper tweaks need no daemon
             # restart and no display pulses at all.
-            if changed & {"idle", "sleep", "wake"}:
+            if (changed & {"idle", "sleep", "wake"}) and _idle_changed:
                 inhibited = False
                 try:
                     with open(os.path.expanduser("~/.config/hypr/toggles.state")) as f:

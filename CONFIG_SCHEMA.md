@@ -659,7 +659,7 @@ actions = ["theme-ctrl.sh --mode auto"]
 - `notify` (boolean): notify-send on event execution (default true)
 - `[hyprrocket.events.<name>]` (table): `trigger` (HH:MM, OnCalendar), `actions[]` (shell commands), optional `condition`, optional `enabled` (false skips + disables stale timer), optional `days` (e.g. `"Mon..Fri"`, systemd OnCalendar prefix), optional `description`
 
-**Note:** Breaking schema — `actions[]` list only (singular `action` removed). Timers are `hyprrocket@<name>.timer` with `ExecStart=hyprrocket.sh --trigger <name>`. Unit files are rewritten only when content changes (single `daemon-reload`), and timers are enabled/disabled only on state drift — Apply never churns systemd. Settings Apply runs one `hyprctl reload` with a settle + health probe; a failed reload aborts the chain visibly instead of presenting success.
+**Note:** Breaking schema — `actions[]` list only (singular `action` removed). Timers are `hyprrocket@<name>.timer` with `ExecStart=hyprrocket.sh --trigger <name>`. Unit files are rewritten only when content changes (single `daemon-reload`), and timers are enabled/disabled only on state drift — Apply never churns systemd. Settings Apply reloads only when the rebuilt `hyprland.lua` differs byte-for-byte (and restarts hypridle only when `hypridle.conf` differs), then polls display health for up to 15s; an unrecovered display aborts visibly instead of presenting success.
 
 ### color
 
