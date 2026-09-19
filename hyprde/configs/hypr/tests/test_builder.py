@@ -709,6 +709,27 @@ class TestLuaGeneratorExecShellWrap(unittest.TestCase):
         self.assertIn('hl.dsp.exec_cmd("kitty")', lua)
         self.assertNotIn("sh -c", lua)
 
+    def test_lock_bind_guarded_against_stacking(self):
+        """SUPER+L must no-op when a lock is already up (caught 3× stack)."""
+        data = {"binds": {"mainMod": "SUPER", "normal": {"list": [
+            "$mainMod, L, exec, pidof hyprlock || hyprlock",
+        ]}}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn("pidof hyprlock || hyprlock", lua)
+
+    def test_repo_toml_lock_bind_guarded(self):
+        import tomllib
+        repo_toml = os.path.join(os.path.dirname(__file__), "..", "hyprde.toml")
+        with open(repo_toml, "rb") as f:
+            data = tomllib.load(f)
+        import re
+        binds = data.get("binds", {}).get("normal", {}).get("list", [])
+        lock_binds = [b for b in binds
+                      if re.search(r"\$mainMod, L, exec,", b)]
+        self.assertTrue(lock_binds, "no SUPER+L bind in repo TOML")
+        for b in lock_binds:
+            self.assertIn("pidof hyprlock", b)
+
 
 class TestLuaGeneratorPassthrough(unittest.TestCase):
     """New hl.config groups + device/permission/workspace-rule emitters."""

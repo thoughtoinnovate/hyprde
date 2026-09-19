@@ -425,7 +425,7 @@ list = [
     "$mainMod, M, fullscreen,0,",                         # Fullscreen
     "$mainMod, E, exec, $fileManager",                   # Open file manager
     "$mainMod, V, togglefloating,",                       # Toggle floating
-    "$mainMod, L, exec, hyprlock",                       # Lock screen
+    "$mainMod, L, exec, pidof hyprlock || hyprlock",   # Lock screen (guarded: never stack locks)
     "$mainMod, P, exec, $HOME/.config/hypr/scripts/safe-layoutmsg.sh promote",                    # Promote to new column (Scroll layout)
     "$mainMod, J, exec, $HOME/.config/hypr/scripts/toggle-split.sh",                          # Toggle split (Dwindle/Scroll safe)
     
