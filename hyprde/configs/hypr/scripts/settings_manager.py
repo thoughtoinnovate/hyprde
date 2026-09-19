@@ -2617,7 +2617,7 @@ class SettingsManager(Gtk.Window):
         changed = set(snapshot.get("changed", []))
         # Be conservative: if change detection failed, run everything.
         if not changed:
-            changed = LUA_SECTIONS | {"wallpapers", "lockscreen", "idle", "sleep", "wake",
+            changed = LUA_SECTIONS | {"wallpapers", "idle", "sleep", "wake",
                                       "theme", "launcher", "programs"}
         try:
             with open(self.config_path, 'w') as f:
