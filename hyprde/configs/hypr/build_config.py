@@ -809,7 +809,9 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
     if dim_timeout > 0:
         lines.append("listener {")
         lines.append(f"    timeout = {dim_timeout}")
-        lines.append(f"    on-timeout = brightnessctl -s set {dim_level}")
+        # Percent form: bare `set N` is device units (N=20 on a 7500-max panel
+        # is 0.27% — effectively black), while `set N%` is true percent.
+        lines.append(f"    on-timeout = brightnessctl -s set {dim_level}%")
         if brightness_restore:
             lines.append("    on-resume = brightnessctl -r")
         lines.append("}")

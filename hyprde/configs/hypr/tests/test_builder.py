@@ -813,7 +813,13 @@ class TestPowerToggles(unittest.TestCase):
         build_config.generate_hypridle_conf(self._base())
         written = self._written(build_config.HYPRIDLE_CONF)
         self.assertIn("timeout = 120", written)
-        self.assertIn("brightnessctl -s set 20", written)
+        self.assertIn("brightnessctl -s set 20%", written)
+        # Display dim must be percent form: bare `set N` is device units
+        # (20/7500 = 0.27% — effectively black, the Apply black-screen RCA).
+        import re
+        for line in written.splitlines():
+            if "brightnessctl -s set" in line:
+                self.assertRegex(line, r"set \d+%")
         self.assertIn("timeout = 300", written)
         self.assertIn("timeout = 330", written)
         self.assertIn("timeout = 1800", written)
@@ -835,6 +841,13 @@ class TestPowerToggles(unittest.TestCase):
         written = self._written(build_config.HYPRIDLE_CONF)
         self.assertIn("lock_cmd", written)
         self.assertNotIn("listener", written)
+
+    def test_dim_level_percent_form(self):
+        data = self._base()
+        data["idle"]["dim_level"] = 35
+        build_config.generate_hypridle_conf(data)
+        written = self._written(build_config.HYPRIDLE_CONF)
+        self.assertIn("brightnessctl -s set 35%", written)
 
     def test_dim_disabled_skips_brightness(self):
         data = self._base()

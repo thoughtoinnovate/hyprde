@@ -2690,6 +2690,9 @@ class SettingsManager(Gtk.Window):
                 except Exception as e:
                     logger.warning(f"Could not restart hypridle: {e}")
                 subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'], capture_output=True, timeout=10)
+                # Restore brightness too: Apply while dimmed would otherwise
+                # leave the panel dark until the next idle cycle.
+                subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
                 logger.info("Restarted hypridle after idle/sleep/wake change")
             # Lid/power/wake-source rules live in system folders, so fold their
             # install into Apply itself (password prompt) when those sections

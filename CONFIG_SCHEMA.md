@@ -265,7 +265,7 @@ Configure idle dimming, locking and display power (hypridle listeners).
 ```toml
 [idle]
 enabled = true
-dim_enabled = true; dim_timeout = 120; dim_level = 20
+dim_enabled = true; dim_timeout = 120; dim_level = 20  # level is percent
 lock_enabled = true; lock_timeout = 300          # Seconds before locking (5 minutes)
 screen_off_enabled = true; screen_off_timeout = 330
 ```
@@ -276,6 +276,8 @@ Env overrides: `HYPRDE_IDLE_ENABLED`, `HYPRDE_DIM_ENABLED/TIMEOUT/LEVEL`,
 **Fields:**
 - `enabled` (bool): Master switch for all idle listeners
 - `dim_enabled/dim_timeout/dim_level`: Dim to brightness % after timeout
+  (generated as `brightnessctl set N%` — a unitless `set N` is device units
+  and goes near-black on high-max panels)
 - `lock_enabled/lock_timeout` (bool/integer): Seconds of inactivity before screen lock
 - `screen_off_enabled/screen_off_timeout`: Seconds before turning off display (dpms off)
 
