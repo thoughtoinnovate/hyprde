@@ -54,27 +54,6 @@ def get_toml_file(config_dir):
 TOML_FILE = get_toml_file(CONFIG_DIR)
 LUA_CONF = os.path.join(CONFIG_DIR, "hyprland.lua")
 
-def update_waybar_autohide(autohide: bool) -> None:
-    waybar_config_path = os.path.expanduser("~/.config/waybar/config")
-    if not os.path.exists(waybar_config_path):
-        return
-
-    try:
-        with open(waybar_config_path, 'r') as f:
-            config = json.load(f)
-
-        config["mode"] = "invisible" if autohide else "dock"
-
-        temp_path = f"{waybar_config_path}.tmp"
-        with open(temp_path, 'w') as f:
-            json.dump(config, f, indent=4)
-        os.replace(temp_path, waybar_config_path)
-        logger.info(f"Updated Waybar autohide mode to: {'invisible' if autohide else 'dock'}")
-
-        subprocess.run(["pkill", "-USR2", "waybar"], capture_output=True)
-    except Exception as e:
-        logger.error(f"Failed to update Waybar autohide mode: {e}")
-
 def expand_user_path(path: str) -> str:
     if not path:
         return ""
@@ -1165,14 +1144,18 @@ def generate_css_overrides(data: Dict[str, Any]) -> None:
                         indent = line[:line.find(line.strip())]
                         if "background-color" in line and "alpha(" in line:
                             new_line = re.sub(r'alpha\(([^,]+),\s*([^)]+)\)', f'alpha(\\1, {value})', line)
+                            # Only flag on real change: an identical rewrite
+                            # still bumps mtime and forces a Waybar
+                            # live-restyling flicker on every Apply.
+                            if new_line != line:
+                                modified = True
                             new_lines.append(new_line)
-                            modified = True
                         elif re.search(r'(?<![\w-])border(?![\w-])', line) and "border-radius" not in line:
                             # Fade border colors with the opacity (skip if already alpha()).
                             new_line, n = re.subn(r'solid\s+(@[\w_]+)(\s*;)', f'solid alpha(\\1, {value})\\2', line)
                             if n == 0:
                                 new_line = line
-                            else:
+                            elif new_line != line:
                                 modified = True
                             new_lines.append(new_line)
                         else:

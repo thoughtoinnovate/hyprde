@@ -289,6 +289,14 @@ Env overrides: `HYPRDE_IDLE_ENABLED`, `HYPRDE_DIM_ENABLED/TIMEOUT/LEVEL`,
 - All timeouts are integers in seconds, `0` = off
 - Order should be `dim <= lock <= screen_off`
 
+**Recognizing the stages (video playback does NOT reset idle — use `SUPER+I` video mode):**
+- Dim: desktop visibly darker, recovers on any key/mouse
+- Lock: hyprlock wallpaper + clock + password prompt, needs password (brightness keys work on the lock screen)
+- Screen-off: true black panel, wakes on any key/mouse back into the lock screen
+- Only suspend needs the power button; a lock minutes after Apply with no
+  `SUPER+L` is usually a power-press suspend (`before_sleep` locks) or the
+  re-armed 300s timer, not the Apply itself
+
 ### sleep
 
 Idle suspend timer (hypridle) plus lid-close / power-button actions (logind

@@ -896,6 +896,41 @@ class TestBuildConfigHyprrocketOptions(unittest.TestCase):
                     self.assertFalse(any("disable --now" in c for c in second))
 
 
+class TestCssOverrideGating(unittest.TestCase):
+    """Identical CSS values must not rewrite files (Waybar live-restyles)."""
+
+    def test_no_rewrite_when_values_unchanged(self):
+        import tempfile
+        css = ("#bar {\n"
+               "    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */\n"
+               "    border: 1px solid alpha(@theme_border_color, 0.5); /* SETTINGS_BAR_OPACITY */\n"
+               "}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "style.css")
+            with open(target, "w") as f:
+                f.write(css)
+            data = {"decoration": {"waybar_opacity": 0.5, "launcher_opacity": 0.95}}
+            with patch("os.path.expanduser", side_effect=lambda p: p.replace("~/.config/waybar", tmp)):
+                mtime = os.path.getmtime(target)
+                build_config.generate_css_overrides(data)
+                self.assertEqual(os.path.getmtime(target), mtime)
+
+    def test_rewrite_when_value_changes(self):
+        import tempfile
+        css = ("#bar {\n"
+               "    background-color: alpha(@theme_base_bg, 0.5); /* SETTINGS_BAR_OPACITY */\n"
+               "}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "style.css")
+            with open(target, "w") as f:
+                f.write(css)
+            data = {"decoration": {"waybar_opacity": 0.1, "launcher_opacity": 0.95}}
+            with patch("os.path.expanduser", side_effect=lambda p: p.replace("~/.config/waybar", tmp)):
+                build_config.generate_css_overrides(data)
+                with open(target) as f:
+                    self.assertIn("alpha(@theme_base_bg, 0.1)", f.read())
+
+
 class TestPowerToggles(unittest.TestCase):
     """Tests for idle/sleep/wake toggles, logind drop-in and env overrides."""
 
