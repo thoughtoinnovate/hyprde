@@ -2772,6 +2772,19 @@ class SettingsManager(Gtk.Window):
                                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as e:
                     logger.warning(f"Could not restart hypridle: {e}")
+                # Verify the new daemon actually survived (a dead hypridle
+                # means no dim/lock/dpms handling at all — fail loudly).
+                time.sleep(1.0)
+                try:
+                    alive = subprocess.run(["pgrep", "-x", "hypridle"],
+                                           capture_output=True, timeout=10)
+                    if alive.returncode != 0:
+                        logger.error("hypridle not running after restart!")
+                        GLib.idle_add(self._on_apply_error,
+                                      "hypridle failed to restart — idle handling is down")
+                        return
+                except Exception as e:
+                    logger.warning(f"hypridle liveness check failed: {e}")
                 subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'], capture_output=True, timeout=10)
                 # Restore brightness too: Apply while dimmed would otherwise
                 # leave the panel dark until the next idle cycle.
@@ -2786,6 +2799,11 @@ class SettingsManager(Gtk.Window):
                     sys_msg = " System rules installed — active at next login."
                 else:
                     sys_msg = " System rules not installed (no password) — lid/power/wake-at-boot unchanged."
+            # Final display pulse, every Apply: whatever ran above must never
+            # leave the panel dark or the output off. Both are idempotent.
+            subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'],
+                           capture_output=True, timeout=10)
+            subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
             subprocess.run(["notify-send", "Settings Applied", f"System updated.{sys_msg}"],
                            capture_output=True, timeout=5)
             logger.info("Settings applied successfully (sections: %s)",

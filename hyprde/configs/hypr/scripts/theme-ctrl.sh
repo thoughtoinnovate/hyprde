@@ -84,14 +84,25 @@ set_theme() {
         
         # Single mako owner: a stray manual instance plus the user unit fight
         # over org.freedesktop.Notifications ("Two services allocated...").
-        # Prefer the unit when it exists; manual spawn only as fallback.
+        # Prefer the unit when it exists; restart, verify it actually took
+        # the bus (pkill is async — retry), and only then fall back to a
+        # manual spawn so exactly one mako owns notifications either way.
         if systemctl --user list-unit-files 2>/dev/null | grep -q "^mako"; then
             pkill -9 mako 2>/dev/null || true
-            sleep 0.2
-            systemctl --user restart mako 2>/dev/null || true
+            sleep 0.5
+            for _i in 1 2 3; do
+                systemctl --user restart mako 2>/dev/null || true
+                sleep 0.5
+                systemctl --user is-active --quiet mako 2>/dev/null && break
+            done
+            if ! systemctl --user is-active --quiet mako 2>/dev/null; then
+                pkill -9 mako 2>/dev/null || true
+                sleep 0.5
+                mako --config "$MAKO_DIR/config" > /dev/null 2>&1 &
+            fi
         else
             pkill -9 mako 2>/dev/null || true
-            sleep 0.2
+            sleep 0.5
             mako --config "$MAKO_DIR/config" > /dev/null 2>&1 &
         fi
         
