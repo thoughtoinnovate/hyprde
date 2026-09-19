@@ -377,6 +377,8 @@ def validate_config(data: Dict[str, Any]) -> List[str]:
         for rule in monitors.get("rules", []):
             if rule.count(",") < 1:
                 warnings.append(f"Monitor rule seems malformed (needs at least 2 comma-separated fields): {rule}")
+            if re.search(r"\d+x\d+@\d+\.\d{3,}", rule):
+                warnings.append(f"Monitor rule has 3+ decimal refresh rate (Hyprland wants 2, e.g. 60.05): {rule}")
 
     # Info: external (TOML-only) sections are not emitted to hyprland.lua by design.
     for key in data:
@@ -429,7 +431,14 @@ def auto_detect_monitors() -> List[str]:
             name = m["name"]
             w = m["width"]
             h = m["height"]
-            rate = m.get("refreshRate", 60)
+            # Round to 2 decimals: hyprctl reports e.g. 60.052 but advertises
+            # modes as 60.05Hz — requesting the raw value addresses a
+            # nonexistent mode and the reload kills the output (black screen,
+            # session alive). This was the Apply-to-black RCA.
+            try:
+                rate = f"{float(m.get('refreshRate', 60)):.2f}"
+            except (TypeError, ValueError):
+                rate = "60.00"
             x = m.get("x", 0)
             y = m.get("y", 0)
             scale = m.get("scale", 1)
@@ -443,6 +452,31 @@ def auto_detect_monitors() -> List[str]:
     except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
         logger.warning(f"Monitor auto-detection failed: {e}")
         return []
+
+
+def normalize_monitor_rates(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Round stored monitor refresh rates to 2 decimals in place.
+
+    Hyprland advertises modes like 60.05Hz; a stored 60.052 addresses a
+    nonexistent mode and the reload kills the output (Apply-to-black RCA).
+    """
+    mons = data.get("monitors")
+    if not isinstance(mons, dict):
+        return data
+    rules = mons.get("rules")
+    if not isinstance(rules, list):
+        return data
+
+    def _fix(rule: str) -> str:
+        def _round(m: "re.Match") -> str:
+            try:
+                return m.group(1) + f"{float(m.group(2)):.2f}"
+            except (TypeError, ValueError):
+                return m.group(0)
+        return re.sub(r"(\d+x\d+@)(\d+\.\d+)", _round, rule)
+
+    mons["rules"] = [_fix(r) if isinstance(r, str) else r for r in rules]
+    return data
 
 
 def inject_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -487,7 +521,7 @@ def inject_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     wake.setdefault("usb_wake_enabled", True)
     wake.setdefault("lid_wake_enabled", True)
 
-    return data
+    return normalize_monitor_rates(data)
 
 
 OLD_CONFIGS = [

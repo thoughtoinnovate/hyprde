@@ -802,6 +802,25 @@ class TestBuildConfigHyprrocketOptions(unittest.TestCase):
             {"devices": {}, "permission": [], "group": {}, "ecosystem": {}})
         self.assertFalse(any("Unknown section" in w for w in warnings))
 
+    def test_autodetect_rounds_rate_to_two_decimals(self):
+        import json
+        payload = json.dumps([{"name": "eDP-1", "width": 1920, "height": 1080,
+                               "refreshRate": 60.052, "x": 0, "y": 0, "scale": 1}])
+        with patch("subprocess.check_output", return_value=payload):
+            rules = build_config.auto_detect_monitors()
+        self.assertEqual(rules, ["eDP-1, 1920x1080@60.05, 0x0, 1"])
+
+    def test_stored_three_decimal_rate_normalized(self):
+        data = {"monitors": {"rules": ["eDP-1, 1920x1080@60.052, auto, 1"]}}
+        out = build_config.inject_defaults(data)
+        self.assertEqual(out["monitors"]["rules"],
+                         ["eDP-1, 1920x1080@60.05, auto, 1"])
+
+    def test_three_decimal_rate_warns(self):
+        warnings = build_config.validate_config(
+            {"monitors": {"rules": ["eDP-1, 1920x1080@60.052, auto, 1"]}})
+        self.assertTrue(any("60.05" in w or "decimal" in w for w in warnings))
+
     def test_write_if_changed(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "unit.timer")

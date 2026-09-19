@@ -69,6 +69,10 @@ rules = [
 - Resolution: `preferred`, `highres`, `highrr`, or `WIDTHxHEIGHT@RATE`
 - Position: `auto` or `XxY`
 - Scale: Float value (e.g., `1.0`, `1.5`, `2.0`)
+- RATE must use 2 decimals as advertised (e.g. `60.05`, never `60.052`):
+  a 3-decimal rate addresses a nonexistent mode and the reload kills the
+  output (black screen, session alive). Auto-detect and stored rules are
+  normalized automatically, with a validation warning.
 
 ### programs
 
