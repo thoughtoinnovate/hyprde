@@ -296,11 +296,14 @@ suspend_enabled = true; suspend_timeout = 1800; suspend_mode = "suspend"
 hibernate_enabled = false
 lock_before_sleep = true
 lid_close_action = "hibernate"     # ignore|lock|suspend|hibernate|poweroff
-power_button_action = "suspend"    # ignore|lock|suspend|hibernate|poweroff
+power_button_action = "suspend"    # tap: ignore|lock|suspend|hibernate|poweroff
+power_button_longpress = "hibernate"  # hold ~2s (5s hold is hardware force-off)
 ```
 
 Env overrides: `HYPRDE_SUSPEND_ENABLED/TIMEOUT/MODE`, `HYPRDE_HIBERNATE_ENABLED`,
-`HYPRDE_LOCK_BEFORE_SLEEP`, `HYPRDE_LID_ACTION`, `HYPRDE_POWER_ACTION`.
+`HYPRDE_LOCK_BEFORE_SLEEP`, `HYPRDE_LID_ACTION`, `HYPRDE_POWER_ACTION`,
+`HYPRDE_POWER_LONGPRESS`. Lid/power install via the Settings Install button
+(password copies the drop-in; active at next login).
 
 ### wake
 
@@ -311,11 +314,16 @@ How the machine recovers from dim / screen-off / sleep.
 dpms_on_wake = true         # dpms on in on-resume + after_sleep
 brightness_restore = true   # brightnessctl restore on resume
 wake_to_lock = true         # require hyprlock password after resume
+usb_wake_enabled = true     # keyboard/mouse wake from sleep (XHC; inseparable)
+lid_wake_enabled = true     # lid-open wakes from sleep (LID0)
 ```
 
-Env overrides: `HYPRDE_WAKE_DPMS`, `HYPRDE_WAKE_BRIGHTNESS`, `HYPRDE_WAKE_TO_LOCK`.
-Wake matrix: dim/screen-off wake with any key; sleep wakes with power + keys;
-hibernate wakes with power button only.
+Env overrides: `HYPRDE_WAKE_DPMS`, `HYPRDE_WAKE_BRIGHTNESS`, `HYPRDE_WAKE_TO_LOCK`,
+`HYPRDE_WAKE_USB`, `HYPRDE_WAKE_LID`. Wake sources persist via the
+`hyprde-wake-sources` boot unit (`/proc/acpi/wakeup` resets every boot).
+Wake matrix: dim/screen-off wake with any key; sleep wakes with power + keys
+(+mouse, inseparable) + lid; hibernate wakes with power button only —
+tap, don't hold; ~5s hold is hardware force-off and never configurable.
 
 ### nightlight
 

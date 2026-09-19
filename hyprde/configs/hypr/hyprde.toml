@@ -141,10 +141,14 @@ screen_off_timeout = 330                # Turn off display after 5.5 minutes
 # SLEEP / SUSPEND / HIBERNATE / BUTTONS
 # Idle suspend timer (hypridle) + lid-close / power-button actions (logind).
 # suspend_mode: "suspend" (fast, RAM) or "hibernate" (disk, zero battery, slow).
-# lid_close_action / power_button_action: ignore, lock, suspend, hibernate, poweroff.
+# lid_close_action / power_button_action / power_button_longpress:
+#   ignore, lock, suspend, hibernate, poweroff.
+# Tap = short press (sleep/wake toggle). Hold ~2s = long press. Hold ~5s is
+# hardware force-off and cannot be configured.
 # Wake: sleep wakes with power button + keys; hibernate wakes with power only.
 # Env overrides: HYPRDE_SUSPEND_ENABLED/TIMEOUT/MODE, HYPRDE_HIBERNATE_ENABLED,
-#   HYPRDE_LID_ACTION, HYPRDE_POWER_ACTION, HYPRDE_LOCK_BEFORE_SLEEP
+#   HYPRDE_LID_ACTION, HYPRDE_POWER_ACTION, HYPRDE_POWER_LONGPRESS,
+#   HYPRDE_LOCK_BEFORE_SLEEP
 # =============================================================================
 [sleep]
 suspend_enabled = true                  # Auto-sleep timer on/off
@@ -153,17 +157,24 @@ suspend_mode = "suspend"                # suspend (fast) or hibernate (slow, nee
 hibernate_enabled = false               # Auto-hibernate timer off (lid/manual only)
 lock_before_sleep = true                # Run loginctl lock-session before sleep
 lid_close_action = "hibernate"          # Close lid -> hibernate (needs swap, power wakes)
-power_button_action = "suspend"         # Tap power -> sleep (power/keys wake)
+power_button_action = "suspend"         # Tap power -> sleep (tap again wakes)
+power_button_longpress = "hibernate"    # Hold power ~2s -> hibernate (power wakes)
 
 # =============================================================================
 # WAKE
 # How the machine recovers from dim / screen-off / sleep.
-# Env overrides: HYPRDE_WAKE_DPMS, HYPRDE_WAKE_BRIGHTNESS, HYPRDE_WAKE_TO_LOCK
+# usb/lid wake arm /proc/acpi/wakeup sources via a boot unit (wakeup state
+# resets every boot, so a unit is the only persistent mechanism). Power button
+# always wakes (hardware) and cannot be disabled.
+# Env overrides: HYPRDE_WAKE_DPMS, HYPRDE_WAKE_BRIGHTNESS, HYPRDE_WAKE_TO_LOCK,
+#   HYPRDE_WAKE_USB, HYPRDE_WAKE_LID
 # =============================================================================
 [wake]
 dpms_on_wake = true                     # Turn display back on on resume/after sleep
 brightness_restore = true               # Restore brightness + kbd light on resume
 wake_to_lock = true                     # Require hyprlock password after resume
+usb_wake_enabled = true                 # Keyboard/mouse can wake from sleep (XHC)
+lid_wake_enabled = true                 # Opening the lid wakes from sleep (LID0)
 
 # =============================================================================
 # NIGHTLIGHT

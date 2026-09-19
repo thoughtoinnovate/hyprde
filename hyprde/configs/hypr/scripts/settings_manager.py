@@ -206,9 +206,15 @@ DESCRIPTIONS = {
     "Lock before sleep": "Lock the session before suspend/hibernate.",
     "Lid close": "What closing the lid does. Hibernate needs swap; wakes with power only.",
     "Power button": "What a short power press does. Wake by pressing power again.",
+    "Power hold": "What holding power ~2s does. A ~5s hold is hardware force-off.",
+    "Install system rules": "Copy lid/power + wake rules to system (needs password, active next login).",
     "DPMS on wake": "Turn the display back on after resume.",
     "Restore brightness": "Restore screen and keyboard brightness after resume.",
     "Ask password on wake": "Require the lock-screen password after resume.",
+    "Keyboard/mouse wake": "Keyboard and mouse share one wake switch and cannot be split.",
+    "Lid-open wake": "Opening the lid wakes from sleep.",
+    "Power button wakes": "Hardware — the power button always wakes, cannot be off.",
+    "Keys wake hibernate": "Hardware — from hibernate only the power button wakes.",
     "Lock Wallpaper": "Background image of the lock screen.",
     "User Picture": "Avatar shown on the lock screen.",
     "Fail Text": "Message shown after a wrong password.",
@@ -1691,11 +1697,25 @@ class SettingsManager(Gtk.Window):
         self.widgets['sleep_power_action'] = Gtk.ComboBoxText()
         for m in ["ignore", "lock", "suspend", "hibernate", "poweroff"]: self.widgets['sleep_power_action'].append(m, m)
         self.widgets['sleep_power_action'].set_active_id(sleep.get('power_button_action', 'suspend')); fs.pack_start(self.create_row("Power button", self.widgets['sleep_power_action']), False, False, 0)
+        self.widgets['sleep_power_hold'] = Gtk.ComboBoxText()
+        for m in ["ignore", "lock", "suspend", "hibernate", "poweroff"]: self.widgets['sleep_power_hold'].append(m, m)
+        self.widgets['sleep_power_hold'].set_active_id(sleep.get('power_button_longpress', 'hibernate')); fs.pack_start(self.create_row("Power hold", self.widgets['sleep_power_hold']), False, False, 0)
         v.pack_start(fs, False, False, 0)
+        fp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fp.get_style_context().add_class("group-frame")
+        self.widgets['power_status'] = Gtk.Label(); self.widgets['power_status'].set_halign(Gtk.Align.START); self.widgets['power_status'].set_line_wrap(True)
+        fp.pack_start(self.create_row("System rules", self.widgets['power_status']), False, False, 0)
+        self.widgets['power_install_btn'] = Gtk.Button(label="Install system rules"); self.widgets['power_install_btn'].get_style_context().add_class("picker"); self.widgets['power_install_btn'].connect("clicked", self.on_install_power_rules)
+        fp.pack_start(self.create_row("Install system rules", self.widgets['power_install_btn']), False, False, 0)
+        v.pack_start(fp, False, False, 0)
+        self.refresh_power_status()
         fw = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fw.get_style_context().add_class("group-frame")
         self.widgets['wake_dpms'] = Gtk.Switch(); self.widgets['wake_dpms'].set_active(wake.get('dpms_on_wake', True)); fw.pack_start(self.create_row("DPMS on wake", self.widgets['wake_dpms']), False, False, 0)
         self.widgets['wake_brightness'] = Gtk.Switch(); self.widgets['wake_brightness'].set_active(wake.get('brightness_restore', True)); fw.pack_start(self.create_row("Restore brightness", self.widgets['wake_brightness']), False, False, 0)
         self.widgets['wake_to_lock'] = Gtk.Switch(); self.widgets['wake_to_lock'].set_active(wake.get('wake_to_lock', True)); fw.pack_start(self.create_row("Ask password on wake", self.widgets['wake_to_lock']), False, False, 0)
+        self.widgets['wake_usb'] = Gtk.Switch(); self.widgets['wake_usb'].set_active(wake.get('usb_wake_enabled', True)); fw.pack_start(self.create_row("Keyboard/mouse wake", self.widgets['wake_usb']), False, False, 0)
+        self.widgets['wake_lid'] = Gtk.Switch(); self.widgets['wake_lid'].set_active(wake.get('lid_wake_enabled', True)); fw.pack_start(self.create_row("Lid-open wake", self.widgets['wake_lid']), False, False, 0)
+        self.widgets['wake_power_hw'] = Gtk.Switch(); self.widgets['wake_power_hw'].set_active(True); self.widgets['wake_power_hw'].set_sensitive(False); fw.pack_start(self.create_row("Power button wakes", self.widgets['wake_power_hw']), False, False, 0)
+        self.widgets['wake_keys_hib'] = Gtk.Switch(); self.widgets['wake_keys_hib'].set_active(False); self.widgets['wake_keys_hib'].set_sensitive(False); fw.pack_start(self.create_row("Keys wake hibernate", self.widgets['wake_keys_hib']), False, False, 0)
         v.pack_start(fw, False, False, 0)
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         self.widgets['lock_wp_btn'] = Gtk.Button(label="Select Wallpaper..."); self.widgets['lock_wp_btn'].get_style_context().add_class("picker"); self.widgets['lock_wp_btn'].connect("clicked", lambda x: self.update_picker_path('lock_wp_path', "Select Lock Wallpaper"))
@@ -1713,6 +1733,108 @@ class SettingsManager(Gtk.Window):
         self.widgets['lock_placeholder_text'] = Gtk.Entry(); self.widgets['lock_placeholder_text'].set_text(self.doc['lockscreen'].get('placeholder_text', '')); f4.pack_start(self.create_row("Placeholder Text", self.widgets['lock_placeholder_text']), False, False, 0)
         v.pack_start(f4, False, False, 0)
         return v
+
+    def _read_logind_effective(self):
+        """Effective logind lid/power actions (main conf, drop-ins override)."""
+        import glob as _glob
+        vals = {}
+        paths = ["/etc/systemd/logind.conf"] + sorted(_glob.glob("/etc/systemd/logind.conf.d/*.conf"))
+        for key in ("HandleLidSwitch", "HandleLidSwitchExternalPower",
+                    "HandlePowerKey", "HandlePowerKeyLongPress"):
+            vals[key] = None
+            for path in paths:
+                try:
+                    with open(path) as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith(key + "="):
+                                vals[key] = line.split("=", 1)[1].strip()
+                except OSError:
+                    continue
+        return vals
+
+    def _read_wakeup_state(self):
+        """Live /proc/acpi/wakeup states for XHC (USB) and LID0 (lid)."""
+        states = {}
+        try:
+            with open("/proc/acpi/wakeup") as f:
+                for line in f.read().splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0] in ("XHC", "LID0", "LID"):
+                        states[parts[0]] = "on" if "*enabled" in line else "off"
+        except OSError:
+            pass
+        return states
+
+    def _file_same(self, a, b):
+        try:
+            with open(a, "rb") as f1, open(b, "rb") as f2:
+                return f1.read() == f2.read()
+        except OSError:
+            return False
+
+    def refresh_power_status(self):
+        """Update the System rules status label (main thread)."""
+        try:
+            eff = self._read_logind_effective()
+            dropin = "/etc/systemd/logind.conf.d/hyprde-lid-power.conf"
+            staged = os.path.expanduser("~/.config/hypr/hyprde-lid-power.conf")
+            installed = os.path.exists(dropin)
+            sync = installed and self._file_same(staged, dropin)
+            unit = "/etc/systemd/system/hyprde-wake-sources.service"
+            unit_installed = os.path.exists(unit)
+            wake = self._read_wakeup_state()
+            lines = [
+                f"Power tap: {eff.get('HandlePowerKey') or 'default (suspend)'}, "
+                f"hold: {eff.get('HandlePowerKeyLongPress') or 'default (ignore)'}, "
+                f"lid: {eff.get('HandleLidSwitch') or 'default (suspend)'}",
+                f"Rules file: {'installed + in sync' if sync else ('installed, outdated — Apply then Install' if installed else 'not installed — Apply then Install')}",
+                f"Wake unit: {'installed' if unit_installed else 'not installed'}, "
+                f"USB wake: {wake.get('XHC', '?')}, lid wake: {wake.get('LID0', wake.get('LID', '?'))}",
+            ]
+            if 'power_status' in self.widgets:
+                self.widgets['power_status'].set_text("\n".join(lines))
+        except Exception as e:
+            logger.warning(f"Power status refresh failed: {e}")
+
+    def on_install_power_rules(self, btn):
+        """Copy staged lid/power + wake files to system paths (pkexec)."""
+        btn.set_sensitive(False)
+        threading.Thread(target=self._install_power_worker, daemon=True).start()
+
+    def _install_power_worker(self):
+        home = os.path.expanduser("~")
+        staged_dropin = os.path.join(home, ".config/hypr/hyprde-lid-power.conf")
+        staged_script = os.path.join(home, ".config/hypr/hyprde-wake-sources.sh")
+        staged_unit = os.path.join(home, ".config/hypr/hyprde-wake-sources.service")
+        cmd = (
+            "cp -f '{}' /etc/systemd/logind.conf.d/hyprde-lid-power.conf && "
+            "cp -f '{}' /usr/local/bin/hyprde-wake-sources.sh && "
+            "chmod 755 /usr/local/bin/hyprde-wake-sources.sh && "
+            "cp -f '{}' /etc/systemd/system/hyprde-wake-sources.service && "
+            "systemctl enable hyprde-wake-sources.service"
+        ).format(staged_dropin, staged_script, staged_unit)
+        try:
+            rc = subprocess.run(["pkexec", "sh", "-c", cmd],
+                                capture_output=True, timeout=120)
+            ok = rc.returncode == 0
+            msg = "Installed — active at next login." if ok else "Install failed or cancelled."
+            logger.info(f"Power rules install: rc={rc.returncode}")
+        except Exception as e:
+            ok, msg = False, f"Install error: {e}"
+            logger.error(msg)
+        GLib.idle_add(self._on_install_power_done, ok, msg)
+
+    def _on_install_power_done(self, ok, msg):
+        if 'power_install_btn' in self.widgets:
+            self.widgets['power_install_btn'].set_sensitive(True)
+        self.refresh_power_status()
+        try:
+            subprocess.run(["notify-send", "-t", "4000", "HyprDE Settings", msg],
+                           capture_output=True, timeout=5)
+        except Exception:
+            pass
+        return False
 
     def build_nightlight(self):
         v = self.build_page_vbox("Eye Care")
@@ -2297,11 +2419,14 @@ class SettingsManager(Gtk.Window):
         self.doc['sleep']['lock_before_sleep'] = self.widgets['sleep_lock_before'].get_active()
         self.doc['sleep']['lid_close_action'] = self.widgets['sleep_lid_action'].get_active_id() or "hibernate"
         self.doc['sleep']['power_button_action'] = self.widgets['sleep_power_action'].get_active_id() or "suspend"
+        self.doc['sleep']['power_button_longpress'] = self.widgets['sleep_power_hold'].get_active_id() or "hibernate"
         # Keep old [idle] suspend_timeout in sync for back-compat readers.
         self.doc['idle']['suspend_timeout'] = self.doc['sleep']['suspend_timeout']
         self.doc['wake']['dpms_on_wake'] = self.widgets['wake_dpms'].get_active()
         self.doc['wake']['brightness_restore'] = self.widgets['wake_brightness'].get_active()
         self.doc['wake']['wake_to_lock'] = self.widgets['wake_to_lock'].get_active()
+        self.doc['wake']['usb_wake_enabled'] = self.widgets['wake_usb'].get_active()
+        self.doc['wake']['lid_wake_enabled'] = self.widgets['wake_lid'].get_active()
 
         # Nightlight
         self.doc['nightlight']['enabled'] = self.widgets['nl_enabled'].get_active()
@@ -2592,6 +2717,10 @@ class SettingsManager(Gtk.Window):
         self._mark_clean()
         self.status_label.get_style_context().remove_class("error")
         self.status_label.set_text("✓ Settings applied")
+        try:
+            self.refresh_power_status()
+        except Exception:
+            pass
         try:
             subprocess.run(["notify-send", "-t", "2500", "HyprDE Settings",
                             "✓ Settings applied"],

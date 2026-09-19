@@ -30,6 +30,8 @@ def setUpModule():
         "HYPRLOCK_CONF": os.path.join(_TEST_TMPDIR, "hyprlock.conf"),
         "HYPRPAPER_CONF": os.path.join(_TEST_TMPDIR, "hyprpaper.conf"),
         "LOGIND_DROPIN": os.path.join(_TEST_TMPDIR, "hyprde-lid-power.conf"),
+        "WAKE_SCRIPT": os.path.join(_TEST_TMPDIR, "hyprde-wake-sources.sh"),
+        "WAKE_UNIT": os.path.join(_TEST_TMPDIR, "hyprde-wake-sources.service"),
         "OLD_CONFIGS": [
             os.path.join(_TEST_TMPDIR, "hyprland.conf"),
             os.path.join(_TEST_TMPDIR, "hyprland.base.conf"),
@@ -855,6 +857,27 @@ class TestPowerToggles(unittest.TestCase):
         written = self._written(build_config.LOGIND_DROPIN)
         self.assertIn("HandleLidSwitch=hibernate", written)
         self.assertIn("HandlePowerKey=suspend", written)
+        self.assertIn("HandlePowerKeyLongPress=", written)
+
+    def test_wake_sources_script_and_unit(self):
+        build_config.generate_wake_sources(self._base())
+        script = self._written(build_config.WAKE_SCRIPT)
+        unit = self._written(build_config.WAKE_UNIT)
+        self.assertIn("set_state XHC on", script)
+        self.assertIn("set_state LID0 on", script)
+        self.assertIn("ExecStart=/usr/local/bin/hyprde-wake-sources.sh", unit)
+        self.assertIn("WantedBy=multi-user.target", unit)
+
+    def test_wake_sources_off(self):
+        data = self._base()
+        data["wake"]["usb_wake_enabled"] = False
+        data["wake"]["lid_wake_enabled"] = False
+        build_config.generate_wake_sources(data)
+        script = self._written(build_config.WAKE_SCRIPT)
+        self.assertIn("set_state XHC off", script)
+        self.assertIn("set_state LID0 off", script)
+        warnings = build_config.validate_config(data)
+        self.assertTrue(any("only the power button" in w for w in warnings))
 
     def test_env_overrides_toml(self):
         data = self._base()

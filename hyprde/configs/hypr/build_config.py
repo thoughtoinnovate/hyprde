@@ -342,10 +342,13 @@ def apply_power_env_overrides(data: Dict[str, Any]) -> Dict[str, Any]:
     set_bool(sleep, "lock_before_sleep", "HYPRDE_LOCK_BEFORE_SLEEP")
     set_str(sleep, "lid_close_action", "HYPRDE_LID_ACTION")
     set_str(sleep, "power_button_action", "HYPRDE_POWER_ACTION")
+    set_str(sleep, "power_button_longpress", "HYPRDE_POWER_LONGPRESS")
 
     set_bool(wake, "dpms_on_wake", "HYPRDE_WAKE_DPMS")
     set_bool(wake, "brightness_restore", "HYPRDE_WAKE_BRIGHTNESS")
     set_bool(wake, "wake_to_lock", "HYPRDE_WAKE_TO_LOCK")
+    set_bool(wake, "usb_wake_enabled", "HYPRDE_WAKE_USB")
+    set_bool(wake, "lid_wake_enabled", "HYPRDE_WAKE_LID")
     return data
 
 
@@ -402,12 +405,16 @@ def validate_config(data: Dict[str, Any]) -> List[str]:
                 susp = 0
             if susp > 0 and order and susp < max(vals.values()):
                 warnings.append(f"[sleep] suspend_timeout ({susp}s) should be >= screen_off_timeout")
-        for key in ("lid_close_action", "power_button_action"):
+        for key in ("lid_close_action", "power_button_action", "power_button_longpress"):
             if isinstance(sleep, dict) and key in sleep:
                 if sleep[key] not in ("ignore", "lock", "suspend", "hibernate", "poweroff"):
                     warnings.append(f"[sleep] {key} should be ignore|lock|suspend|hibernate|poweroff. Got: {sleep[key]}")
         if isinstance(sleep, dict) and sleep.get("suspend_mode") not in (None, "suspend", "hibernate", "hybrid-sleep"):
             warnings.append(f"[sleep] suspend_mode should be suspend|hibernate|hybrid-sleep. Got: {sleep.get('suspend_mode')}")
+        wake = data.get("wake", {})
+        if isinstance(wake, dict) and not wake.get("usb_wake_enabled", True) \
+                and not wake.get("lid_wake_enabled", True):
+            warnings.append("[wake] usb and lid wake are both off — only the power button will wake sleep")
 
     return warnings
 
@@ -472,10 +479,13 @@ def inject_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     sleep.setdefault("lock_before_sleep", True)
     sleep.setdefault("lid_close_action", "hibernate")
     sleep.setdefault("power_button_action", "suspend")
+    sleep.setdefault("power_button_longpress", "hibernate")
     wake = data.setdefault("wake", {})
     wake.setdefault("dpms_on_wake", True)
     wake.setdefault("brightness_restore", True)
     wake.setdefault("wake_to_lock", True)
+    wake.setdefault("usb_wake_enabled", True)
+    wake.setdefault("lid_wake_enabled", True)
 
     return data
 
@@ -845,11 +855,12 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
 
 
 def generate_logind_dropin(data: Dict[str, Any]) -> None:
-    """Stage logind lid/power config (needs sudo to install + reload)."""
+    """Stage logind lid/power config (needs sudo to install + next login)."""
     data = inject_defaults(dict(data))
     sleep = data.get("sleep", {})
     lid = sleep.get("lid_close_action", "hibernate")
     power = sleep.get("power_button_action", "suspend")
+    hold = sleep.get("power_button_longpress", "hibernate")
     valid = ("ignore", "lock", "suspend", "hibernate", "hybrid-sleep", "poweroff")
     if lid not in valid:
         logger.warning(f"Unknown lid_close_action {lid!r}, using hibernate")
@@ -857,18 +868,78 @@ def generate_logind_dropin(data: Dict[str, Any]) -> None:
     if power not in valid:
         logger.warning(f"Unknown power_button_action {power!r}, using suspend")
         power = "suspend"
+    if hold not in valid:
+        logger.warning(f"Unknown power_button_longpress {hold!r}, using hibernate")
+        hold = "hibernate"
     content = (
-        "# HyprDE lid/power mapping — copy to /etc/systemd/logind.conf.d/ then:\n"
-        "#   sudo systemctl restart systemd-logind\n"
+        "# HyprDE lid/power mapping — install with the Settings Install button\n"
+        "# (copies to /etc/systemd/logind.conf.d/, active at next login).\n"
         "# NOTE: hibernate needs swap >= RAM and 'systemctl hibernate' tested.\n"
         "# Hibernate wakes with power button only; sleep wakes with power + keys.\n"
+        "# A ~5s hold is hardware force-off and cannot be configured.\n"
         "[Login]\n"
         f"HandleLidSwitch={lid}\n"
         f"HandleLidSwitchExternalPower={lid}\n"
         f"HandlePowerKey={power}\n"
+        f"HandlePowerKeyLongPress={hold}\n"
     )
     atomic_write(LOGIND_DROPIN, content)
-    logger.info(f"Staged logind drop-in at {LOGIND_DROPIN} (lid={lid}, power={power})")
+    logger.info(f"Staged logind drop-in at {LOGIND_DROPIN} (lid={lid}, power={power}, hold={hold})")
+
+
+WAKE_SCRIPT = os.path.join(CONFIG_DIR, "hyprde-wake-sources.sh")
+WAKE_UNIT = os.path.join(CONFIG_DIR, "hyprde-wake-sources.service")
+
+
+def generate_wake_sources(data: Dict[str, Any]) -> None:
+    """Stage wake-source boot script + unit (/proc/acpi/wakeup resets at boot).
+
+    Toggles XHC (keyboard/mouse) and LID0 (lid open). The power button always
+    wakes (hardware) and hibernate wakes power-only regardless of these.
+    Install with the Settings Install button (system unit, needs password).
+    """
+    data = inject_defaults(dict(data))
+    wake = data.get("wake", {})
+    usb = bool(wake.get("usb_wake_enabled", True))
+    lid = bool(wake.get("lid_wake_enabled", True))
+
+    script = (
+        "#!/bin/bash\n"
+        "# HyprDE wake sources — install via Settings Install button.\n"
+        "# Runs at boot (hyprde-wake-sources.service); wakeup state resets each boot.\n"
+        "set_state() {\n"
+        '    local dev="$1" want="$2" cur=""\n'
+        '    cur=$(grep -E "^$dev[[:space:]]" /proc/acpi/wakeup 2>/dev/null | grep -o "\\*enabled\\|\\*disabled")\n'
+        '    if [ "$want" = "on" ] && [ "$cur" = "*disabled" ]; then echo "$dev" > /proc/acpi/wakeup; fi\n'
+        '    if [ "$want" = "off" ] && [ "$cur" = "*enabled" ]; then echo "$dev" > /proc/acpi/wakeup; fi\n'
+        "}\n"
+        f"set_state XHC {'on' if usb else 'off'}  # keyboard/mouse wake from sleep\n"
+        f"set_state LID0 {'on' if lid else 'off'}  # lid-open wake from sleep\n"
+    )
+    atomic_write(WAKE_SCRIPT, script)
+    try:
+        os.chmod(WAKE_SCRIPT, 0o755)
+    except OSError as e:
+        logger.warning(f"Could not chmod {WAKE_SCRIPT}: {e}")
+
+    unit = (
+        "# HyprDE wake sources — install via Settings Install button:\n"
+        "#   sudo cp hyprde-wake-sources.sh /usr/local/bin/\n"
+        "#   sudo cp hyprde-wake-sources.service /etc/systemd/system/\n"
+        "#   sudo systemctl enable hyprde-wake-sources.service\n"
+        "[Unit]\n"
+        "Description=HyprDE wake sources (keyboard/mouse, lid)\n"
+        "After=sysinit.target\n"
+        "\n"
+        "[Service]\n"
+        "Type=oneshot\n"
+        "ExecStart=/usr/local/bin/hyprde-wake-sources.sh\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+    )
+    atomic_write(WAKE_UNIT, unit)
+    logger.info(f"Staged wake sources at {WAKE_SCRIPT} (usb={usb}, lid={lid})")
 
 def generate_hyrocket_systemd_units(data: Dict[str, Any]) -> None:
     if "hyprrocket" not in data:
@@ -1090,6 +1161,7 @@ def main() -> int:
     generate_and_write_lua(data_full)
     generate_hypridle_conf(data_full)
     generate_logind_dropin(data_full)
+    generate_wake_sources(data_full)
     generate_hyprlock_conf(data_full)
     generate_hyprpaper_conf(data_full)
     generate_fixed_wallpaper_config(data_full)
