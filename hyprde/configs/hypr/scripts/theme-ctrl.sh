@@ -121,9 +121,13 @@ if os.path.exists(path):
     os.replace(path + ".tmp", path)
 EOF
 
-    # 4. Generate Lua config and reload
+    # 4. Generate Lua config and reload (skipped when the caller already
+    # reloads itself, e.g. Settings Apply with HYPRDE_NO_RELOAD=1 — two
+    # back-to-back reloads race and can wedge the output black).
     python3 "$HOME/.config/hypr/build_config.py" > /dev/null 2>&1
-    hyprctl reload
+    if [ "${HYPRDE_NO_RELOAD:-}" != "1" ]; then
+        hyprctl reload
+    fi
 }
 
 toggle() {

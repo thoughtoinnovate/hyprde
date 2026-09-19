@@ -2652,6 +2652,18 @@ class SettingsManager(Gtk.Window):
             subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
                            capture_output=True, timeout=120)
 
+            # Theme stack only when theme/appearance-affecting sections changed.
+            # Runs BEFORE the single reload below (it tweaks the TOML and
+            # rebuilds), with reloads suppressed — Apply performs exactly one
+            # `hyprctl reload` per run; back-to-back reloads race and can
+            # wedge the output black.
+            if changed & {"theme", "appearance", "general", "decoration"}:
+                env = dict(os.environ, HYPRDE_NO_RELOAD="1")
+                subprocess.run([
+                    "sh", os.path.expanduser("~/.config/hypr/scripts/theme-ctrl.sh"),
+                    snapshot["new_mode"]
+                ], capture_output=True, timeout=120, env=env)
+
             # Reload Hyprland so the rebuilt hyprland.lua takes effect live,
             # but only when a Lua-emitted section actually changed. Without
             # this, Apply updates files but the running session keeps old
@@ -2697,13 +2709,6 @@ class SettingsManager(Gtk.Window):
             if "wallpapers" in changed:
                 subprocess.run(["sh", os.path.expanduser("~/.config/hypr/scripts/init_wallpaper.sh")],
                                capture_output=True, timeout=120)
-
-            # Theme stack only when theme/appearance-affecting sections changed.
-            if changed & {"theme", "appearance", "general", "decoration"}:
-                subprocess.run([
-                    "sh", os.path.expanduser("~/.config/hypr/scripts/theme-ctrl.sh"),
-                    snapshot["new_mode"]
-                ], capture_output=True, timeout=120)
 
             # Dock + bar only when launcher/programs/theme/decoration changed.
             if changed & {"launcher", "programs", "theme", "decoration"}:
