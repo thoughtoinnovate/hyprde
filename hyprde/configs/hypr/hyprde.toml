@@ -502,6 +502,7 @@ list = [
     "$mainMod ALT, R, exec, $HOME/.config/hypr/scripts/screen-record.sh toggle",
     "$mainMod ALT, L, exec, $HOME/.config/hypr/scripts/layout-ctrl.sh",
     "$mainMod ALT, E, exec, $HOME/.config/hypr/scripts/power-mode.sh cycle",
+    "$mainMod, I, exec, $HOME/.config/hypr/scripts/idle-inhibit.sh toggle",  # Video mode: pause idle dim/lock/screen-off
     "$mainMod CTRL, C, exec, $HOME/.config/hypr/scripts/waybars.sh ctrl-cntr",
     "$mainMod CTRL, M, exec, $HOME/.config/hypr/scripts/waybars.sh sys-metrics",
     "$mainMod, Print, exec, ~/.config/hypr/scripts/screenshot.sh area",
