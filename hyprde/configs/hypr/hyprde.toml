@@ -131,7 +131,7 @@ placeholder_text = "<i>Input Password...</i>"      # Placeholder text
 enabled = true                          # Master switch for all idle listeners
 dim_enabled = true                      # Dim screen to save battery
 dim_timeout = 120                       # Dim after 2 minutes (was hardcoded 150)
-dim_level = 20                          # Brightness % when dimmed (higher = less scary)
+dim_level = 30                          # Brightness % when dimmed (higher = less scary)
 lock_enabled = true                     # Lock screen with hyprlock
 lock_timeout = 300                      # Lock screen after 5 minutes (300s)
 screen_off_enabled = true               # Turn display off (dpms off)
@@ -538,10 +538,14 @@ list = [
     ", XF86AudioLowerVolume, exec, ~/.config/hypr/scripts/audio-ctrl.sh --dec"
 ]
 
-# Locked bindings (work when screen is locked)
+# Locked bindings (work when screen is locked). Brightness keys are here so a
+# dimmed lock screen can always be brightened — without them a dim lock
+# reads as a dead black screen with "dead keys".
 [binds.locked]
 list = [
-    ", XF86AudioMute, exec, ~/.config/hypr/scripts/audio-ctrl.sh --mute"
+    ", XF86AudioMute, exec, ~/.config/hypr/scripts/audio-ctrl.sh --mute",
+    ", XF86MonBrightnessUp, exec, ~/.config/hypr/scripts/brightness-ctrl.sh --inc",
+    ", XF86MonBrightnessDown, exec, ~/.config/hypr/scripts/brightness-ctrl.sh --dec"
 ]
 
 # =============================================================================

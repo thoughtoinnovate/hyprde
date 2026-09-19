@@ -1718,7 +1718,7 @@ class SettingsManager(Gtk.Window):
         ]:
             self.widgets[f'idle_{en_key}'] = Gtk.Switch(); self.widgets[f'idle_{en_key}'].set_active(idle.get(en_key, True)); f1.pack_start(self.create_row(en_label, self.widgets[f'idle_{en_key}']), False, False, 0)
             self.widgets[f'idle_{t_key}'] = Gtk.SpinButton.new_with_range(0, 7200, 30); self.widgets[f'idle_{t_key}'].set_value(idle.get(t_key, dflt)); f1.pack_start(self.create_row(t_label, self.widgets[f'idle_{t_key}']), False, False, 0)
-        self.widgets['idle_dim_level'] = Gtk.SpinButton.new_with_range(1, 100, 1); self.widgets['idle_dim_level'].set_value(idle.get('dim_level', 20)); f1.pack_start(self.create_row("Dim level (%)", self.widgets['idle_dim_level']), False, False, 0)
+        self.widgets['idle_dim_level'] = Gtk.SpinButton.new_with_range(1, 100, 1); self.widgets['idle_dim_level'].set_value(idle.get('dim_level', 30)); f1.pack_start(self.create_row("Dim level (%)", self.widgets['idle_dim_level']), False, False, 0)
         v.pack_start(f1, False, False, 0)
         fs = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fs.get_style_context().add_class("group-frame")
         self.widgets['sleep_suspend_enabled'] = Gtk.Switch(); self.widgets['sleep_suspend_enabled'].set_active(sleep.get('suspend_enabled', True)); fs.pack_start(self.create_row("Enable Auto-Suspend", self.widgets['sleep_suspend_enabled']), False, False, 0)

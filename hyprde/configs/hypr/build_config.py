@@ -498,7 +498,7 @@ def inject_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     idle.setdefault("enabled", True)
     idle.setdefault("dim_enabled", True)
     idle.setdefault("dim_timeout", 120)
-    idle.setdefault("dim_level", 20)
+    idle.setdefault("dim_level", 30)
     idle.setdefault("lock_enabled", True)
     idle.setdefault("lock_timeout", 300)
     idle.setdefault("screen_off_enabled", True)
@@ -822,9 +822,9 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
 
     dim_timeout = _idle_on(idle, "dim", 120)
     try:
-        dim_level = int(idle.get("dim_level", 20) or 20)
+        dim_level = int(idle.get("dim_level", 30) or 30)
     except (TypeError, ValueError):
-        dim_level = 20
+        dim_level = 30
     dim_level = max(1, min(100, dim_level))
     lock_timeout = _idle_on(idle, "lock", 300)
     screen_off_timeout = _idle_on(idle, "screen_off", 330)

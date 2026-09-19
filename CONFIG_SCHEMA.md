@@ -269,7 +269,7 @@ Configure idle dimming, locking and display power (hypridle listeners).
 ```toml
 [idle]
 enabled = true
-dim_enabled = true; dim_timeout = 120; dim_level = 20  # level is percent
+dim_enabled = true; dim_timeout = 120; dim_level = 30  # level is percent
 lock_enabled = true; lock_timeout = 300          # Seconds before locking (5 minutes)
 screen_off_enabled = true; screen_off_timeout = 330
 ```
