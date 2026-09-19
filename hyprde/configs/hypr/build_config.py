@@ -816,7 +816,7 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
     if sleep.get("lock_before_sleep", True):
         lines.append("    before_sleep_cmd = loginctl lock-session && sleep 1")
     if wake.get("dpms_on_wake", True):
-        lines.append("    after_sleep_cmd = hyprctl dispatch 'hl.dsp.dpms(\"on\")'")
+        lines.append("    after_sleep_cmd = hyprctl dispatch 'hl.dsp.dpms({ power = true })'")
     lines.append("}")
     lines.append("")
 
@@ -872,9 +872,9 @@ def generate_hypridle_conf(data: Dict[str, Any]) -> None:
     if screen_off_timeout > 0:
         lines.append("listener {")
         lines.append(f"    timeout = {screen_off_timeout}")
-        lines.append("    on-timeout = hyprctl dispatch 'hl.dsp.dpms(\"off\")'")
+        lines.append("    on-timeout = hyprctl dispatch 'hl.dsp.dpms({ power = false })'")
         if dpms_on_wake:
-            lines.append("    on-resume = hyprctl dispatch 'hl.dsp.dpms(\"on\")'")
+            lines.append("    on-resume = hyprctl dispatch 'hl.dsp.dpms({ power = true })'")
         lines.append("}")
         lines.append("")
 

@@ -69,6 +69,9 @@ TABLE_ARG_DISPATCHERS = {
     "movetoworkspace": lambda a: f'workspace = {_try_int(a)}',
     "movewindow":      lambda a: f'direction = {_value_to_lua(a)}',
     "resizeactive":    lambda a: _parse_resizeactive(a),
+    # dpms takes { power = bool }: on/true/1 -> true, everything else false.
+    # The string form hl.dsp.dpms("on") is silently ignored by Hyprland.
+    "dpms":            lambda a: 'power = true' if a.strip().lower() in ("on", "true", "1") else 'power = false',
 }
 
 # Default arguments for dispatchers that need a non-empty arg even when omitted

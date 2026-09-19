@@ -356,7 +356,7 @@ class TestBuildConfigHypridle(unittest.TestCase):
         self.assertIn("lock_cmd = pidof hyprlock || hyprlock", written)
 
     def test_hypridle_dpms_syntax(self):
-        """Test dpms commands use hl.dsp.dpms syntax."""
+        """dpms must use table form: string form is silently ignored (black-screen RCA)."""
         mock_data = {"idle": {"lock_timeout": 300, "screen_off_timeout": 330, "suspend_timeout": 1800}}
 
         build_config.generate_hypridle_conf(mock_data)
@@ -367,10 +367,25 @@ class TestBuildConfigHypridle(unittest.TestCase):
                 written = call.args[1]
                 break
 
-        self.assertIn("hl.dsp.dpms(\"on\")", written)
-        self.assertIn("hl.dsp.dpms(\"off\")", written)
-        # Old syntax should NOT appear
+        self.assertIn("hl.dsp.dpms({ power = true })", written)
+        self.assertIn("hl.dsp.dpms({ power = false })", written)
+        # Dead forms must NOT appear
+        self.assertNotIn('hl.dsp.dpms("on")', written)
+        self.assertNotIn('hl.dsp.dpms("off")', written)
         self.assertNotIn("hyprctl dispatch dpms", written)
+
+    def test_dpms_bind_uses_power_table(self):
+        """A dpms bind must render the power table, never a string arg."""
+        lua = lua_generator.generate_user_lua({
+            "binds": {"mainMod": "SUPER", "normal": {"list": [
+                "S, F9, dpms, off",
+            ]}}})
+        self.assertIn("hl.dsp.dpms({ power = false })", lua)
+        lua = lua_generator.generate_user_lua({
+            "binds": {"mainMod": "SUPER", "normal": {"list": [
+                "S, F10, dpms, on",
+            ]}}})
+        self.assertIn("hl.dsp.dpms({ power = true })", lua)
 
     def test_hypridle_no_idle_section(self):
         """Test that hypridle generation is skipped without idle section."""

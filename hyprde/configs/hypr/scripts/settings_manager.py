@@ -2740,7 +2740,7 @@ class SettingsManager(Gtk.Window):
                     logger.info(f"Post-reload probe: monitors={dpms}")
                     if not mons or not all(m.get("dpmsStatus", True) for m in mons):
                         logger.warning("Post-reload probe: display not on — pulsing dpms on")
-                        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'],
+                        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
                                        capture_output=True, timeout=10)
                 except Exception as e:
                     logger.warning(f"Post-reload probe failed: {e}")
@@ -2765,31 +2765,46 @@ class SettingsManager(Gtk.Window):
             # conf at next lock, so lock-wallpaper tweaks need no daemon
             # restart and no display pulses at all.
             if changed & {"idle", "sleep", "wake"}:
-                subprocess.run(["pkill", "-x", "hypridle"], capture_output=True)
-                time.sleep(0.5)
+                inhibited = False
                 try:
-                    subprocess.Popen(["hypridle"],
-                                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except Exception as e:
-                    logger.warning(f"Could not restart hypridle: {e}")
-                # Verify the new daemon actually survived (a dead hypridle
-                # means no dim/lock/dpms handling at all — fail loudly).
-                time.sleep(1.0)
-                try:
-                    alive = subprocess.run(["pgrep", "-x", "hypridle"],
-                                           capture_output=True, timeout=10)
-                    if alive.returncode != 0:
-                        logger.error("hypridle not running after restart!")
-                        GLib.idle_add(self._on_apply_error,
-                                      "hypridle failed to restart — idle handling is down")
-                        return
-                except Exception as e:
-                    logger.warning(f"hypridle liveness check failed: {e}")
-                subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'], capture_output=True, timeout=10)
-                # Restore brightness too: Apply while dimmed would otherwise
-                # leave the panel dark until the next idle cycle.
-                subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
-                logger.info("Restarted hypridle after idle/sleep/wake change")
+                    with open(os.path.expanduser("~/.config/hypr/toggles.state")) as f:
+                        inhibited = any(
+                            l.strip() == "idle_inhibit=on" for l in f)
+                except OSError:
+                    pass
+                if inhibited:
+                    # Video/presentation mode: leave hypridle stopped so Apply
+                    # never silently re-arms timers the user paused on purpose.
+                    logger.info("Idle inhibit ON — skipping hypridle restart")
+                    subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
+                                   capture_output=True, timeout=10)
+                    subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
+                else:
+                    subprocess.run(["pkill", "-x", "hypridle"], capture_output=True)
+                    time.sleep(0.5)
+                    try:
+                        subprocess.Popen(["hypridle"],
+                                         start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except Exception as e:
+                        logger.warning(f"Could not restart hypridle: {e}")
+                    # Verify the new daemon actually survived (a dead hypridle
+                    # means no dim/lock/dpms handling at all — fail loudly).
+                    time.sleep(1.0)
+                    try:
+                        alive = subprocess.run(["pgrep", "-x", "hypridle"],
+                                               capture_output=True, timeout=10)
+                        if alive.returncode != 0:
+                            logger.error("hypridle not running after restart!")
+                            GLib.idle_add(self._on_apply_error,
+                                          "hypridle failed to restart — idle handling is down")
+                            return
+                    except Exception as e:
+                        logger.warning(f"hypridle liveness check failed: {e}")
+                    subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'], capture_output=True, timeout=10)
+                    # Restore brightness too: Apply while dimmed would otherwise
+                    # leave the panel dark until the next idle cycle.
+                    subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
+                    logger.info("Restarted hypridle after idle/sleep/wake change")
             # Lid/power/wake-source rules live in system folders, so fold their
             # install into Apply itself (password prompt) when those sections
             # changed. Skipping (cancelled/failed) leaves home settings applied.
@@ -2801,7 +2816,7 @@ class SettingsManager(Gtk.Window):
                     sys_msg = " System rules not installed (no password) — lid/power/wake-at-boot unchanged."
             # Final display pulse, every Apply: whatever ran above must never
             # leave the panel dark or the output off. Both are idempotent.
-            subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'],
+            subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
                            capture_output=True, timeout=10)
             subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
             subprocess.run(["notify-send", "Settings Applied", f"System updated.{sys_msg}"],
