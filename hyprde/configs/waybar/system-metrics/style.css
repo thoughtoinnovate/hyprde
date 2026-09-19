@@ -36,7 +36,7 @@
 
 tooltip {
     background-color: alpha(@theme_tooltip_bg, 0.8);
-    border: 1px solid @theme_border_color;
+    border: 1px solid @theme_border_color; /* SETTINGS_BAR_OPACITY */
     border-radius: 10px;
 }
 

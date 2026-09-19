@@ -82,7 +82,8 @@ if 'wallpapers' in data:
     # Ensure enable_dynamic is true if mode is dynamic
     if new_mode == 'dynamic':
         data['wallpapers']['enable_dynamic'] = True
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$new_mode"
         
         # Update state file
@@ -180,7 +181,8 @@ if 'wallpapers' in data:
     if 'directories' not in data['wallpapers']:
         data['wallpapers']['directories'] = {}
     data['wallpapers']['directories'][slot] = folder
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$slot" "$FOLDER_NAME"
                     
                     # Update current values for display
@@ -228,7 +230,8 @@ with open(path, 'r') as f: data = tomlkit.load(f)
 if 'wallpapers' in data:
     current = data['wallpapers'].get('splash', False)
     data['wallpapers']['splash'] = not current
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 "
         python3 "$HOME/.config/hypr/build_config.py"
         # Notify and re-run menu to show updated state
@@ -259,7 +262,8 @@ if 'wallpapers' in data:
         data['wallpapers']['fixed'] = {}
     data['wallpapers']['fixed']['type'] = 'image'
     data['wallpapers']['fixed']['image'] = new_image
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$FILE"
                  echo "fixed" > "$STATE_FILE"
                  python3 "$HOME/.config/hypr/build_config.py" >> "$LOG_FILE" 2>&1
@@ -278,7 +282,8 @@ new_image = sys.argv[1]
 with open(path, 'r') as f: data = tomlkit.load(f)
 if 'lockscreen' in data:
     data['lockscreen']['background'] = new_image
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$FILE"
                  python3 "$HOME/.config/hypr/build_config.py" >> "$LOG_FILE" 2>&1
              fi
@@ -301,7 +306,8 @@ if 'wallpapers' in data:
     data['wallpapers']['mode'] = 'dynamic'
     data['wallpapers']['path'] = new_dir
     data['wallpapers']['enable_dynamic'] = True
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$DIR"
                  echo "dynamic" > "$STATE_FILE"
                  python3 "$HOME/.config/hypr/build_config.py" >> "$LOG_FILE" 2>&1
@@ -328,7 +334,8 @@ if 'wallpapers' in data:
     data['wallpapers']['mode'] = 'dynamic'
     data['wallpapers']['path'] = new_dir
     data['wallpapers']['enable_dynamic'] = True
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 " "$DIR"
                  echo "dynamic" > "$STATE_FILE"
                  python3 "$HOME/.config/hypr/build_config.py" >> "$LOG_FILE" 2>&1

@@ -113,7 +113,8 @@ if os.path.exists(path):
     data["general"]["col_inactive_border"] = "$inactive_border"
     if "theme" not in data: data["theme"] = tomlkit.table()
     data["theme"]["mode"] = "$clean_mode"
-    with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+    with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+    os.replace(path + ".tmp", path)
 EOF
 
     # 4. Generate Lua config and reload

@@ -1015,6 +1015,14 @@ def generate_css_overrides(data: Dict[str, Any]) -> None:
                             new_line = re.sub(r'alpha\(([^,]+),\s*([^)]+)\)', f'alpha(\\1, {value})', line)
                             new_lines.append(new_line)
                             modified = True
+                        elif re.search(r'(?<![\w-])border(?![\w-])', line) and "border-radius" not in line:
+                            # Fade border colors with the opacity (skip if already alpha()).
+                            new_line, n = re.subn(r'solid\s+(@[\w_]+)(\s*;)', f'solid alpha(\\1, {value})\\2', line)
+                            if n == 0:
+                                new_line = line
+                            else:
+                                modified = True
+                            new_lines.append(new_line)
                         else:
                             new_lines.append(line)
                         break
@@ -1027,12 +1035,34 @@ def generate_css_overrides(data: Dict[str, Any]) -> None:
         except Exception as e:
             logger.error(f"Failed to apply CSS overrides to {css_path}: {e}")
 
-if __name__ == "__main__":
+# Sections a TOML must contain to be trusted for output generation. Guards
+# against bricking the session from a truncated/placeholder config (a stub
+# parses as valid TOML but would emit a bindless, autostart-less lua).
+REQUIRED_SECTIONS = ("binds", "programs")
+
+
+def toml_trustworthy(data: Dict[str, Any]) -> bool:
+    """True when the parsed TOML looks like a real user config."""
+    if not isinstance(data, dict):
+        return False
+    for section in REQUIRED_SECTIONS:
+        if not isinstance(data.get(section), dict):
+            return False
+    return True
+
+
+def main() -> int:
+    """Build all outputs. Returns 0 on success, 1 when aborted.
+
+    Never overwrites existing outputs from a missing, unparseable, or
+    suspiciously empty TOML — a stub config parses as valid TOML but would
+    emit a bindless, autostart-less hyprland.lua and brick the session.
+    """
     if not os.path.exists(CONFIG_DIR):
         print(f"Creating directory: {CONFIG_DIR}")
         os.makedirs(CONFIG_DIR)
 
-    data_full = {}
+    data_full: Optional[Dict[str, Any]] = None
     try:
         with open(TOML_FILE, "rb") as f:
             data_full = tomllib.load(f)
@@ -1042,6 +1072,17 @@ if __name__ == "__main__":
         logger.error(f"Invalid TOML syntax: {e}")
     except OSError as e:
         logger.error(f"File I/O error: {e}")
+
+    if data_full is None:
+        logger.error("Aborting: no usable TOML, existing outputs left untouched.")
+        return 1
+    if not toml_trustworthy(data_full):
+        missing = [s for s in REQUIRED_SECTIONS if not isinstance(data_full.get(s), dict)]
+        logger.error(
+            f"Aborting: {TOML_FILE} looks truncated (missing {missing}), "
+            f"existing outputs left untouched. Restore from ~/.config/hyprde_bkps/."
+        )
+        return 1
 
     data_full = inject_defaults(data_full)
     data_full = apply_power_env_overrides(data_full)
@@ -1057,3 +1098,8 @@ if __name__ == "__main__":
     generate_css_overrides(data_full)
 
     print("Configuration build complete.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

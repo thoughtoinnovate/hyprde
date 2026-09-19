@@ -1356,7 +1356,7 @@ class SettingsManager(Gtk.Window):
         v.pack_start(f, False, False, 0)
         f2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f2.get_style_context().add_class("group-frame")
         for k, l in [('active_opacity','Active Window'),('inactive_opacity','Inactive Window'),('waybar_opacity','Waybar Opacity'),('launcher_opacity','Launcher Opacity')]:
-            self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_draw_value(True); self.widgets[k].set_value_pos(Gtk.PositionType.RIGHT); self.widgets[k].set_size_request(220,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
+            self.widgets[k] = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, 0.05); self.widgets[k].set_value(self.doc['decoration'].get(k, 1.0)); self.widgets[k].set_draw_value(True); self.widgets[k].set_value_pos(Gtk.PositionType.RIGHT); self.widgets[k].set_size_request(220,-1); f2.pack_start(self.create_row(l, self.widgets[k]), False, False, 0)
         v.pack_start(f2, False, False, 0)
         f3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f3.get_style_context().add_class("group-frame")
         self.widgets['blur_enabled'] = Gtk.Switch(); self.widgets['blur_enabled'].set_active(self._tg('decoration.blur','enabled',True)); f3.pack_start(self.create_row("Enable Blur", self.widgets['blur_enabled']), False, False, 0)

@@ -23,7 +23,8 @@ data['general']['layout'] = target
 if 'rules' not in data: data['rules'] = tomlkit.table()
 rules = data['rules']
 rules['workspace'] = [f'{i}, layout = \"{rule_layout}\"' for i in range(1, 11)]
-with open(path, 'w') as f: f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f: f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 "
 
 # Regenerate Lua config and reload

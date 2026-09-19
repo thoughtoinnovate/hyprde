@@ -185,7 +185,7 @@
 
 tooltip {
     background-color: alpha(@theme_tooltip_bg, 0.8);
-    border: 1px solid @theme_border_color;
+    border: 1px solid @theme_border_color; /* SETTINGS_BAR_OPACITY */
     border-radius: 10px;
 }
 
@@ -199,17 +199,30 @@ tooltip label {
     padding: 0px 12px;
     color: alpha(@theme_base_fg, 0.4);
     transition: all 0.3s ease;
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 
 #workspaces button.active {
     color: @theme_base_fg;
     font-weight: 700;
+    border: none;
+    box-shadow: none;
 }
 
 #workspaces button:hover {
     color: @theme_base_fg;
     background: alpha(@theme_base_fg, 0.1);
     border-radius: 10px;
+    border: none;
+    box-shadow: none;
+}
+
+/* Session (user) icon: symmetric padding, identical on hover, so the
+ * background pill stays centered on the glyph instead of shifting. */
+#leftActions #custom-session, #leftActions #custom-session:hover {
+    padding: 3px 6px;
 }
 
 #statusbar .critical {

@@ -46,8 +46,9 @@ if "nightlight" not in data:
     data["nightlight"] = tomlkit.table()
 data["nightlight"]["mode"] = mode
 data["nightlight"]["enabled"] = (mode != "off")
-with open(path, 'w') as f:
-    f.write(tomlkit.dumps(data))
+with open(path + ".tmp", 'w') as f:
+    f.write(tomlkit.dumps(data)); f.flush(); os.fsync(f.fileno())
+os.replace(path + ".tmp", path)
 PYEOF
   ); then
       log_msg "failed to persist state '$mode': $err"

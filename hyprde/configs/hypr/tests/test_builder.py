@@ -869,6 +869,54 @@ class TestPowerToggles(unittest.TestCase):
         self.assertTrue(any("screen_off" in w or "lock" in w for w in warnings))
 
 
+# 365-byte stub that once bricked a live session (valid TOML, but only
+# general/rules/nightlight — no binds, no programs, no autostart).
+STUB_TOML = b'''[general]
+layout = "dwindle"
+
+[rules]
+workspace = ["1, layout = \\"dwindle\\""]
+
+[nightlight]
+mode = "auto"
+enabled = true
+'''
+
+
+class TestTomlGuard(unittest.TestCase):
+    """Builder must never emit outputs from a truncated TOML."""
+
+    def test_stub_untrustworthy(self):
+        import tomllib
+        self.assertFalse(build_config.toml_trustworthy(tomllib.loads(STUB_TOML.decode())))
+
+    def test_empty_untrustworthy(self):
+        self.assertFalse(build_config.toml_trustworthy({}))
+
+    def test_full_trustworthy(self):
+        self.assertTrue(build_config.toml_trustworthy(
+            {"binds": {"mainMod": "SUPER"}, "programs": {"terminal": "kitty"}}))
+
+    def test_main_aborts_on_stub_without_writing(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as f:
+            f.write(STUB_TOML)
+            stub_path = f.name
+        try:
+            with patch.object(build_config, "TOML_FILE", stub_path), \
+                 patch.object(build_config, "atomic_write") as mock_write:
+                self.assertEqual(build_config.main(), 1)
+                mock_write.assert_not_called()
+        finally:
+            os.unlink(stub_path)
+
+    def test_main_aborts_on_missing_file_without_writing(self):
+        with patch.object(build_config, "TOML_FILE", "/nonexistent/hyprde.toml"), \
+             patch.object(build_config, "atomic_write") as mock_write:
+            self.assertEqual(build_config.main(), 1)
+            mock_write.assert_not_called()
+
+
 class TestSuiteIsolation(unittest.TestCase):
     """Guard: the suite must never write to the live ~/.config/hypr."""
 
