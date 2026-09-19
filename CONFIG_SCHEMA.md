@@ -302,7 +302,7 @@ power_button_longpress = "hibernate"  # hold ~2s (5s hold is hardware force-off)
 
 Env overrides: `HYPRDE_SUSPEND_ENABLED/TIMEOUT/MODE`, `HYPRDE_HIBERNATE_ENABLED`,
 `HYPRDE_LOCK_BEFORE_SLEEP`, `HYPRDE_LID_ACTION`, `HYPRDE_POWER_ACTION`,
-`HYPRDE_POWER_LONGPRESS`. Lid/power install via the Settings Install button
+`HYPRDE_POWER_LONGPRESS`. Lid/power install happens through Settings Apply (password prompt)
 (password copies the drop-in; active at next login).
 
 ### wake

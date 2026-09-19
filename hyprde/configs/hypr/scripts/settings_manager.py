@@ -207,7 +207,6 @@ DESCRIPTIONS = {
     "Lid close": "What closing the lid does. Hibernate needs swap; wakes with power only.",
     "Power button": "What a short power press does. Wake by pressing power again.",
     "Power hold": "What holding power ~2s does. A ~5s hold is hardware force-off.",
-    "Install system rules": "Copy lid/power + wake rules to system (needs password, active next login).",
     "DPMS on wake": "Turn the display back on after resume.",
     "Restore brightness": "Restore screen and keyboard brightness after resume.",
     "Ask password on wake": "Require the lock-screen password after resume.",
@@ -1704,8 +1703,6 @@ class SettingsManager(Gtk.Window):
         fp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fp.get_style_context().add_class("group-frame")
         self.widgets['power_status'] = Gtk.Label(); self.widgets['power_status'].set_halign(Gtk.Align.START); self.widgets['power_status'].set_line_wrap(True)
         fp.pack_start(self.create_row("System rules", self.widgets['power_status']), False, False, 0)
-        self.widgets['power_install_btn'] = Gtk.Button(label="Install system rules"); self.widgets['power_install_btn'].get_style_context().add_class("picker"); self.widgets['power_install_btn'].connect("clicked", self.on_install_power_rules)
-        fp.pack_start(self.create_row("Install system rules", self.widgets['power_install_btn']), False, False, 0)
         v.pack_start(fp, False, False, 0)
         self.refresh_power_status()
         fw = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); fw.get_style_context().add_class("group-frame")
@@ -1797,44 +1794,41 @@ class SettingsManager(Gtk.Window):
         except Exception as e:
             logger.warning(f"Power status refresh failed: {e}")
 
-    def on_install_power_rules(self, btn):
-        """Copy staged lid/power + wake files to system paths (pkexec)."""
-        btn.set_sensitive(False)
-        threading.Thread(target=self._install_power_worker, daemon=True).start()
+    def _install_system_rules(self):
+        """Copy staged lid/power + wake files to system paths (pkexec).
 
-    def _install_power_worker(self):
+        Called from the Apply worker when [sleep]/[wake] changed, so one
+        Apply covers everything. Returns True on success. A cancelled or
+        failed prompt is non-fatal: home settings stay applied.
+        """
         home = os.path.expanduser("~")
-        staged_dropin = os.path.join(home, ".config/hypr/hyprde-lid-power.conf")
-        staged_script = os.path.join(home, ".config/hypr/hyprde-wake-sources.sh")
-        staged_unit = os.path.join(home, ".config/hypr/hyprde-wake-sources.service")
-        cmd = (
-            "cp -f '{}' /etc/systemd/logind.conf.d/hyprde-lid-power.conf && "
-            "cp -f '{}' /usr/local/bin/hyprde-wake-sources.sh && "
-            "chmod 755 /usr/local/bin/hyprde-wake-sources.sh && "
-            "cp -f '{}' /etc/systemd/system/hyprde-wake-sources.service && "
-            "systemctl enable hyprde-wake-sources.service"
-        ).format(staged_dropin, staged_script, staged_unit)
+        staged = [
+            (os.path.join(home, ".config/hypr/hyprde-lid-power.conf"),
+             "/etc/systemd/logind.conf.d/hyprde-lid-power.conf"),
+            (os.path.join(home, ".config/hypr/hyprde-wake-sources.sh"),
+             "/usr/local/bin/hyprde-wake-sources.sh"),
+            (os.path.join(home, ".config/hypr/hyprde-wake-sources.service"),
+             "/etc/systemd/system/hyprde-wake-sources.service"),
+        ]
+        missing = [src for src, _ in staged if not os.path.exists(src)]
+        if missing:
+            logger.warning(f"System rules install skipped, staged files missing: {missing}")
+            return False
+        cmd = ("cp -f '{}' /etc/systemd/logind.conf.d/hyprde-lid-power.conf && "
+               "cp -f '{}' /usr/local/bin/hyprde-wake-sources.sh && "
+               "chmod 755 /usr/local/bin/hyprde-wake-sources.sh && "
+               "cp -f '{}' /etc/systemd/system/hyprde-wake-sources.service && "
+               "systemctl enable hyprde-wake-sources.service").format(
+                   staged[0][0], staged[1][0], staged[2][0])
         try:
             rc = subprocess.run(["pkexec", "sh", "-c", cmd],
-                                capture_output=True, timeout=120)
+                                capture_output=True, timeout=180)
             ok = rc.returncode == 0
-            msg = "Installed — active at next login." if ok else "Install failed or cancelled."
-            logger.info(f"Power rules install: rc={rc.returncode}")
+            logger.info(f"System rules install via Apply: rc={rc.returncode}")
+            return ok
         except Exception as e:
-            ok, msg = False, f"Install error: {e}"
-            logger.error(msg)
-        GLib.idle_add(self._on_install_power_done, ok, msg)
-
-    def _on_install_power_done(self, ok, msg):
-        if 'power_install_btn' in self.widgets:
-            self.widgets['power_install_btn'].set_sensitive(True)
-        self.refresh_power_status()
-        try:
-            subprocess.run(["notify-send", "-t", "4000", "HyprDE Settings", msg],
-                           capture_output=True, timeout=5)
-        except Exception:
-            pass
-        return False
+            logger.warning(f"System rules install failed: {e}")
+            return False
 
     def build_nightlight(self):
         v = self.build_page_vbox("Eye Care")
@@ -2696,8 +2690,17 @@ class SettingsManager(Gtk.Window):
                 except Exception as e:
                     logger.warning(f"Could not restart hypridle: {e}")
                 subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'], capture_output=True, timeout=10)
-                logger.info("Restarted hypridle after idle/sleep/wake change; logind lid/power needs sudo install from hyprde-lid-power.conf")
-            subprocess.run(["notify-send", "Settings Applied", "System updated."],
+                logger.info("Restarted hypridle after idle/sleep/wake change")
+            # Lid/power/wake-source rules live in system folders, so fold their
+            # install into Apply itself (password prompt) when those sections
+            # changed. Skipping (cancelled/failed) leaves home settings applied.
+            sys_msg = ""
+            if changed & {"sleep", "wake"}:
+                if self._install_system_rules():
+                    sys_msg = " System rules installed — active at next login."
+                else:
+                    sys_msg = " System rules not installed (no password) — lid/power/wake-at-boot unchanged."
+            subprocess.run(["notify-send", "Settings Applied", f"System updated.{sys_msg}"],
                            capture_output=True, timeout=5)
             logger.info("Settings applied successfully (sections: %s)",
                         ",".join(sorted(changed)))

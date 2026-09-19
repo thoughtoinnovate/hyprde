@@ -872,7 +872,7 @@ def generate_logind_dropin(data: Dict[str, Any]) -> None:
         logger.warning(f"Unknown power_button_longpress {hold!r}, using hibernate")
         hold = "hibernate"
     content = (
-        "# HyprDE lid/power mapping — install with the Settings Install button\n"
+        "# HyprDE lid/power mapping — installed by Settings Apply (password prompt)\n"
         "# (copies to /etc/systemd/logind.conf.d/, active at next login).\n"
         "# NOTE: hibernate needs swap >= RAM and 'systemctl hibernate' tested.\n"
         "# Hibernate wakes with power button only; sleep wakes with power + keys.\n"
@@ -896,7 +896,7 @@ def generate_wake_sources(data: Dict[str, Any]) -> None:
 
     Toggles XHC (keyboard/mouse) and LID0 (lid open). The power button always
     wakes (hardware) and hibernate wakes power-only regardless of these.
-    Install with the Settings Install button (system unit, needs password).
+    Installed by Settings Apply (password prompt).
     """
     data = inject_defaults(dict(data))
     wake = data.get("wake", {})
@@ -905,7 +905,7 @@ def generate_wake_sources(data: Dict[str, Any]) -> None:
 
     script = (
         "#!/bin/bash\n"
-        "# HyprDE wake sources — install via Settings Install button.\n"
+        "# HyprDE wake sources — installed by Settings Apply (password prompt).\n"
         "# Runs at boot (hyprde-wake-sources.service); wakeup state resets each boot.\n"
         "set_state() {\n"
         '    local dev="$1" want="$2" cur=""\n'
@@ -923,7 +923,7 @@ def generate_wake_sources(data: Dict[str, Any]) -> None:
         logger.warning(f"Could not chmod {WAKE_SCRIPT}: {e}")
 
     unit = (
-        "# HyprDE wake sources — install via Settings Install button:\n"
+        "# HyprDE wake sources — installed by Settings Apply (password prompt):\n"
         "#   sudo cp hyprde-wake-sources.sh /usr/local/bin/\n"
         "#   sudo cp hyprde-wake-sources.service /etc/systemd/system/\n"
         "#   sudo systemctl enable hyprde-wake-sources.service\n"
