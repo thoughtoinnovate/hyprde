@@ -781,6 +781,49 @@ class TestBuildConfigHyprrocketOptions(unittest.TestCase):
             {"devices": {}, "permission": [], "group": {}, "ecosystem": {}})
         self.assertFalse(any("Unknown section" in w for w in warnings))
 
+    def test_write_if_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "unit.timer")
+            self.assertTrue(build_config._write_if_changed(path, "a"))
+            mtime = os.path.getmtime(path)
+            self.assertFalse(build_config._write_if_changed(path, "a"))
+            self.assertEqual(os.path.getmtime(path), mtime)
+            self.assertTrue(build_config._write_if_changed(path, "b"))
+
+    def _rocket_data(self):
+        return {"hyprrocket": {"enabled": True, "events": {
+            "work": {"trigger": "09:00", "actions": ["true"]},
+        }}}
+
+    def _systemd_calls(self, mock_run):
+        return [" ".join(c.args[0]) for c in mock_run.call_args_list
+                if c.args and isinstance(c.args[0], list)
+                and c.args[0][0] == "systemctl"]
+
+    def test_no_reload_or_enable_when_unchanged_and_active(self):
+        from types import SimpleNamespace
+
+        def fake_run(cmd, **kw):
+            if "is-enabled" in cmd:
+                return SimpleNamespace(returncode=0, stdout=b"enabled\n")
+            if "is-active" in cmd:
+                return SimpleNamespace(returncode=0, stdout=b"active\n")
+            return SimpleNamespace(returncode=0, stdout=b"")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("os.path.expanduser", return_value=tmp):
+                with patch("subprocess.run") as mock_run:
+                    build_config.generate_hyrocket_systemd_units(self._rocket_data())
+                    first = self._systemd_calls(mock_run)
+                    self.assertTrue(any("daemon-reload" in c for c in first))
+                    self.assertTrue(any("enable --now" in c for c in first))
+                with patch("subprocess.run", side_effect=fake_run) as mock_run:
+                    build_config.generate_hyrocket_systemd_units(self._rocket_data())
+                    second = self._systemd_calls(mock_run)
+                    self.assertFalse(any("daemon-reload" in c for c in second))
+                    self.assertFalse(any("enable --now" in c for c in second))
+                    self.assertFalse(any("disable --now" in c for c in second))
+
 
 class TestPowerToggles(unittest.TestCase):
     """Tests for idle/sleep/wake toggles, logind drop-in and env overrides."""

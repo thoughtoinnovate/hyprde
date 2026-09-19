@@ -82,11 +82,15 @@ set_theme() {
             ln -sf "$MAKO_DIR/config.dark" "$MAKO_DIR/config"
         fi
         
-        # Robust restart for systemd-managed Mako
-        if systemctl --user is-active --quiet mako; then
-            systemctl --user restart mako
+        # Single mako owner: a stray manual instance plus the user unit fight
+        # over org.freedesktop.Notifications ("Two services allocated...").
+        # Prefer the unit when it exists; manual spawn only as fallback.
+        if systemctl --user list-unit-files 2>/dev/null | grep -q "^mako"; then
+            pkill -9 mako 2>/dev/null || true
+            sleep 0.2
+            systemctl --user restart mako 2>/dev/null || true
         else
-            pkill -9 mako 2>/dev/null
+            pkill -9 mako 2>/dev/null || true
             sleep 0.2
             mako --config "$MAKO_DIR/config" > /dev/null 2>&1 &
         fi

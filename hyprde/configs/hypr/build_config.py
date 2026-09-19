@@ -962,6 +962,7 @@ def generate_hyrocket_systemd_units(data: Dict[str, Any]) -> None:
 
     enabled_timers = []
     disabled_timers = []
+    units_changed = False
     for name, ev in events.items():
         if not isinstance(ev, dict):
             logger.warning(f"HyprRocket event '{name}' is not a table — skipped.")
@@ -1000,7 +1001,7 @@ Type=oneshot
 ExecStart=%h/.config/hypr/scripts/hyprrocket.sh --trigger {name}
 """
         service_path = os.path.join(systemd_dir, f"hyprrocket@{name}.service")
-        atomic_write(service_path, service_content)
+        units_changed = _write_if_changed(service_path, service_content) or units_changed
 
         timer_content = f"""[Unit]
 Description=HyprRocket {name} - Event Bus Timer
@@ -1013,14 +1014,17 @@ Persistent=true
 WantedBy=timers.target
 """
         timer_path = os.path.join(systemd_dir, f"hyprrocket@{name}.timer")
-        atomic_write(timer_path, timer_content)
+        units_changed = _write_if_changed(timer_path, timer_content) or units_changed
         enabled_timers.append(f"hyprrocket@{name}.timer")
 
     logger.info(f"Generated HyprRocket systemd units in {systemd_dir}")
 
     # Disable timers for events with enabled=false (stale units from
-    # previous runs must not keep firing).
+    # previous runs must not keep firing). Skip ones already disabled so
+    # Apply doesn't churn systemd on every run.
     for timer in disabled_timers:
+        if _unit_enabled(timer) is False:
+            continue
         try:
             subprocess.run(
                 ["systemctl", "--user", "disable", "--now", timer],
@@ -1030,18 +1034,20 @@ WantedBy=timers.target
         except Exception as e:
             logger.warning(f"Could not disable {timer}: {e}")
 
-    # Reload + enable timers when systemd user instance is available.
-    for timer in enabled_timers:
+    # Single daemon-reload, and only when unit files actually changed.
+    if units_changed:
         try:
             subprocess.run(
                 ["systemctl", "--user", "daemon-reload"],
                 capture_output=True, timeout=10,
             )
-            break
         except Exception as e:
             logger.warning(f"systemctl daemon-reload failed: {e}")
             return
     for timer in enabled_timers:
+        # Skip timers already enabled + active: no churn, no reload storm.
+        if _unit_enabled(timer) and _unit_active(timer):
+            continue
         try:
             subprocess.run(
                 ["systemctl", "--user", "enable", "--now", timer],
@@ -1050,6 +1056,41 @@ WantedBy=timers.target
             logger.info(f"Enabled HyprRocket timer: {timer}")
         except Exception as e:
             logger.warning(f"Could not enable {timer}: {e}")
+
+def _write_if_changed(path: str, content: str) -> bool:
+    """Write content only when it differs. Returns True when changed."""
+    try:
+        with open(path, "r") as f:
+            if f.read() == content:
+                return False
+    except OSError:
+        pass
+    atomic_write(path, content)
+    return True
+
+
+def _unit_enabled(unit: str) -> Optional[bool]:
+    """True/False via `is-enabled`, None when systemd is unreachable."""
+    try:
+        r = subprocess.run(["systemctl", "--user", "is-enabled", unit],
+                           capture_output=True, timeout=10)
+        if r.returncode == 0:
+            return r.stdout.decode().strip() == "enabled"
+        return False if "disabled" in r.stdout.decode() else None
+    except Exception:
+        return None
+
+
+def _unit_active(unit: str) -> Optional[bool]:
+    """True/False via `is-active`, None when systemd is unreachable."""
+    try:
+        r = subprocess.run(["systemctl", "--user", "is-active", unit],
+                           capture_output=True, timeout=10)
+        if r.returncode == 0:
+            return r.stdout.decode().strip() == "active"
+        return False
+    except Exception:
+        return None
 
 def generate_css_overrides(data: Dict[str, Any]) -> None:
     decoration = data.get("decoration", {})

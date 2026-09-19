@@ -6,6 +6,7 @@ import logging
 import atexit
 import fcntl
 import subprocess
+import json
 import re
 import threading
 import traceback
@@ -2656,7 +2657,40 @@ class SettingsManager(Gtk.Window):
             # this, Apply updates files but the running session keeps old
             # values (e.g. gaps, borders, opacity, layout).
             if changed & LUA_SECTIONS:
-                subprocess.run(["hyprctl", "reload"], capture_output=True, timeout=30)
+                try:
+                    cur = subprocess.run(["brightnessctl", "g"],
+                                         capture_output=True, timeout=10)
+                    mx = subprocess.run(["brightnessctl", "m"],
+                                        capture_output=True, timeout=10)
+                    logger.info(
+                        "Pre-reload display state: brightness=%s/%s",
+                        cur.stdout.decode(errors="replace").strip(),
+                        mx.stdout.decode(errors="replace").strip())
+                except Exception as e:
+                    logger.warning(f"Pre-reload brightness probe failed: {e}")
+                rc = subprocess.run(["hyprctl", "reload"],
+                                    capture_output=True, timeout=30)
+                if rc.returncode != 0:
+                    err = rc.stderr.decode(errors="replace")[:300]
+                    logger.error(f"hyprctl reload failed (rc={rc.returncode}): {err}")
+                    GLib.idle_add(self._on_apply_error,
+                                  f"Hyprland reload failed — config left as rebuilt, session untouched: {err}")
+                    return
+                # Settle, then verify the compositor is still painting before
+                # any follow-up step touches the session again.
+                time.sleep(10)
+                try:
+                    probe = subprocess.run(["hyprctl", "monitors", "-j"],
+                                           capture_output=True, timeout=15)
+                    mons = json.loads(probe.stdout.decode())
+                    dpms = [(m.get("name"), m.get("dpmsStatus")) for m in mons]
+                    logger.info(f"Post-reload probe: monitors={dpms}")
+                    if not mons or not all(m.get("dpmsStatus", True) for m in mons):
+                        logger.warning("Post-reload probe: display not on — pulsing dpms on")
+                        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms("on")'],
+                                       capture_output=True, timeout=10)
+                except Exception as e:
+                    logger.warning(f"Post-reload probe failed: {e}")
 
             # Wallpaper engine only when [wallpapers] changed — restarting it
             # otherwise snaps a manually-picked wallpaper back to the TOML one.
