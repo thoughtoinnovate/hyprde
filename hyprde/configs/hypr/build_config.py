@@ -666,7 +666,11 @@ def generate_hyprpaper_conf(data: Dict[str, Any]) -> None:
         else:
             content.append(f"wallpaper = ,{path}")
 
-    atomic_write(HYPRPAPER_CONF, "\n".join(content) + "\n")
+    # Write only on change: hyprpaper hot-reloads its config file, so an
+    # identical rewrite still unloads/re-decodes wallpapers (black flash on
+    # every Apply — the universal Apply-to-black RCA).
+    if not _write_if_changed(HYPRPAPER_CONF, "\n".join(content) + "\n"):
+        logger.info("hyprpaper.conf unchanged — skipped (no hot-reload)")
 
 def generate_hyprlock_conf(data: Dict[str, Any]) -> None:
     logger.info(f"Generating hyprlock config at {HYPRLOCK_CONF}...")

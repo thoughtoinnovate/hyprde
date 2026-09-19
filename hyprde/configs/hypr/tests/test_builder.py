@@ -821,6 +821,22 @@ class TestBuildConfigHyprrocketOptions(unittest.TestCase):
             {"monitors": {"rules": ["eDP-1, 1920x1080@60.052, auto, 1"]}})
         self.assertTrue(any("60.05" in w or "decimal" in w for w in warnings))
 
+    def test_hyprpaper_rewrite_skipped_when_unchanged(self):
+        """hyprpaper hot-reloads its conf: identical rewrite = black flash."""
+        import json
+        data = {"wallpapers": {"mode": "fixed",
+                               "fixed": {"type": "image", "image": "/tmp/w.png"},
+                               "path": "/tmp/"}}
+        mons = json.dumps([{"name": "eDP-1"}])
+        with tempfile.TemporaryDirectory() as tmp:
+            conf = os.path.join(tmp, "hyprpaper.conf")
+            with patch.object(build_config, "HYPRPAPER_CONF", conf):
+                with patch("subprocess.check_output", return_value=mons):
+                    build_config.generate_hyprpaper_conf(data)
+                    mtime = os.path.getmtime(conf)
+                    build_config.generate_hyprpaper_conf(data)
+                    self.assertEqual(os.path.getmtime(conf), mtime)
+
     def test_write_if_changed(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "unit.timer")

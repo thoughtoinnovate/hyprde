@@ -91,6 +91,26 @@ apply_wallpaper() {
             hyprctl hyprpaper wallpaper "$monitor,$wp" >> "$LOG_FILE" 2>&1
         done
     fi
+
+    # Verify the wallpaper actually landed; a silent IPC failure leaves a
+    # black background that looks exactly like a dead display. Retry once,
+    # then fail loudly instead of declaring success.
+    sleep 1
+    if hyprctl hyprpaper listactive 2>/dev/null | grep -qF "$wp"; then
+        log "Verified active wallpaper: $wp"
+    else
+        log "WARNING: wallpaper not active after switch, retrying once: $wp"
+        for monitor in ${monitors:-,}; do
+            hyprctl hyprpaper wallpaper "$monitor,$wp" >> "$LOG_FILE" 2>&1
+        done
+        sleep 1
+        if hyprctl hyprpaper listactive 2>/dev/null | grep -qF "$wp"; then
+            log "Verified active wallpaper on retry: $wp"
+        else
+            log "ERROR: wallpaper still not active (black background likely): $wp"
+            notify-send -t 5000 "HyprDE Wallpaper" "Wallpaper failed to apply — check $wp" 2>/dev/null || true
+        fi
+    fi
 }
 
 # Handle single image mode
