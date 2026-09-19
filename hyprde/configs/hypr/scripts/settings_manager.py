@@ -1225,6 +1225,43 @@ class SettingsManager(Gtk.Window):
             "hyprrocket", "hyprrocket.events",
         ):
             self._ensure_table(section)
+        self._canonicalize_doc()
+
+    def _canonicalize_doc(self):
+        """Rewrite volatile formatting exactly as Apply-collect would.
+
+        Change detection compares dumps before/after, so load-time form must
+        match collect-time form or untouched sections look dirty on every
+        Apply (causing a reload + all restarts for a lock-wallpaper tweak).
+        In-memory only — persisted solely via the normal Apply flow.
+        """
+        try:
+            rules = self.doc.get("monitors", {}).get("rules", [])
+            if isinstance(rules, list):
+                # Mirror collect: pad to 4 parts, then force the first rule's
+                # scale (the "Global UI Scale" widget default) onto every rule.
+                parts0 = [p.strip() for p in rules[0].split(",")] if rules and isinstance(rules[0], str) else []
+                scale = parts0[3] if len(parts0) >= 4 else "1.0"
+                fixed = []
+                for r in rules:
+                    if not isinstance(r, str):
+                        fixed.append(r)
+                        continue
+                    parts = [p.strip() for p in r.split(",")]
+                    while len(parts) < 4:
+                        parts.append("1.0")
+                    parts[3] = scale
+                    fixed.append(", ".join(parts))
+                self.doc["monitors"]["rules"] = fixed
+        except Exception:
+            pass
+        try:
+            lua_lines = self.doc.get("custom", {}).get("lua_lines", [])
+            if isinstance(lua_lines, list):
+                self.doc["custom"]["lua_lines"] = [
+                    l for l in lua_lines if isinstance(l, str) and l.strip()]
+        except Exception:
+            pass
 
     def _accent_to_hex(self, color):
         """Normalize a CSS color (#hex, rgb(), rgba()) to RRGGBB hex."""
@@ -2624,15 +2661,19 @@ class SettingsManager(Gtk.Window):
                 f.write(snapshot["config_str"])
 
             # Fan out the accent color to every component (theme CSS vars,
-            # wofi selection, notif borders, Mako). Non-fatal on failure.
-            accent_rc = subprocess.run(
-                ["sh", os.path.expanduser("~/.config/hypr/scripts/apply-accent.sh"),
-                 snapshot["accent_hex"]],
-                capture_output=True, timeout=30)
-            if accent_rc.returncode != 0:
-                logger.warning(
-                    "apply-accent.sh failed: %s",
-                    accent_rc.stderr.decode(errors="replace")[:300])
+            # wofi selection, notif borders, Mako). Only when the theme
+            # section actually changed — the script flips GTK theme states
+            # and every unrelated Apply would flicker all GTK apps for nothing.
+            # Non-fatal on failure.
+            if "theme" in changed:
+                accent_rc = subprocess.run(
+                    ["sh", os.path.expanduser("~/.config/hypr/scripts/apply-accent.sh"),
+                     snapshot["accent_hex"]],
+                    capture_output=True, timeout=30)
+                if accent_rc.returncode != 0:
+                    logger.warning(
+                        "apply-accent.sh failed: %s",
+                        accent_rc.stderr.decode(errors="replace")[:300])
 
             # Update current.css symlink to match mode
             themes_dir = os.path.expanduser("~/.config/hypr/themes")
@@ -2720,7 +2761,10 @@ class SettingsManager(Gtk.Window):
                                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             # Idle/sleep/wake: hypridle only reads config at startup, so restart
             # it (and pulse dpms on so we never stay stuck black after disabling).
-            if changed & {"idle", "sleep", "wake", "lockscreen"}:
+            # NOTE: lockscreen is deliberately excluded — hyprlock reads its
+            # conf at next lock, so lock-wallpaper tweaks need no daemon
+            # restart and no display pulses at all.
+            if changed & {"idle", "sleep", "wake"}:
                 subprocess.run(["pkill", "-x", "hypridle"], capture_output=True)
                 time.sleep(0.5)
                 try:
