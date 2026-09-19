@@ -5,7 +5,15 @@ case $1 in
 	brightnessctl set +5%
 	;;
 	--dec)
-	brightnessctl set 5%-
+	# Floor at 10%: mashing decrease on a dark screen otherwise drives the
+	# panel to true black with no visible feedback (reads as dead display).
+	max=$(brightnessctl m 2>/dev/null); cur=$(brightnessctl get 2>/dev/null)
+	floor=$(( ${max:-7500} * 10 / 100 ))
+	if [ -n "$cur" ] && [ "$cur" -le $(( floor + ${max:-7500} * 5 / 100 )) ]; then
+		brightnessctl set "$floor"
+	else
+		brightnessctl set 5%-
+	fi
 esac
 
 # Send notifications to mako
