@@ -24,7 +24,12 @@ else
     grim "$FILENAME"
 fi
 
+# Copy to clipboard
+if [ -f "$FILENAME" ]; then
+    wl-copy < "$FILENAME"
+fi
+
 # Notify the user
 if [ "$?" == "0" ]; then
-notify-send "Screenshot saved to $FILENAME"
+notify-send "Screenshot saved and copied to clipboard: $FILENAME"
 fi

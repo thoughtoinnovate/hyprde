@@ -18,6 +18,7 @@ typedef struct {
 typedef struct {
     int enabled; int autohide; char **apps; int apps_count; int icon_size;
     char *bg_color; int rounding; int margin; int padding; char *position;
+    char *accent_color;
 } DockConfig;
 
 typedef struct {
@@ -252,34 +253,167 @@ void on_dock_window_size_allocate(GtkWidget *widget, GtkAllocation *alloc, gpoin
     if (dock_hidden) dock_update_input_shape(1);
 }
 
+static void parse_color_rgb(const char *col_str, double *r, double *g, double *b) {
+    *r = 0.0; *g = 0.48; *b = 1.0; /* default apple blue #007aff */
+    if (!col_str) return;
+    while (*col_str == ' ' || *col_str == '\t') col_str++;
+    if (col_str[0] == '#') {
+        unsigned int hex = 0;
+        if (sscanf(col_str + 1, "%x", &hex) == 1) {
+            size_t len = strlen(col_str + 1);
+            if (len >= 6) {
+                *r = ((hex >> 16) & 0xFF) / 255.0;
+                *g = ((hex >> 8) & 0xFF) / 255.0;
+                *b = (hex & 0xFF) / 255.0;
+            }
+        }
+    } else if (g_str_has_prefix(col_str, "rgba(") || g_str_has_prefix(col_str, "rgb(")) {
+        double cr = 0, cg = 0, cb = 0;
+        const char *p = strchr(col_str, '(');
+        if (p && sscanf(p + 1, "%lf , %lf , %lf", &cr, &cg, &cb) >= 3) {
+            *r = (cr > 1.0) ? (cr / 255.0) : cr;
+            *g = (cg > 1.0) ? (cg / 255.0) : cg;
+            *b = (cb > 1.0) ? (cb / 255.0) : cb;
+        }
+    }
+}
+
+static gboolean animate_icon_scale(gpointer data) {
+    GtkWidget *img = GTK_WIDGET(data);
+    if (!GTK_IS_WIDGET(img)) return FALSE;
+
+    int target = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(img), "target_scale"));
+    int current = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(img), "current_scale"));
+    if (current == 0) current = 100;
+
+    if (current < target) {
+        current += 4;
+        if (current > target) current = target;
+    } else if (current > target) {
+        current -= 4;
+        if (current < target) current = target;
+    }
+
+    g_object_set_data(G_OBJECT(img), "current_scale", GINT_TO_POINTER(current));
+    gtk_widget_queue_draw(img);
+
+    if (current == target) {
+        g_object_set_data(G_OBJECT(img), "anim_timer", GUINT_TO_POINTER(0));
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static int label_target_x = 0;
+static int label_target_y = 0;
+
+static gboolean on_overlay_get_child_position(GtkOverlay *overlay, GtkWidget *widget, GdkRectangle *allocation, gpointer user_data) {
+    (void)overlay; (void)user_data;
+    if (widget == dock_label) {
+        GtkRequisition req;
+        gtk_widget_get_preferred_size(dock_label, NULL, &req);
+        allocation->x = label_target_x;
+        allocation->y = label_target_y;
+        allocation->width = req.width;
+        allocation->height = req.height;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static gboolean on_dock_img_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+    (void)user_data;
+    int current = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "current_scale"));
+    if (current > 100) {
+        double factor = (current - 100) / 28.0;
+        if (factor > 1.0) factor = 1.0;
+        double scale = 1.0 + 0.28 * factor;
+        GtkAllocation alloc;
+        gtk_widget_get_allocation(widget, &alloc);
+        double cx = alloc.width / 2.0;
+        double cy = alloc.height / 2.0;
+
+        double ar, ag, ab;
+        parse_color_rgb(dock_config.accent_color, &ar, &ag, &ab);
+
+        // Apply scale transform centered at (cx, cy)
+        cairo_translate(cr, cx, cy);
+        cairo_scale(cr, scale, scale);
+
+        double r = (dock_config.icon_size * 0.50);
+
+        // 1. Dual-layer 3D drop shadow (ambient depth under the glass bubble)
+        cairo_save(cr);
+        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.16 * factor);
+        cairo_arc(cr, 0.0, 3.5, r + 1.0, 0, 2 * G_PI);
+        cairo_fill(cr);
+        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.26 * factor);
+        cairo_arc(cr, 0.0, 2.0, r, 0, 2 * G_PI);
+        cairo_fill(cr);
+        cairo_restore(cr);
+
+        // 2. Translucent Accent Glass Body
+        cairo_save(cr);
+        cairo_pattern_t *glass_pat = cairo_pattern_create_radial(-r * 0.25, -r * 0.30, 2.0, 0.0, 0.0, r);
+        cairo_pattern_add_color_stop_rgba(glass_pat, 0.0, ar + (1.0 - ar) * 0.40, ag + (1.0 - ag) * 0.40, ab + (1.0 - ab) * 0.40, 0.42 * factor);
+        cairo_pattern_add_color_stop_rgba(glass_pat, 1.0, ar, ag, ab, 0.25 * factor);
+        cairo_set_source(cr, glass_pat);
+        cairo_arc(cr, 0.0, 0.0, r, 0, 2 * G_PI);
+        cairo_fill(cr);
+        cairo_pattern_destroy(glass_pat);
+
+        // 3. Glass Rim / Specular highlight border
+        cairo_pattern_t *rim_pat = cairo_pattern_create_linear(-r * 0.7, -r * 0.7, r * 0.7, r * 0.7);
+        cairo_pattern_add_color_stop_rgba(rim_pat, 0.0, 1.0, 1.0, 1.0, 0.65 * factor);
+        cairo_pattern_add_color_stop_rgba(rim_pat, 0.6, ar, ag, ab, 0.45 * factor);
+        cairo_pattern_add_color_stop_rgba(rim_pat, 1.0, 1.0, 1.0, 1.0, 0.15 * factor);
+        cairo_set_source(cr, rim_pat);
+        cairo_set_line_width(cr, 1.0);
+        cairo_arc(cr, 0.0, 0.0, r, 0, 2 * G_PI);
+        cairo_stroke(cr);
+        cairo_pattern_destroy(rim_pat);
+        cairo_restore(cr);
+
+        // 4. Map icon back to widget origin so GTK draws it centered at (cx, cy)
+        cairo_translate(cr, -cx, -cy);
+    }
+    return FALSE;
+}
+
 gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
     App *app = (App*)user_data;
+    GtkWidget *child = gtk_bin_get_child(GTK_BIN(widget));
+    if (child && GTK_IS_IMAGE(child)) {
+        g_object_set_data(G_OBJECT(child), "target_scale", GINT_TO_POINTER(128));
+        guint timer_id = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(child), "anim_timer"));
+        if (!timer_id) {
+            timer_id = g_timeout_add(16, animate_icon_scale, child);
+            g_object_set_data(G_OBJECT(child), "anim_timer", GUINT_TO_POINTER(timer_id));
+        }
+    }
     if (app && dock_label) {
         gtk_label_set_text(GTK_LABEL(dock_label), app->name);
         GtkAllocation alloc; gtk_widget_get_allocation(widget, &alloc);
         int x, y; gtk_widget_translate_coordinates(widget, gtk_widget_get_parent(dock_shelf), 0, 0, &x, &y);
         GtkRequisition req; gtk_widget_get_preferred_size(dock_label, NULL, &req);
-        gtk_widget_set_margin_start(dock_label, 0); gtk_widget_set_margin_top(dock_label, 0);
+        int shelf_w = gtk_widget_get_allocated_width(dock_shelf);
+        int shelf_h = gtk_widget_get_allocated_height(dock_shelf);
         
-        if (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) {
-            int max_y = gtk_widget_get_allocated_height(gtk_widget_get_parent(dock_shelf)) - req.height;
-            int target_y = y + (alloc.height / 2) - (req.height / 2);
-            if (target_y < 0) target_y = 0;
-            if (target_y > max_y && max_y > 0) target_y = max_y;
-            gtk_widget_set_margin_top(dock_label, target_y);
-            
-            if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_start(dock_label, x + alloc.width + 12);
-            else gtk_widget_set_margin_start(dock_label, x - req.width - 12);
+        if (strcmp(dock_config.position, "right") == 0) {
+            label_target_x = x - req.width - 16;
+            label_target_y = y + (alloc.height / 2) - (req.height / 2);
+        } else if (strcmp(dock_config.position, "left") == 0) {
+            label_target_x = x + shelf_w + 16;
+            label_target_y = y + (alloc.height / 2) - (req.height / 2);
+        } else if (strcmp(dock_config.position, "bottom") == 0) {
+            label_target_x = x + (alloc.width / 2) - (req.width / 2);
+            label_target_y = y - req.height - 16;
         } else {
-            int max_x = gtk_widget_get_allocated_width(gtk_widget_get_parent(dock_shelf)) - req.width;
-            int target_x = x + (alloc.width / 2) - (req.width / 2);
-            if (target_x < 0) target_x = 0;
-            if (target_x > max_x && max_x > 0) target_x = max_x;
-            gtk_widget_set_margin_start(dock_label, target_x);
-            
-            if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_top(dock_label, y + alloc.height + 12);
-            else gtk_widget_set_margin_top(dock_label, y - req.height - 12);
+            label_target_x = x + (alloc.width / 2) - (req.width / 2);
+            label_target_y = y + shelf_h + 16;
         }
+        if (label_target_x < 8) label_target_x = 8;
+        if (label_target_y < 8) label_target_y = 8;
         gtk_widget_show(dock_label);
     }
     dock_set_hidden(0);
@@ -287,10 +421,17 @@ gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user
 }
 
 gboolean on_dock_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
-    /* Only the tooltip is owned here; hiding/collapsing is owned by the
-     * window-level leave handler so icon-to-icon moves never collapse input
-     * while the cursor is still inside the dock window. */
-    (void)widget; (void)event; (void)user_data;
+    if (event && event->detail == GDK_NOTIFY_INFERIOR) return FALSE;
+    (void)user_data;
+    GtkWidget *child = gtk_bin_get_child(GTK_BIN(widget));
+    if (child && GTK_IS_IMAGE(child)) {
+        g_object_set_data(G_OBJECT(child), "target_scale", GINT_TO_POINTER(100));
+        guint timer_id = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(child), "anim_timer"));
+        if (!timer_id) {
+            timer_id = g_timeout_add(16, animate_icon_scale, child);
+            g_object_set_data(G_OBJECT(child), "anim_timer", GUINT_TO_POINTER(timer_id));
+        }
+    }
     if (dock_label) gtk_widget_hide(dock_label);
     return FALSE;
 }
@@ -558,6 +699,7 @@ void load_theme_css() {
                 g_free(config.border_color); config.border_color = g_strdup(accent);
                 g_free(config.glow_color); config.glow_color = g_strdup(accent);
                 g_free(config.sel_shadow_color); config.sel_shadow_color = g_strdup(accent);
+                g_free(dock_config.accent_color); dock_config.accent_color = g_strdup(accent);
                 g_free(accent);
             }
         }
@@ -575,6 +717,7 @@ void set_default_config() {
     dock_config.enabled = 0; dock_config.autohide = 0; dock_config.icon_size = 48;
     dock_config.bg_color = g_strdup("rgba(20, 20, 20, 0.8)"); dock_config.rounding = 24;
     dock_config.margin = 10; dock_config.padding = 12; dock_config.position = g_strdup("bottom");
+    dock_config.accent_color = g_strdup("#007aff");
 }
 
 void apply_table_to_config(toml_table_t* table) {
@@ -598,6 +741,15 @@ void load_config() {
         char errbuf[200]; toml_table_t* conf = toml_parse_file(fp, errbuf, sizeof(errbuf));
         fclose(fp);
         if (conf) {
+            toml_table_t* theme = toml_table_in(conf, "theme");
+            if (theme) {
+                toml_datum_t d = toml_string_in(theme, "accent");
+                if (d.ok) {
+                    g_free(dock_config.accent_color);
+                    dock_config.accent_color = g_strdup(d.u.s);
+                    free(d.u.s);
+                }
+            }
             toml_table_t* launcher = toml_table_in(conf, "launcher");
             if (launcher) {
                 apply_table_to_config(launcher);
@@ -615,6 +767,12 @@ void load_config() {
                     d = toml_int_in(dock, "rounding"); if (d.ok) dock_config.rounding = d.u.i;
                     d = toml_int_in(dock, "margin"); if (d.ok) dock_config.margin = d.u.i;
                     d = toml_int_in(dock, "padding"); if (d.ok) dock_config.padding = d.u.i;
+                    toml_datum_t dacc = toml_string_in(dock, "accent");
+                    if (dacc.ok) {
+                        g_free(dock_config.accent_color);
+                        dock_config.accent_color = g_strdup(dacc.u.s);
+                        free(dacc.u.s);
+                    }
                     toml_datum_t ds = toml_string_in(dock, "position"); 
                     if (ds.ok) { 
                         g_free(dock_config.position); 
@@ -898,37 +1056,81 @@ int main(int argc, char *argv[]) {
 
     char *css = NULL;
     if (strcmp(current_mode, "dock") == 0) {
-        gtk_widget_set_halign(centered_box, GTK_ALIGN_CENTER); gtk_widget_set_valign(centered_box, GTK_ALIGN_CENTER);
-        if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_start(centered_box, dock_config.margin);
-        else if (strcmp(dock_config.position, "right") == 0) gtk_widget_set_margin_end(centered_box, dock_config.margin);
-        else if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_top(centered_box, dock_config.margin);
-        else gtk_widget_set_margin_bottom(centered_box, dock_config.margin);
+        if (strcmp(dock_config.position, "left") == 0) {
+            gtk_widget_set_halign(centered_box, GTK_ALIGN_START);
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_FILL);
+        } else if (strcmp(dock_config.position, "right") == 0) {
+            gtk_widget_set_halign(centered_box, GTK_ALIGN_END);
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_FILL);
+        } else if (strcmp(dock_config.position, "top") == 0) {
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_START);
+            gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);
+        } else {
+            gtk_widget_set_valign(centered_box, GTK_ALIGN_END);
+            gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);
+        }
 
-        GtkWidget *overlay = gtk_overlay_new(); gtk_box_pack_start(GTK_BOX(centered_box), overlay, FALSE, FALSE, 0);
         GtkOrientation orient = (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
+        if (orient == GTK_ORIENTATION_VERTICAL) {
+            gtk_widget_set_size_request(centered_box, 320, -1);
+        } else {
+            gtk_widget_set_size_request(centered_box, -1, 320);
+        }
+
+        GtkWidget *overlay = gtk_overlay_new();
+        if (orient == GTK_ORIENTATION_VERTICAL) {
+            gtk_widget_set_size_request(overlay, 320, -1);
+        } else {
+            gtk_widget_set_size_request(overlay, -1, 320);
+        }
+        gtk_box_pack_start(GTK_BOX(centered_box), overlay, TRUE, TRUE, 0);
+        g_signal_connect(overlay, "get-child-position", G_CALLBACK(on_overlay_get_child_position), NULL);
         dock_shelf = gtk_box_new(orient, 0); gtk_widget_set_name(dock_shelf, "dock-shelf");
         if (dock_config.autohide) gtk_widget_set_opacity(dock_shelf, 0.05);
         
-        int buffer = 80;
-        if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_end(dock_shelf, buffer);
-        else if (strcmp(dock_config.position, "right") == 0) gtk_widget_set_margin_start(dock_shelf, buffer);
-        else if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_bottom(dock_shelf, buffer);
-        else gtk_widget_set_margin_top(dock_shelf, buffer);
+        if (orient == GTK_ORIENTATION_VERTICAL) {
+            gtk_widget_set_valign(dock_shelf, GTK_ALIGN_CENTER);
+            if (strcmp(dock_config.position, "left") == 0) {
+                gtk_widget_set_halign(dock_shelf, GTK_ALIGN_START);
+                gtk_widget_set_margin_start(dock_shelf, dock_config.margin);
+            } else {
+                gtk_widget_set_halign(dock_shelf, GTK_ALIGN_END);
+                gtk_widget_set_margin_end(dock_shelf, dock_config.margin);
+            }
+        } else {
+            gtk_widget_set_halign(dock_shelf, GTK_ALIGN_CENTER);
+            if (strcmp(dock_config.position, "top") == 0) {
+                gtk_widget_set_valign(dock_shelf, GTK_ALIGN_START);
+                gtk_widget_set_margin_top(dock_shelf, dock_config.margin);
+            } else {
+                gtk_widget_set_valign(dock_shelf, GTK_ALIGN_END);
+                gtk_widget_set_margin_bottom(dock_shelf, dock_config.margin);
+            }
+        }
 
-        GtkWidget *icons_box = gtk_box_new(orient, 10); gtk_container_set_border_width(GTK_CONTAINER(icons_box), dock_config.padding);
+        int item_slot_size = dock_config.icon_size + 16;
+        GtkWidget *icons_box = gtk_box_new(orient, 8); gtk_container_set_border_width(GTK_CONTAINER(icons_box), dock_config.padding);
         for (GList *l = apps_list; l != NULL; l = l->next) {
             App *app = (App*)l->data;
             GtkWidget *eb = gtk_event_box_new(); gtk_widget_set_name(eb, "dock-item");
+            gtk_event_box_set_visible_window(GTK_EVENT_BOX(eb), FALSE);
             GtkWidget *img = gtk_image_new_from_icon_name(app->icon, GTK_ICON_SIZE_DND);
-            gtk_image_set_pixel_size(GTK_IMAGE(img), dock_config.icon_size); gtk_container_add(GTK_CONTAINER(eb), img);
+            gtk_image_set_pixel_size(GTK_IMAGE(img), dock_config.icon_size);
+            gtk_widget_set_size_request(img, item_slot_size, item_slot_size);
+            g_signal_connect(img, "draw", G_CALLBACK(on_dock_img_draw), NULL);
+            gtk_container_add(GTK_CONTAINER(eb), img);
             g_signal_connect(eb, "button-press-event", G_CALLBACK(on_dock_button_press), app);
             g_signal_connect(eb, "enter-notify-event", G_CALLBACK(on_dock_enter), app);
             g_signal_connect(eb, "leave-notify-event", G_CALLBACK(on_dock_leave), app);
             gtk_box_pack_start(GTK_BOX(icons_box), eb, FALSE, FALSE, 0);
         }
         GtkWidget *add_eb = gtk_event_box_new(); gtk_widget_set_name(add_eb, "dock-item-add");
+        gtk_event_box_set_visible_window(GTK_EVENT_BOX(add_eb), FALSE);
         GtkWidget *add_img = gtk_image_new_from_icon_name("list-add-symbolic", GTK_ICON_SIZE_DND);
-        gtk_image_set_pixel_size(GTK_IMAGE(add_img), dock_config.icon_size); gtk_container_add(GTK_CONTAINER(add_eb), add_img);
+        gtk_image_set_pixel_size(GTK_IMAGE(add_img), dock_config.icon_size);
+        gtk_widget_set_size_request(add_img, item_slot_size, item_slot_size);
+        g_signal_connect(add_img, "draw", G_CALLBACK(on_dock_img_draw), NULL);
+        gtk_container_add(GTK_CONTAINER(add_eb), add_img);
         g_signal_connect(add_eb, "button-press-event", G_CALLBACK(on_add_button_press), NULL);
         g_signal_connect(add_eb, "enter-notify-event", G_CALLBACK(on_dock_enter), NULL);
         g_signal_connect(add_eb, "leave-notify-event", G_CALLBACK(on_dock_leave), NULL);
@@ -937,21 +1139,16 @@ int main(int argc, char *argv[]) {
 
         dock_label = gtk_label_new(""); gtk_widget_set_name(dock_label, "dock-label");
         gtk_label_set_line_wrap(GTK_LABEL(dock_label), TRUE); gtk_label_set_max_width_chars(GTK_LABEL(dock_label), 30);
-        gtk_widget_set_no_show_all(dock_label, TRUE); gtk_widget_set_halign(dock_label, GTK_ALIGN_START);
-        gtk_widget_set_valign(dock_label, GTK_ALIGN_START); gtk_widget_set_can_focus(dock_label, FALSE);
+        gtk_widget_set_no_show_all(dock_label, TRUE);
+        gtk_widget_set_can_focus(dock_label, FALSE);
         gtk_overlay_add_overlay(GTK_OVERLAY(overlay), dock_label);
+        gtk_overlay_set_overlay_pass_through(GTK_OVERLAY(overlay), dock_label, TRUE);
 
-        const char *transform = "translateY(-20px)";
-        if (strcmp(dock_config.position, "left") == 0) transform = "translateX(20px)";
-        else if (strcmp(dock_config.position, "right") == 0) transform = "translateX(-20px)";
-        const char *highlight = "rgba(255,255,255,0.18)";
         css = g_strdup_printf(
             "window { background-color: transparent; } "
             "#dock-shelf { background-color: rgba(255,255,255,0.15); border-radius: 100px; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: all 0.3s ease; }"
-            "#dock-item, #dock-item-add { padding: 8px; border-radius: 100px; transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease; }"
-            "#dock-item:hover { transform: scale(2.0) %s; background: %s; } #dock-item:active { transform: scale(1.5) %s; background: %s; } #dock-item-add:hover { transform: scale(1.6); background: %s; } #dock-item-add:active { transform: scale(1.2); background: %s; }"
-            "#dock-label { color: #ffffff; background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 10px; font-size: 12px; max-width: 200px; font-weight: 700; text-shadow: none; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }",
-            transform, highlight, transform, highlight, highlight, highlight
+            "#dock-item, #dock-item-add { background: transparent; border-radius: 100px; }"
+            "#dock-label { color: #ffffff; background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; text-shadow: none; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }"
         );
     } else {
         gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);
