@@ -2744,6 +2744,13 @@ class SettingsManager(Gtk.Window):
                         mx.stdout.decode(errors="replace").strip())
                 except Exception as e:
                     logger.warning(f"Pre-reload brightness probe failed: {e}")
+                
+                # Prevent hypridle from glitch-blanking the screen during reload 
+                _hypridle_was_running = subprocess.run(["pgrep", "-x", "hypridle"], capture_output=True).returncode == 0
+                if _hypridle_was_running:
+                    subprocess.run(["pkill", "-x", "hypridle"], capture_output=True)
+                    time.sleep(0.2)
+
                 rc = subprocess.run(["hyprctl", "reload"],
                                     capture_output=True, timeout=30)
                 if rc.returncode != 0:
@@ -2811,7 +2818,8 @@ class SettingsManager(Gtk.Window):
             # NOTE: lockscreen is deliberately excluded — hyprlock reads its
             # conf at next lock, so lock-wallpaper tweaks need no daemon
             # restart and no display pulses at all.
-            if (changed & {"idle", "sleep", "wake"}) and _idle_changed:
+            _force_hypridle_restart = locals().get("_hypridle_was_running", False)
+            if ((changed & {"idle", "sleep", "wake"}) and _idle_changed) or _force_hypridle_restart:
                 inhibited = False
                 try:
                     with open(os.path.expanduser("~/.config/hypr/toggles.state")) as f:
@@ -2863,8 +2871,14 @@ class SettingsManager(Gtk.Window):
                     sys_msg = " System rules not installed (no password) — lid/power/wake-at-boot unchanged."
             # Final display pulse, every Apply: whatever ran above must never
             # leave the panel dark or the output off. Both are idempotent.
-            subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'],
-                           capture_output=True, timeout=10)
+            time.sleep(1.0)
+            try:
+                probe = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, timeout=10)
+                mons = json.loads(probe.stdout.decode())
+                if mons and not all(m.get("dpmsStatus", True) for m in mons):
+                    subprocess.run(["hyprctl", "dispatch", 'hl.dsp.dpms({ power = true })'], capture_output=True, timeout=10)
+            except Exception:
+                pass
             subprocess.run(["brightnessctl", "-r"], capture_output=True, timeout=10)
             subprocess.run(["notify-send", "Settings Applied", f"System updated.{sys_msg}"],
                            capture_output=True, timeout=5)

@@ -41,8 +41,14 @@ do_off() {
     if ! pgrep -x hypridle >/dev/null 2>&1; then
         hypridle >/dev/null 2>&1 &
     fi
-    # Refresh the display in case we engage while dimmed.
-    hyprctl dispatch 'hl.dsp.dpms({ power = true })' >/dev/null 2>&1 || true
+    # Give hypridle a moment to start and fire any pending idle timeouts 
+    # (since consumed keybinds sometimes don't reset the compositor's idle clock)
+    sleep 0.5
+    
+    # Refresh the display in case we engage while dimmed, or if hypridle just blanked it.
+    if hyprctl monitors -j | grep -q '"dpmsStatus": false'; then
+        hyprctl dispatch 'hl.dsp.dpms({ power = true })' >/dev/null 2>&1 || true
+    fi
     brightnessctl -r >/dev/null 2>&1 || true
     notify-send -t 2500 "HyprDE Idle" "Idle timers ON — dim/lock/screen-off resumed" 2>/dev/null || true
 }
