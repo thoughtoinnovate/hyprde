@@ -262,11 +262,21 @@ gboolean on_dock_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user
         gtk_widget_set_margin_start(dock_label, 0); gtk_widget_set_margin_top(dock_label, 0);
         
         if (strcmp(dock_config.position, "left") == 0 || strcmp(dock_config.position, "right") == 0) {
-            gtk_widget_set_margin_top(dock_label, y + (alloc.height / 2) - (req.height / 2));
+            int max_y = gtk_widget_get_allocated_height(gtk_widget_get_parent(dock_shelf)) - req.height;
+            int target_y = y + (alloc.height / 2) - (req.height / 2);
+            if (target_y < 0) target_y = 0;
+            if (target_y > max_y && max_y > 0) target_y = max_y;
+            gtk_widget_set_margin_top(dock_label, target_y);
+            
             if (strcmp(dock_config.position, "left") == 0) gtk_widget_set_margin_start(dock_label, x + alloc.width + 12);
             else gtk_widget_set_margin_start(dock_label, x - req.width - 12);
         } else {
-            gtk_widget_set_margin_start(dock_label, x + (alloc.width / 2) - (req.width / 2));
+            int max_x = gtk_widget_get_allocated_width(gtk_widget_get_parent(dock_shelf)) - req.width;
+            int target_x = x + (alloc.width / 2) - (req.width / 2);
+            if (target_x < 0) target_x = 0;
+            if (target_x > max_x && max_x > 0) target_x = max_x;
+            gtk_widget_set_margin_start(dock_label, target_x);
+            
             if (strcmp(dock_config.position, "top") == 0) gtk_widget_set_margin_top(dock_label, y + alloc.height + 12);
             else gtk_widget_set_margin_top(dock_label, y - req.height - 12);
         }
@@ -926,6 +936,7 @@ int main(int argc, char *argv[]) {
         gtk_container_add(GTK_CONTAINER(dock_shelf), icons_box); gtk_container_add(GTK_CONTAINER(overlay), dock_shelf);
 
         dock_label = gtk_label_new(""); gtk_widget_set_name(dock_label, "dock-label");
+        gtk_label_set_line_wrap(GTK_LABEL(dock_label), TRUE); gtk_label_set_max_width_chars(GTK_LABEL(dock_label), 30);
         gtk_widget_set_no_show_all(dock_label, TRUE); gtk_widget_set_halign(dock_label, GTK_ALIGN_START);
         gtk_widget_set_valign(dock_label, GTK_ALIGN_START); gtk_widget_set_can_focus(dock_label, FALSE);
         gtk_overlay_add_overlay(GTK_OVERLAY(overlay), dock_label);
@@ -938,9 +949,9 @@ int main(int argc, char *argv[]) {
             "window { background-color: transparent; } "
             "#dock-shelf { background-color: rgba(255,255,255,0.15); border-radius: 100px; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: all 0.3s ease; }"
             "#dock-item, #dock-item-add { padding: 8px; border-radius: 100px; transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease; }"
-            "#dock-item:hover { transform: scale(2.0) %s; background: %s; } #dock-item-add:hover { transform: scale(1.6); background: %s; }"
-            "#dock-label { color: #ffffff; background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; text-shadow: none; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }",
-            transform, highlight, highlight
+            "#dock-item:hover { transform: scale(2.0) %s; background: %s; } #dock-item:active { transform: scale(1.5) %s; background: %s; } #dock-item-add:hover { transform: scale(1.6); background: %s; } #dock-item-add:active { transform: scale(1.2); background: %s; }"
+            "#dock-label { color: #ffffff; background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 10px; font-size: 12px; max-width: 200px; font-weight: 700; text-shadow: none; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }",
+            transform, highlight, transform, highlight, highlight, highlight
         );
     } else {
         gtk_widget_set_halign(centered_box, GTK_ALIGN_FILL);
