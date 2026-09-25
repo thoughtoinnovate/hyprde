@@ -481,6 +481,8 @@ def _merge_general(config: dict, data: dict):
     for k, v in gen.items():
         if k.startswith("col_"):
             color_section[k[4:]] = _parse_border_value(v)
+        elif k == "layout" and v == "scroll":
+            section[k] = "scrolling"
         else:
             section[k] = v
     if color_section:
@@ -741,7 +743,9 @@ def _write_workspace_rules(lines: list, data: dict):
             lines.append(f"-- [[ SKIPPED invalid workspace rule: {rule} ]]")
             continue
         selector = _value_to_lua(parts[0])
-        lines.append(f"hl.workspace_rule({{ workspace = {selector}, {parts[1]} }})")
+        rule_opts = parts[1]
+        rule_opts = re.sub(r'layout\s*=\s*["\']scroll["\']', 'layout = "scrolling"', rule_opts)
+        lines.append(f"hl.workspace_rule({{ workspace = {selector}, {rule_opts} }})")
     lines.append("")
 
 

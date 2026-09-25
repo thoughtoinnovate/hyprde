@@ -114,6 +114,22 @@ class TestLuaGeneratorConfig(unittest.TestCase):
         self.assertIn("col = {", lua)
         self.assertNotIn("col_active_border", lua)
 
+    def test_general_layout_scroll_maps_to_scrolling(self):
+        """Hyprland native layout name is 'scrolling'; 'scroll' must map to 'scrolling'."""
+        data = {"general": {"layout": "scroll"}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn('layout = "scrolling"', lua)
+        self.assertNotIn('layout = "scroll"', lua)
+
+    def test_general_layout_preserves_dwindle_and_master(self):
+        data_dwindle = {"general": {"layout": "dwindle"}}
+        lua_d = lua_generator.generate_user_lua(data_dwindle)
+        self.assertIn('layout = "dwindle"', lua_d)
+
+        data_master = {"general": {"layout": "master"}}
+        lua_m = lua_generator.generate_user_lua(data_master)
+        self.assertIn('layout = "master"', lua_m)
+
     def test_input_section(self):
         """Test input section with nested touchpad."""
         data = {
@@ -785,6 +801,13 @@ class TestLuaGeneratorPassthrough(unittest.TestCase):
         lua = lua_generator.generate_user_lua(data)
         self.assertIn("hl.workspace_rule({ workspace =", lua)
         self.assertIn("persistent = true", lua)
+
+    def test_workspace_rules_layout_scroll_normalized(self):
+        """Workspace rules with layout = 'scroll' must normalize to 'scrolling'."""
+        data = {"rules": {"workspace": ['1, layout = "scroll"', '2, layout = "master"']}}
+        lua = lua_generator.generate_user_lua(data)
+        self.assertIn('hl.workspace_rule({ workspace = "1", layout = "scrolling" })', lua)
+        self.assertIn('hl.workspace_rule({ workspace = "2", layout = "master" })', lua)
 
 
 class TestBuildConfigHyprrocketOptions(unittest.TestCase):

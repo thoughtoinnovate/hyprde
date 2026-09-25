@@ -8,9 +8,15 @@ if [ -z "$CURRENT_LAYOUT" ]; then
 fi
 if [ "$CURRENT_LAYOUT" == "dwindle" ]; then
     # Dwindle does not support most of these scroll commands.
-    # We will map "promote" to swapping the window, or just suppress the error.
+    # We map "promote" to swapping the window, or just suppress the error.
     case "$1" in
         promote) hyprctl dispatch 'hl.dispatch("swapwindow", "u")' ;;
+        *) exit 0 ;; # Suppress error for others
+    esac
+elif [ "$CURRENT_LAYOUT" == "master" ]; then
+    # Master layout: promote swaps with master window; scroll commands are suppressed.
+    case "$1" in
+        promote) hyprctl dispatch 'hl.dsp.layout("swapwithmaster auto")' ;;
         *) exit 0 ;; # Suppress error for others
     esac
 else

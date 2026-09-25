@@ -1,5 +1,5 @@
 #!/bin/bash
-# Toggle split that works in both dwindle and scroll layouts
+# Toggle split that works across dwindle, master, and scroll layouts
 # (Hyprland 0.55+ Lua dispatch syntax).
 # NOTE: layouts are per-workspace since 0.54, so check the ACTIVE WORKSPACE,
 # not the global default.
@@ -9,6 +9,8 @@ if [ -z "$CURRENT_LAYOUT" ]; then
 fi
 if [ "$CURRENT_LAYOUT" == "dwindle" ]; then
     hyprctl dispatch 'hl.dsp.layout("togglesplit")'
+elif [ "$CURRENT_LAYOUT" == "master" ]; then
+    hyprctl dispatch 'hl.dsp.layout("orientationnext")'
 else
     hyprctl dispatch 'hl.dsp.layout("consume_or_expel prev")'
 fi

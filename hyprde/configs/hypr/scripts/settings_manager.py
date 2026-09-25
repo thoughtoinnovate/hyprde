@@ -1392,6 +1392,29 @@ class SettingsManager(Gtk.Window):
 
     # --- PAGE BUILDERS ---
 
+    def _sync_layout_selection(self, source_combo):
+        act = source_combo.get_active_id()
+        if not act or getattr(self, '_syncing_layout', False):
+            return
+        self._syncing_layout = True
+        try:
+            for key in ['layout', 'layout_tuning', 'layout_monitors']:
+                if key in self.widgets and self.widgets[key] != source_combo:
+                    if self.widgets[key].get_active_id() != act:
+                        self.widgets[key].set_active_id(act)
+        finally:
+            self._syncing_layout = False
+
+        # Live layout preview in Hyprland session
+        rule_layout = 'scrolling' if act == 'scroll' else act
+        try:
+            subprocess.run([
+                "hyprctl", "repl",
+                f"for i=1,10 do hl.workspace_rule({{ workspace = tostring(i), layout = '{rule_layout}' }}) end; return true"
+            ], capture_output=True, timeout=2)
+        except Exception:
+            pass
+
     def build_appearance(self):
         v = self.build_page_vbox("Desktop Appearance")
         f = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f.get_style_context().add_class("group-frame")
@@ -1410,7 +1433,10 @@ class SettingsManager(Gtk.Window):
         f4 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f4.get_style_context().add_class("group-frame")
         self.widgets['layout'] = Gtk.ComboBoxText()
         for val in ["dwindle", "master", "scroll"]: self.widgets['layout'].append(val, val.capitalize())
-        self.widgets['layout'].set_active_id(self._tg('general','layout','scroll'))
+        init_layout = self._tg('general','layout','scroll')
+        if init_layout == 'scrolling': init_layout = 'scroll'
+        self.widgets['layout'].set_active_id(init_layout)
+        self.widgets['layout'].connect("changed", self._sync_layout_selection)
         f4.pack_start(self.create_row("Window Layout", self.widgets['layout']), False, False, 0)
         self.widgets['resize_on_border'] = Gtk.Switch(); self.widgets['resize_on_border'].set_active(self._tg('general','resize_on_border',False)); f4.pack_start(self.create_row("Resize on Border Drag", self.widgets['resize_on_border']), False, False, 0)
         self.widgets['allow_tearing'] = Gtk.Switch(); self.widgets['allow_tearing'].set_active(self._tg('general','allow_tearing',False)); f4.pack_start(self.create_row("Allow Tearing", self.widgets['allow_tearing']), False, False, 0)
@@ -1522,6 +1548,18 @@ class SettingsManager(Gtk.Window):
         self.widgets['monitor_scale'].set_active_id(current_scale)
         f1.pack_start(self.create_row("Global UI Scale", self.widgets['monitor_scale']), False, False, 0)
         v.pack_start(f1, False, False, 0)
+
+        f_lay = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f_lay.get_style_context().add_class("group-frame")
+        self.widgets['layout_monitors'] = Gtk.ComboBoxText()
+        for val in ["dwindle", "master", "scroll"]: self.widgets['layout_monitors'].append(val, val.capitalize())
+        init_m = self._tg('general','layout','scroll')
+        if init_m == 'scrolling': init_m = 'scroll'
+        if 'layout' in self.widgets and self.widgets['layout'].get_active_id():
+            init_m = self.widgets['layout'].get_active_id()
+        self.widgets['layout_monitors'].set_active_id(init_m)
+        self.widgets['layout_monitors'].connect("changed", self._sync_layout_selection)
+        f_lay.pack_start(self.create_row("Window Layout", self.widgets['layout_monitors']), False, False, 0)
+        v.pack_start(f_lay, False, False, 0)
 
         f, self.widgets['monitor_list'] = self.build_dynamic_list(rules, "Advanced Monitor Rules (name, res, pos, scale)")
         v.pack_start(f, False, False, 0)
@@ -2143,6 +2181,22 @@ class SettingsManager(Gtk.Window):
 
     def build_layouts(self):
         v = self.build_page_vbox("Layout Tuning")
+        f0 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f0.get_style_context().add_class("group-frame")
+        lbl0 = Gtk.Label(label="Global Layout"); lbl0.set_xalign(0); lbl0.set_margin_bottom(6); f0.pack_start(lbl0, False, False, 0)
+        self.widgets['layout_tuning'] = Gtk.ComboBoxText()
+        for val in ["dwindle", "master", "scroll"]:
+            self.widgets['layout_tuning'].append(val, val.capitalize())
+        init_tuning = self._tg('general', 'layout', 'scroll')
+        if init_tuning == 'scrolling':
+            init_tuning = 'scroll'
+        if 'layout' in self.widgets and self.widgets['layout'].get_active_id():
+            init_tuning = self.widgets['layout'].get_active_id()
+        self.widgets['layout_tuning'].set_active_id(init_tuning)
+        self.widgets['layout_tuning'].connect("changed", self._sync_layout_selection)
+
+        f0.pack_start(self.create_row("Window Layout", self.widgets['layout_tuning']), False, False, 0)
+        v.pack_start(f0, False, False, 0)
+
         f1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5); f1.get_style_context().add_class("group-frame")
         lbl1 = Gtk.Label(label="Dwindle"); lbl1.set_xalign(0); lbl1.set_margin_bottom(6); f1.pack_start(lbl1, False, False, 0)
         self.widgets['dwindle_preserve_split'] = Gtk.Switch(); self.widgets['dwindle_preserve_split'].set_active(self._tg('dwindle','preserve_split',True)); f1.pack_start(self.create_row("Preserve Split", self.widgets['dwindle_preserve_split']), False, False, 0)
@@ -2386,7 +2440,37 @@ class SettingsManager(Gtk.Window):
         for k in ['gaps_in','gaps_out','border_size']: self.doc['general'][k] = int(self.widgets[k].get_value())
         for k in ['rounding','active_opacity','inactive_opacity','waybar_opacity','launcher_opacity']:
             self.doc['decoration'][k] = self.widgets[k].get_value() if 'opacity' in k else int(self.widgets[k].get_value())
-        self.doc['general']['layout'] = self.widgets['layout'].get_active_id()
+        target_layout = None
+        for k in ['layout', 'layout_tuning', 'layout_monitors']:
+            if k in self.widgets and self.widgets[k].get_active_id():
+                target_layout = self.widgets[k].get_active_id()
+                break
+        if not target_layout:
+            target_layout = self._tg('general', 'layout', 'scroll')
+        if target_layout == 'scrolling':
+            target_layout = 'scroll'
+        self.doc['general']['layout'] = target_layout
+
+        # Keep workspace rules in sync with general.layout (Hyprland 0.54+ per-workspace)
+        rule_layout = 'scrolling' if target_layout == 'scroll' else target_layout
+        if 'rules' not in self.doc:
+            self.doc['rules'] = tomlkit.table()
+        ws_rules = list(self.doc['rules'].get('workspace', []))
+        layout_nums = set()
+        new_ws_rules = []
+        for r in ws_rules:
+            m = re.match(r'^(\d+)\s*,\s*layout\s*=', r)
+            if m:
+                num = int(m.group(1))
+                layout_nums.add(num)
+                new_ws_rules.append(f'{num}, layout = "{rule_layout}"')
+            else:
+                new_ws_rules.append(r)
+        for i in range(1, 11):
+            if i not in layout_nums:
+                new_ws_rules.append(f'{i}, layout = "{rule_layout}"')
+        self.doc['rules']['workspace'] = new_ws_rules
+
         self.doc['general']['resize_on_border'] = self.widgets['resize_on_border'].get_active()
         self.doc['general']['allow_tearing'] = self.widgets['allow_tearing'].get_active()
 
@@ -2705,7 +2789,7 @@ class SettingsManager(Gtk.Window):
             except OSError as e:
                 logger.warning(f"Theme symlink update failed: {e}")
 
-            subprocess.run(["python3", os.path.expanduser("~/.config/hypr/build_config.py")],
+            subprocess.run([sys.executable, os.path.expanduser("~/.config/hypr/build_config.py")],
                            capture_output=True, timeout=120)
 
             _lua_changed = _sha(_lua_path) != _lua_before
@@ -2759,6 +2843,14 @@ class SettingsManager(Gtk.Window):
                     GLib.idle_add(self._on_apply_error,
                                   f"Hyprland reload failed — config left as rebuilt, session untouched: {err}")
                     return
+
+                if changed & {"general", "rules"}:
+                    target_layout = self.doc.get('general', {}).get('layout', 'dwindle')
+                    rule_layout = 'scrolling' if target_layout == 'scroll' else target_layout
+                    subprocess.run([
+                        "hyprctl", "repl",
+                        f"for i=1,10 do hl.workspace_rule({{ workspace = tostring(i), layout = '{rule_layout}' }}) end; return true"
+                    ], capture_output=True, timeout=5)
                 # Poll (never fixed-sleep): up to 15s, 3s cadence. Timeout
                 # aborts the chain loudly instead of presenting success over
                 # a wedged session.
